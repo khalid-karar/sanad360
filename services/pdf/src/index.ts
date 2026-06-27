@@ -1,7 +1,10 @@
+// Load .env into process.env BEFORE any module that reads Supabase config.
+import './lib/env.js';
 import express from 'express';
 import { authMiddleware } from './lib/auth.js';
 import { handleSinglePickup } from './routes/single.js';
 import { handleMonthly } from './routes/monthly.js';
+import { handleOnboardCompany } from './routes/onboard.js';
 import type { AuthedRequest } from './types.js';
 
 const app = express();
@@ -36,6 +39,10 @@ app.post(
   authMiddleware,
   (req, res) => handleMonthly(req as AuthedRequest, res)
 );
+
+// Admin onboarding — does its own JWT + admin-membership check (NOT authMiddleware,
+// which only requires *any* membership). Never exposes the service-role key.
+app.post('/admin/onboard-company', (req, res) => handleOnboardCompany(req, res));
 
 app.listen(PORT, () => {
   console.log(`[pdf-service] Listening on http://localhost:${PORT}`);

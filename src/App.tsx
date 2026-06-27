@@ -21,6 +21,8 @@ import VehicleManagementPage from './pages/VehicleManagementPage';
 import PickupLogPage from './pages/PickupLogPage';
 import BranchesPage from './pages/BranchesPage';
 import ProfilePage from './pages/ProfilePage';
+import PickupSchedulePage from './components/schedule/PickupSchedulePage';
+import MySchedulePage from './components/schedule/MySchedulePage';
 
 // Role → route mapping (keeps the existing URL scheme)
 const roleRoute: Record<string, string> = {
@@ -125,6 +127,14 @@ function App() {
           }
         />
         <Route
+          path="/driver/schedule"
+          element={
+            user?.role === 'driver'
+              ? <MySchedulePage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
           path="/company"
           element={
             user && ['owner', 'manager'].includes(user.role)
@@ -145,6 +155,14 @@ function App() {
           element={
             user && ['owner', 'manager'].includes(user.role)
               ? <PickupLogPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/company/schedule"
+          element={
+            user && ['owner', 'manager', 'dispatcher'].includes(user.role)
+              ? <PickupSchedulePage />
               : <Navigate to="/login" replace />
           }
         />

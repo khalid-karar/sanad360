@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { listAllCompanies } from '../../lib/api/admin';
 import type { Company as DbCompany } from '../../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { SearchIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
+import { SearchIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon } from 'lucide-react';
+import OnboardCompanyForm from './OnboardCompanyForm';
 
 interface Company {
   id: string;
@@ -20,8 +21,9 @@ export default function CompaniesTable() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [showOnboard, setShowOnboard] = useState(false);
 
-  useEffect(() => {
+  const loadCompanies = useCallback(() => {
     listAllCompanies()
       .then((rows: DbCompany[]) =>
         setCompanies(
@@ -36,6 +38,10 @@ export default function CompaniesTable() {
       )
       .catch(() => setCompanies([]));
   }, [isRTL]);
+
+  useEffect(() => {
+    loadCompanies();
+  }, [loadCompanies]);
 
   const filteredCompanies = companies.filter((company) =>
     company.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -72,10 +78,20 @@ export default function CompaniesTable() {
 
   return (
     <Card className="bg-card text-card-foreground border-border">
-      <CardHeader>
+      {showOnboard && (
+        <OnboardCompanyForm
+          onClose={() => setShowOnboard(false)}
+          onSuccess={() => loadCompanies()}
+        />
+      )}
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-foreground">
           {isRTL ? 'المنشآت المسجلة' : 'Registered Companies'}
         </CardTitle>
+        <Button onClick={() => setShowOnboard(true)} className="gap-2">
+          <PlusIcon className="w-4 h-4" />
+          {isRTL ? 'إضافة منشأة' : 'Add Company'}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative">
