@@ -24,6 +24,9 @@ import ProfilePage from './pages/ProfilePage';
 import PickupSchedulePage from './components/schedule/PickupSchedulePage';
 import MySchedulePage from './components/schedule/MySchedulePage';
 import ApprovedTransportersPage from './components/company/ApprovedTransportersPage';
+import CompaniesPage from './pages/CompaniesPage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
 
 // Role → route mapping (keeps the existing URL scheme)
 const roleRoute: Record<string, string> = {
@@ -188,6 +191,30 @@ function App() {
           element={
             user?.role === 'admin'
               ? <AdminDashboard />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/admin/companies"
+          element={
+            user?.role === 'admin'
+              ? <CompaniesPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            user?.role === 'admin'
+              ? <AdminUsersPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/admin/analytics"
+          element={
+            user?.role === 'admin'
+              ? <AdminAnalyticsPage />
               : <Navigate to="/login" replace />
           }
         />

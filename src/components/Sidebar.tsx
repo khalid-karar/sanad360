@@ -38,9 +38,9 @@ export default function Sidebar({ role }: SidebarProps) {
 
   const adminLinks = [
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/admin' },
-    { icon: Building2Icon, label: isRTL ? 'المنشآت' : 'Companies', path: '/admin' },
-    { icon: UsersIcon, label: isRTL ? 'المستخدمون' : 'Users', path: '/admin' },
-    { icon: BarChart3Icon, label: isRTL ? 'التحليلات' : 'Analytics', path: '/admin' },
+    { icon: Building2Icon, label: isRTL ? 'المنشآت' : 'Companies', path: '/admin/companies' },
+    { icon: UsersIcon, label: isRTL ? 'المستخدمون' : 'Users', path: '/admin/users' },
+    { icon: BarChart3Icon, label: isRTL ? 'التحليلات' : 'Analytics', path: '/admin/analytics' },
   ];
 
   const transportLinks = [
