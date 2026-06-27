@@ -1,11 +1,11 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- Tadweer360 – Dev Seed
+-- Sanad 360 – Dev Seed
 -- Creates: 1 company, 1 branch, 1 transport company, 1 driver record,
 --          1 vehicle, 2 auth users (manager + driver), 2 memberships.
 --
 -- Credentials (local dev only — never use in production):
---   Company manager: manager@tadweer360.dev / DevPass1234!
---   Driver:          0501234567@driver.tadweer360.com / DevPass1234!
+--   Company manager: manager@sanad360.dev / DevPass1234!
+--   Driver:          0501234567@driver.sanad360.com / DevPass1234!
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Fixed UUIDs make this seed idempotent and test-referenceable.
@@ -27,7 +27,7 @@ INSERT INTO auth.users (
   '00000000-0000-0000-0000-000000000000',
   'f0000000-0000-0000-0000-000000000001',
   'authenticated', 'authenticated',
-  'manager@tadweer360.dev',
+  'manager@sanad360.dev',
   crypt('DevPass1234!', gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}',
@@ -38,11 +38,11 @@ INSERT INTO auth.users (
   '00000000-0000-0000-0000-000000000000',
   'f0000000-0000-0000-0000-000000000002',
   'authenticated', 'authenticated',
-  '0501234567@driver.tadweer360.com',
+  '0501234567@driver.sanad360.com',
   crypt('DevPass1234!', gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}',
-  '{"name_ar":"أحمد محمد السائق","phone":"0501234567"}',
+  '{"name_ar":"محمد بن عبدالله الغامدي","phone":"0501234567"}',
   now(), now(), '', '', '', ''
 )
 ON CONFLICT (id) DO NOTHING;
@@ -55,15 +55,15 @@ INSERT INTO auth.identities (
 (
   'f0000000-0000-0000-0000-000000000001',
   'f0000000-0000-0000-0000-000000000001',
-  'manager@tadweer360.dev',
-  '{"sub":"f0000000-0000-0000-0000-000000000001","email":"manager@tadweer360.dev"}'::jsonb,
+  'manager@sanad360.dev',
+  '{"sub":"f0000000-0000-0000-0000-000000000001","email":"manager@sanad360.dev"}'::jsonb,
   'email', now(), now(), now()
 ),
 (
   'f0000000-0000-0000-0000-000000000002',
   'f0000000-0000-0000-0000-000000000002',
-  '0501234567@driver.tadweer360.com',
-  '{"sub":"f0000000-0000-0000-0000-000000000002","email":"0501234567@driver.tadweer360.com"}'::jsonb,
+  '0501234567@driver.sanad360.com',
+  '{"sub":"f0000000-0000-0000-0000-000000000002","email":"0501234567@driver.sanad360.com"}'::jsonb,
   'email', now(), now(), now()
 )
 ON CONFLICT (id) DO NOTHING;
@@ -80,7 +80,7 @@ VALUES
 ),
 (
   'f0000000-0000-0000-0000-000000000002',
-  'أحمد محمد السائق', 'Ahmed Mohammed (Driver)', '0501234567'
+  'محمد بن عبدالله الغامدي', 'Mohammed Abdullah Al-Ghamdi', '0501234567'
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -90,8 +90,8 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.companies (id, name_ar, name_en, commercial_registration)
 VALUES (
   'a0000000-0000-0000-0000-000000000001',
-  'شركة المذاق الأصيل للمطاعم',
-  'Al-Mazaq Al-Aseel Restaurants Co.',
+  'شركة الأمل للأغذية',
+  'Al-Amal Food Company',
   '1010000001'
 )
 ON CONFLICT (id) DO NOTHING;
@@ -107,8 +107,8 @@ INSERT INTO public.branches (
 VALUES (
   'b0000000-0000-0000-0000-000000000001',
   'a0000000-0000-0000-0000-000000000001',
-  'فرع العليا – الرياض',
-  'Olaya Branch – Riyadh',
+  'فرع الرياض - حي العليا',
+  'Riyadh Branch - Al-Olaya District',
   'شارع العليا، حي العليا، الرياض',
   'Riyadh',
   24.6877,  -- latitude (Al-Olaya, Riyadh)
@@ -128,8 +128,8 @@ INSERT INTO public.transport_companies (
 )
 VALUES (
   'c0000000-0000-0000-0000-000000000001',
-  'شركة نقل النفايات السعودية',
-  'Saudi Waste Transport Co.',
+  'شركة سند للنقل المتكامل',
+  'Sanad Integrated Transport',
   '1010000002',
   'NCWM-2024-001',
   '2026-12-31'
@@ -148,9 +148,9 @@ VALUES (
   'd0000000-0000-0000-0000-000000000001',
   'c0000000-0000-0000-0000-000000000001',
   'f0000000-0000-0000-0000-000000000002',  -- driver auth user
-  'أحمد محمد السائق',
-  'DL-SA-2024-001',
-  '2027-12-31',
+  'محمد بن عبدالله الغامدي',
+  'SA-2024-001',
+  '2027-06-30',
   true,
   'active'
 )
@@ -170,7 +170,7 @@ INSERT INTO public.vehicles (
 VALUES (
   'e0000000-0000-0000-0000-000000000001',
   'c0000000-0000-0000-0000-000000000001',
-  'ABD-1234',
+  'أ ب ج 1234',
   'medium_truck',
   'general',
   'VEH-NCWM-001',

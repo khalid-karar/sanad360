@@ -11,7 +11,7 @@ function renderError(message: string) {
       background: '#0f172a', color: '#f8fafc',
     }}>
       <h1 style={{ color: '#ef4444', marginBottom: '1rem' }}>
-        ⚠ Tadweer360 — startup error
+        ⚠ Sanad 360 — startup error
       </h1>
       <pre style={{
         background: '#1e293b', padding: '1.5rem', borderRadius: '8px',

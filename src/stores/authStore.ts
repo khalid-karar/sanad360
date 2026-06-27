@@ -11,7 +11,7 @@ interface AuthState {
   isRTL: boolean;
   isLoading: boolean;
   error: string | null;
-  /** Sign in with email + password. Drivers use {phone}@driver.tadweer360.com format. */
+  /** Sign in with email + password. Drivers use {phone}@driver.sanad360.com format. */
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   /**

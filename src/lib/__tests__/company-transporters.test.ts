@@ -36,9 +36,9 @@ const SEED = {
   driverId: 'd0000000-0000-0000-0000-000000000001',
   vehicleId: 'e0000000-0000-0000-0000-000000000001',
   linkId: 'f1000000-0000-0000-0000-000000000001',
-  managerEmail: 'manager@tadweer360.dev',
+  managerEmail: 'manager@sanad360.dev',
   managerPassword: 'DevPass1234!',
-  driverEmail: '0501234567@driver.tadweer360.com',
+  driverEmail: '0501234567@driver.sanad360.com',
   driverPassword: 'DevPass1234!',
 };
 
@@ -80,6 +80,11 @@ const cleanup = {
   addedLinkIds: [] as string[],
   company2Id: null as string | null,
   company2LinkId: null as string | null,
+  // Task 0 — link-isolation fixtures (TC2 linked to company2 only, NOT company1)
+  tc2Id: null as string | null,
+  tc2DriverId: null as string | null,
+  tc2VehicleId: null as string | null,
+  tc2LinkId: null as string | null,
 };
 
 describe('Phase 3c — Company Transporters', () => {
@@ -123,13 +128,71 @@ describe('Phase 3c — Company Transporters', () => {
         .select('id').single<{ id: string }>();
       cleanup.company2LinkId = l2?.id ?? null;
     }
+
+    // Task 0 fixture: a *separate* transport company (TC2) with its own driver +
+    // vehicle, linked ONLY to company2 — never to company1. Used by test 7 to
+    // prove company1's manager cannot read TC2's drivers/vehicles.
+    const { data: tc2b } = await admin
+      .from('transport_companies')
+      .insert({ name_ar: 'شركة نقل معزولة', commercial_registration: `TC2B-${stamp}` })
+      .select('id').single<{ id: string }>();
+    cleanup.tc2Id = tc2b?.id ?? null;
+
+    if (cleanup.tc2Id) {
+      const { data: drv } = await admin
+        .from('drivers')
+        .insert({
+          transport_company_id: cleanup.tc2Id,
+          name_ar: 'سائق معزول',
+          license_number: `ISO-${stamp}`,
+          license_expiry: '2030-01-01',
+          status: 'active',
+        })
+        .select('id').single<{ id: string }>();
+      cleanup.tc2DriverId = drv?.id ?? null;
+
+      const { data: veh } = await admin
+        .from('vehicles')
+        .insert({
+          transport_company_id: cleanup.tc2Id,
+          plate_number: `ISO-${stamp}`,
+          type: 'small_truck',
+          waste_license_type: 'general',
+          ncwm_license_expiry: '2030-01-01',
+          status: 'active',
+        })
+        .select('id').single<{ id: string }>();
+      cleanup.tc2VehicleId = veh?.id ?? null;
+
+      // Link TC2 to company2 (active) so TC2 IS linked somewhere, just not to
+      // company1 — isolating the "no link to ME" path rather than "no link at all".
+      if (cleanup.company2Id) {
+        const { data: l3 } = await admin
+          .from('company_transporters')
+          .insert({
+            company_id: cleanup.company2Id,
+            transport_company_id: cleanup.tc2Id,
+            status: 'active',
+          })
+          .select('id').single<{ id: string }>();
+        cleanup.tc2LinkId = l3?.id ?? null;
+      }
+    }
   });
 
   afterAll(async () => {
     if (cleanup.addedLinkIds.length)
       await admin.from('company_transporters').delete().in('id', cleanup.addedLinkIds);
+    if (cleanup.tc2LinkId)
+      await admin.from('company_transporters').delete().eq('id', cleanup.tc2LinkId);
     if (cleanup.company2LinkId)
       await admin.from('company_transporters').delete().eq('id', cleanup.company2LinkId);
+    if (cleanup.tc2DriverId)
+      await admin.from('drivers').delete().eq('id', cleanup.tc2DriverId);
+    if (cleanup.tc2VehicleId)
+      await admin.from('vehicles').delete().eq('id', cleanup.tc2VehicleId);
+    if (cleanup.tc2Id)
+      await admin.from('transport_companies').delete().eq('id', cleanup.tc2Id);
     if (cleanup.company2Id)
       await admin.from('companies').delete().eq('id', cleanup.company2Id);
     if (secondTransportCompanyId)
@@ -216,14 +279,15 @@ describe('Phase 3c — Company Transporters', () => {
 
   // ═══════════════════════════════════════════════════════════════════════════
   it('6. getDriversAndVehiclesForCompany returns empty when no links', async () => {
-    // company2's only link is inactive-eligible? No — it's active. Deactivate it
-    // so company2 has no ACTIVE links, then assert empty pools (use admin client
-    // to read regardless of RLS — the resolver only depends on active links).
+    // company2 has TWO active links: company2→seededTC (company2LinkId) and
+    // company2→tc2 (tc2LinkId). Deactivate both so company2 has zero active links,
+    // then assert empty pools.
     expect(cleanup.company2LinkId).not.toBeNull();
+    expect(cleanup.tc2LinkId).not.toBeNull();
     await admin
       .from('company_transporters')
       .update({ status: 'inactive' })
-      .eq('id', cleanup.company2LinkId!);
+      .in('id', [cleanup.company2LinkId!, cleanup.tc2LinkId!]);
 
     const { drivers, vehicles } = await getDriversAndVehiclesForCompany(
       admin,
@@ -231,5 +295,34 @@ describe('Phase 3c — Company Transporters', () => {
     );
     expect(drivers).toHaveLength(0);
     expect(vehicles).toHaveLength(0);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  it("7. Link isolation — company1 manager cannot see an unlinked TC's drivers/vehicles", async () => {
+    // TC2 (with its own driver + vehicle) is linked to company2 only — never to
+    // company1. The seeded manager belongs to company1, so the 005 link-gated
+    // SELECT policies must return ZERO rows for TC2's drivers and vehicles.
+    expect(cleanup.tc2Id).not.toBeNull();
+    expect(cleanup.tc2DriverId).not.toBeNull();
+    expect(cleanup.tc2VehicleId).not.toBeNull();
+
+    const { data: drivers, error: dErr } = await managerClient
+      .from('drivers')
+      .select('id')
+      .eq('transport_company_id', cleanup.tc2Id!);
+    expect(dErr).toBeNull();
+    expect(drivers).toHaveLength(0);
+
+    const { data: vehicles, error: vErr } = await managerClient
+      .from('vehicles')
+      .select('id')
+      .eq('transport_company_id', cleanup.tc2Id!);
+    expect(vErr).toBeNull();
+    expect(vehicles).toHaveLength(0);
+
+    // Sanity: admin (RLS-bypass) DOES see the same rows, proving they exist.
+    const { data: adminDrivers } = await admin
+      .from('drivers').select('id').eq('transport_company_id', cleanup.tc2Id!);
+    expect(adminDrivers!.length).toBeGreaterThanOrEqual(1);
   });
 });

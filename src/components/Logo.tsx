@@ -17,7 +17,7 @@ export default function Logo({ className }: LogoProps) {
         backgroundImage: `url(${logoSrc})`,
       }}
       role="img"
-      aria-label="Tadweer360 Logo Icon"
+      aria-label="Sanad 360 Logo Icon"
     />
   );
 }

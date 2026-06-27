@@ -32,9 +32,9 @@ const SEED = {
   transportCompanyId: 'c0000000-0000-0000-0000-000000000001',
   driverId: 'd0000000-0000-0000-0000-000000000001',
   vehicleId: 'e0000000-0000-0000-0000-000000000001',
-  managerEmail: 'manager@tadweer360.dev',
+  managerEmail: 'manager@sanad360.dev',
   managerPassword: 'DevPass1234!',
-  driverEmail: '0501234567@driver.tadweer360.com',
+  driverEmail: '0501234567@driver.sanad360.com',
   driverPassword: 'DevPass1234!',
   managerUserId: 'f0000000-0000-0000-0000-000000000001',
   driverUserId: 'f0000000-0000-0000-0000-000000000002',
@@ -76,7 +76,7 @@ describe('Phase 3 Acceptance Tests', () => {
     // ── Second tenant for isolation: company2 + owner user2 ──
     const stamp = Date.now();
     const { data: u2 } = await admin.auth.admin.createUser({
-      email: `owner2-${stamp}@tadweer360.dev`,
+      email: `owner2-${stamp}@sanad360.dev`,
       password: 'DevPass1234!',
       email_confirm: true,
       user_metadata: { name_ar: 'مالك ثانٍ' },

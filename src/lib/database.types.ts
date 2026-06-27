@@ -100,6 +100,9 @@ export interface PickupEvent {
   photo_path: string | null;
   receipt_path: string | null;
   signature_path: string | null;
+  photo_sha256: string | null;
+  receipt_sha256: string | null;
+  signature_sha256: string | null;
   risk_score: number;
   risk_flags: string[];
   compliance_status: ComplianceStatus;
@@ -153,6 +156,9 @@ export type CreatePickupEventInput = {
   photo_path?: string;
   receipt_path?: string;
   signature_path?: string;
+  photo_sha256?: string;
+  receipt_sha256?: string;
+  signature_sha256?: string;
   notes?: string;
 };
 

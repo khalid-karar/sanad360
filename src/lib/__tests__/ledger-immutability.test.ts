@@ -50,9 +50,9 @@ const SEED = {
   transportCompanyId: 'c0000000-0000-0000-0000-000000000001',
   driverId:           'd0000000-0000-0000-0000-000000000001',
   vehicleId:          'e0000000-0000-0000-0000-000000000001',
-  driverEmail:        '0501234567@driver.tadweer360.com',
+  driverEmail:        '0501234567@driver.sanad360.com',
   driverPassword:     'DevPass1234!',
-  managerEmail:       'manager@tadweer360.dev',
+  managerEmail:       'manager@sanad360.dev',
   managerPassword:    'DevPass1234!',
 };
 

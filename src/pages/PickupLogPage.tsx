@@ -97,7 +97,7 @@ export default function PickupLogPage() {
   }
 
   return (
-    <AppShell role="transport">
+    <AppShell role="company">
       <div className={`space-y-8 ${isRTL ? 'rtl' : 'ltr'}`}>
         <div className="flex items-center justify-between">
           <div>

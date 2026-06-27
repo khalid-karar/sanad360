@@ -28,8 +28,8 @@ export default function FAQModal({ onClose }: FAQModalProps) {
             </p>
             <p className="mt-1">
               {isRTL
-                ? 'يمكّن نظام تدوير 360 منشآت قطاع الغذاء من تسجيل عمليات نقل النفايات والامتثال للوائح NCWM.'
-                : 'Tadweer360 enables food-sector businesses to record waste transfers and comply with NCWM regulations.'}
+                ? 'يمكّن نظام سند 360 منشآت قطاع الغذاء من تسجيل عمليات نقل النفايات والامتثال للوائح NCWM.'
+                : 'Sanad 360 enables food-sector businesses to record waste transfers and comply with NCWM regulations.'}
             </p>
           </div>
           <div>

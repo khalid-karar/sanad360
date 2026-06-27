@@ -62,7 +62,7 @@ export default function Sidebar({ role }: SidebarProps) {
           </div>
           <div>
             <h2 className="font-bold text-foreground text-lg">
-              {isRTL ? 'تدوير 360' : 'Tadweer360'}
+              {isRTL ? 'سند 360' : 'Sanad 360'}
             </h2>
             <p className="text-sm text-muted-foreground">
               {role === 'driver' && (isRTL ? 'سائق' : 'Driver')}

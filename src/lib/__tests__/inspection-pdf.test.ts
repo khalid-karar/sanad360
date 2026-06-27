@@ -48,7 +48,7 @@ const SEED = {
   transportCompanyId: 'c0000000-0000-0000-0000-000000000001',
   driverId:           'd0000000-0000-0000-0000-000000000001',
   vehicleId:          'e0000000-0000-0000-0000-000000000001',
-  managerEmail:       'manager@tadweer360.dev',
+  managerEmail:       'manager@sanad360.dev',
   managerPassword:    'DevPass1234!',
 };
 
@@ -233,7 +233,7 @@ describe('Inspection PDF generation', () => {
     //
     // Best feasible test with only one real company in seed:
     // Create company2, create a branch for it, insert a pickup as admin, then use
-    // manager@tadweer360.dev (company1) to try to generate the PDF → expect 403.
+    // manager@sanad360.dev (company1) to try to generate the PDF → expect 403.
 
     const { data: branch2 } = await admin
       .from('branches')

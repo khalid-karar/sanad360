@@ -12,7 +12,6 @@ interface Company {
   id: string;
   name: string;
   lastSubmission: string;
-  riskScore: number;
   status: 'low' | 'medium' | 'high';
 }
 
@@ -31,7 +30,6 @@ export default function CompaniesTable() {
             id: c.id,
             name: isRTL ? c.name_ar : (c.name_en ?? c.name_ar),
             lastSubmission: new Date(c.created_at).toISOString().slice(0, 10),
-            riskScore: 0,
             status: 'low' as const,
           }))
         )
@@ -116,9 +114,6 @@ export default function CompaniesTable() {
                   {isRTL ? 'آخر تقديم' : 'Last Submission'}
                 </th>
                 <th className="text-right p-3 text-sm font-medium text-muted-foreground">
-                  {isRTL ? 'درجة المخاطر' : 'Risk Score'}
-                </th>
-                <th className="text-right p-3 text-sm font-medium text-muted-foreground">
                   {isRTL ? 'الحالة' : 'Status'}
                 </th>
                 <th className="text-right p-3 text-sm font-medium text-muted-foreground"></th>
@@ -136,7 +131,6 @@ export default function CompaniesTable() {
                   >
                     <td className="p-3 text-sm text-foreground">{company.name}</td>
                     <td className="p-3 text-sm text-foreground">{company.lastSubmission}</td>
-                    <td className="p-3 text-sm text-foreground">{company.riskScore}</td>
                     <td className={`p-3 text-sm font-medium ${getStatusColor(company.status)}`}>
                       {getStatusLabel(company.status)}
                     </td>
@@ -150,7 +144,7 @@ export default function CompaniesTable() {
                   </tr>
                   {expandedRow === company.id && (
                     <tr>
-                      <td colSpan={5} className="p-6 bg-muted">
+                      <td colSpan={4} className="p-6 bg-muted">
                         <div className="space-y-3">
                           <p className="text-sm text-foreground">
                             <strong>{isRTL ? 'معرف المنشأة:' : 'Company ID:'}</strong> {company.id}

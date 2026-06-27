@@ -76,7 +76,20 @@ export const BASE_CSS = `
   .row:last-child { border-bottom: none; }
 
   .label { color: #6b7280; font-size: 9.5pt; white-space: nowrap; }
-  .value { font-weight: 700; color: #111827; font-size: 10.5pt; text-align: left; }
+  .value { font-weight: 700; color: #111827; font-size: 10.5pt; text-align: left; word-break: break-word; overflow-wrap: anywhere; min-width: 0; }
+
+  /* ── Tamper-evident hashes ─────────────────────────────────── */
+  .hashes table { table-layout: fixed; width: 100%; }
+  .hashes td { word-break: break-all; overflow-wrap: anywhere; vertical-align: top; }
+  .hashes td:first-child { width: 38%; color: #6b7280; font-size: 9pt; }
+  .hash {
+    font-family: 'Courier New', monospace;
+    font-size: 8pt;
+    direction: ltr;
+    text-align: left;
+    unicode-bidi: plaintext;
+    color: #111827;
+  }
 
   /* ── Evidence thumbnails ───────────────────────────────────── */
   .evidence-grid {
@@ -153,15 +166,23 @@ export const BASE_CSS = `
   }
 
   /* ── Tables (monthly summary) ──────────────────────────────── */
-  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; table-layout: fixed; }
   th {
     background: #1e293b;
     color: #fff;
     padding: 6px 8px;
     font-weight: 700;
     text-align: right;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
-  td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  td {
+    padding: 5px 8px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
   tr:nth-child(even) td { background: #f9fafb; }
 
   .kpi-grid {
@@ -194,21 +215,55 @@ export function esc(s: string | null | undefined): string {
     .replace(/"/g, '&quot;');
 }
 
-// Formats an ISO timestamp to Arabic locale date + time in Asia/Riyadh timezone.
-export function arabicDateTime(iso: string): string {
+// Converts Western digits in a string to Arabic-Indic numerals (٠-٩).
+export function toArabicDigits(s: string): string {
+  const map = '٠١٢٣٤٥٦٧٨٩';
+  return s.replace(/[0-9]/g, (d) => map[Number(d)]);
+}
+
+// Hijri date (Umm al-Qura) in Arabic-Indic numerals, e.g. "١٤٤٦/١٢/٠٩ هـ".
+export function hijriDate(iso: string): string {
   const d = new Date(iso);
-  const date = d.toLocaleDateString('ar-SA', {
+  const parts = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', {
     timeZone: 'Asia/Riyadh',
     year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-  const time = d.toLocaleTimeString('ar-SA', {
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  const ymd = `${get('year')}/${get('month')}/${get('day')}`;
+  return `${toArabicDigits(ymd)} هـ`;
+}
+
+// Gregorian date in YYYY-MM-DD (Asia/Riyadh), suffixed with the Arabic "م".
+export function gregorianDate(iso: string): string {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Riyadh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')} م`;
+}
+
+// Dual calendar string: Hijri (Arabic-Indic) + Gregorian, e.g.
+// "١٤٤٦/١٢/٠٩ هـ — 2025-06-15 م".
+export function dualDate(iso: string): string {
+  return `${hijriDate(iso)} — ${gregorianDate(iso)}`;
+}
+
+// Formats an ISO timestamp to a dual Hijri/Gregorian date + Arabic-Indic time
+// in Asia/Riyadh timezone.
+export function arabicDateTime(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString('ar-SA-u-nu-arab', {
     timeZone: 'Asia/Riyadh',
     hour: '2-digit',
     minute: '2-digit',
   });
-  return `${date} — ${time}`;
+  return `${dualDate(iso)} — ${time}`;
 }
 
 // Arabic labels for risk flags
@@ -223,6 +278,7 @@ export const FLAG_LABELS: Record<string, string> = {
 // Arabic labels for waste types
 export const WASTE_LABELS: Record<string, string> = {
   organic:     'نفايات عضوية',
+  food_waste:  'مخلفات غذائية',
   plastic:     'بلاستيك',
   chemical:    'مواد كيميائية',
   industrial:  'نفايات صناعية',

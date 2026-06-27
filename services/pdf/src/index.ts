@@ -39,7 +39,7 @@ app.options('*', (_req, res) => { res.sendStatus(204); });
 
 // Health check (no auth required)
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'tadweer360-pdf', ts: new Date().toISOString() });
+  res.json({ status: 'ok', service: 'sanad360-pdf', ts: new Date().toISOString() });
 });
 
 // Protected routes — JWT must be valid

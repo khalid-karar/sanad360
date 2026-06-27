@@ -152,8 +152,9 @@ export const useDriverStore = create<DriverState>((set, get) => ({
       // Generate a stable UUID for this event so we can use it in storage paths
       const eventId = crypto.randomUUID();
 
-      // Upload evidence files in parallel
-      const [signaturePath, photoPath, receiptPath] = await Promise.all([
+      // Upload evidence files in parallel. Each upload computes a SHA-256 of the
+      // bytes and returns { path, sha256 }; both are persisted on the pickup event.
+      const [signatureRes, photoRes, receiptRes] = await Promise.all([
         state.signature
           ? uploadSignature(branch.company_id, authUser.branch_id, eventId, state.signature)
           : Promise.resolve(undefined),
@@ -164,6 +165,10 @@ export const useDriverStore = create<DriverState>((set, get) => ({
           ? uploadReceipt(branch.company_id, authUser.branch_id, eventId, state.manifestData.receiptFile)
           : Promise.resolve(undefined),
       ]);
+
+      const signaturePath = signatureRes?.path;
+      const photoPath = photoRes?.path;
+      const receiptPath = receiptRes?.path;
 
       const weightKg = parseFloat(state.manifestData.weight.replace(/[^\d.]/g, ''));
 
@@ -183,6 +188,9 @@ export const useDriverStore = create<DriverState>((set, get) => ({
         photo_path: photoPath,
         receipt_path: receiptPath,
         signature_path: signaturePath,
+        photo_sha256: photoRes?.sha256,
+        receipt_sha256: receiptRes?.sha256,
+        signature_sha256: signatureRes?.sha256,
       });
 
       // Mark pickup as completed in the local schedule list

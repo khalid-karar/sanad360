@@ -2,7 +2,7 @@
   "name": "@tadweer360/pdf-service",
   "version": "1.0.0",
   "private": true,
-  "description": "Server-side Arabic PDF generator for Tadweer360 inspection files",
+  "description": "Server-side Arabic PDF generator for Sanad 360 inspection files",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",

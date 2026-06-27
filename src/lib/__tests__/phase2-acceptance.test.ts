@@ -56,7 +56,7 @@ const SEED = {
   driverId:              'd0000000-0000-0000-0000-000000000001',
   vehicleId:             'e0000000-0000-0000-0000-000000000001',
   companyRegistration:   '1010000001',
-  managerEmail:          'manager@tadweer360.dev',
+  managerEmail:          'manager@sanad360.dev',
   managerPassword:       'DevPass1234!',
 };
 

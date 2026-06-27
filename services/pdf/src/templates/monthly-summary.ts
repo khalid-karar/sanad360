@@ -95,7 +95,7 @@ export function buildMonthlyHtml(opts: {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>التقرير الشهري – تدوير 360</title>
+  <title>التقرير الشهري – سند 360</title>
   <style>${BASE_CSS}</style>
 </head>
 <body>
@@ -103,7 +103,7 @@ export function buildMonthlyHtml(opts: {
 
   <!-- ── Header ─────────────────────────────────────────────── -->
   <div class="doc-header">
-    <div class="logo">تدوير <span class="accent">360</span></div>
+    <div class="logo">سند <span class="accent">360</span></div>
     <div class="doc-meta">
       <div>رقم الوثيقة: ${esc(opts.documentId)}</div>
       <div>تاريخ الإصدار: ${esc(genDateTime)}</div>
@@ -198,7 +198,7 @@ export function buildMonthlyHtml(opts: {
 
 <!-- ── Footer ──────────────────────────────────────────────── -->
 <div class="footer">
-  <span>تدوير 360 — سجل مؤمَّن بتقنية SHA-256</span>
+  <span>سند 360 — سجل مانع للعبث بتقنية SHA-256</span>
   <span>تاريخ الإصدار: ${esc(genDateTime)}</span>
   <span>للتحقق: راجع قاعدة البيانات برقم الوثيقة ${esc(opts.documentId)}</span>
 </div>

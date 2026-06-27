@@ -42,6 +42,7 @@ export function buildSinglePickupHtml(opts: {
   evidence: EvidenceDataUrls;
   documentId: string; // short ID for the footer
   generatedAt: string; // ISO timestamp
+  pdfSha256?: string;  // SHA-256 of the rendered PDF bytes (threaded from the route)
 }): string {
   const { event, company, branch, transport, driver, vehicle, evidence } = opts;
   const genDateTime = arabicDateTime(opts.generatedAt);
@@ -68,7 +69,7 @@ export function buildSinglePickupHtml(opts: {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ملف التفتيش – تدوير 360</title>
+  <title>ملف التفتيش – سند 360</title>
   <style>${BASE_CSS}</style>
 </head>
 <body>
@@ -76,7 +77,7 @@ export function buildSinglePickupHtml(opts: {
 
   <!-- ── Header ─────────────────────────────────────────────── -->
   <div class="doc-header">
-    <div class="logo">تدوير <span class="accent">360</span></div>
+    <div class="logo">سند <span class="accent">360</span></div>
     <div class="doc-meta">
       <div>رقم الوثيقة: ${esc(opts.documentId)}</div>
       <div>تاريخ الإصدار: ${esc(genDateTime)}</div>
@@ -186,11 +187,25 @@ export function buildSinglePickupHtml(opts: {
     </div>
   </div>` : ''}
 
+  <!-- ── Tamper-evident hashes ──────────────────────────────── -->
+  <div class="section hashes">
+    <div class="section-header">سجل موثّق مانع للتلاعب / Tamper-Evident Record</div>
+    <div class="section-body">
+      <table>
+        <tr><td>رقم التعريف / Reference</td><td class="hash">${esc(event.id)}</td></tr>
+        <tr><td>تجزئة الصورة / Photo SHA-256</td><td class="hash">${esc(event.photo_sha256 ?? 'N/A')}</td></tr>
+        <tr><td>تجزئة التوقيع / Signature SHA-256</td><td class="hash">${esc(event.signature_sha256 ?? 'N/A')}</td></tr>
+        <tr><td>تجزئة الإيصال / Receipt SHA-256</td><td class="hash">${esc(event.receipt_sha256 ?? 'N/A')}</td></tr>
+        <tr><td>تجزئة الملف / PDF SHA-256</td><td class="hash">${esc(opts.pdfSha256 ?? 'N/A')}</td></tr>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <!-- ── Footer (fixed, appears on every page) ──────────────── -->
 <div class="footer">
-  <span>تدوير 360 — سجل مؤمَّن بتقنية SHA-256</span>
+  <span>سند 360 — سجل مانع للعبث بتقنية SHA-256</span>
   <span>تاريخ الإصدار: ${esc(genDateTime)}</span>
   <span>للتحقق: راجع قاعدة البيانات برقم الوثيقة ${esc(opts.documentId)}</span>
 </div>

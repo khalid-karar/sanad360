@@ -20,7 +20,7 @@ type LoginTab = 'driver' | 'company' | 'admin' | 'transport';
 /** Converts a driver's phone number to the synthetic email format used in auth. */
 function phoneToDriverEmail(phone: string): string {
   const digits = phone.replace(/\D/g, '');
-  return `${digits}@driver.tadweer360.com`;
+  return `${digits}@driver.sanad360.com`;
 }
 
 export default function LoginPage() {
@@ -125,7 +125,7 @@ export default function LoginPage() {
               </FadeInUp>
               <FadeInUp delay={0.4}>
                 <CardTitle className="text-3xl font-bold text-gradient-primary">
-                  {isRTL ? 'تدوير 360' : 'Tadweer360'}
+                  {isRTL ? 'سند 360' : 'Sanad 360'}
                 </CardTitle>
               </FadeInUp>
               <FadeInUp delay={0.5}>
@@ -313,7 +313,7 @@ export default function LoginPage() {
                       <Input
                         id="admin-email"
                         type="email"
-                        placeholder="admin@tadweer360.com"
+                        placeholder="admin@sanad360.com"
                         value={adminEmail}
                         onChange={(e) => setAdminEmail(e.target.value)}
                         className="bg-background text-foreground border-input"

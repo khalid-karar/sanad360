@@ -43,6 +43,9 @@ export interface PickupEventRow {
   photo_path: string | null;
   receipt_path: string | null;
   signature_path: string | null;
+  photo_sha256: string | null;
+  receipt_sha256: string | null;
+  signature_sha256: string | null;
   risk_score: number;
   risk_flags: string[];
   compliance_status: 'compliant' | 'warning' | 'non_compliant';

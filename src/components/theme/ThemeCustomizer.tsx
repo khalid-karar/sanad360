@@ -163,7 +163,7 @@ export default function ThemeCustomizer({ isOpen, onClose }: ThemeCustomizerProp
                 </div>
                 <div>
                   <p className="font-medium text-foreground text-sm">
-                    {isRTL ? 'تدوير 360' : 'Tadweer360'}
+                    {isRTL ? 'سند 360' : 'Sanad 360'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {isRTL ? 'نظام إدارة النفايات' : 'Waste Management System'}

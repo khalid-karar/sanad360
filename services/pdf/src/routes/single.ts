@@ -54,7 +54,7 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
   const generatedAt = new Date().toISOString();
   const documentId = event.id.substring(0, 8).toUpperCase();
 
-  const html = buildSinglePickupHtml({
+  const templateArgs = {
     event,
     company:   companyRes.data!,
     branch:    branchRes.data!,
@@ -64,11 +64,21 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     evidence:  { photo: photoDataUrl, receipt: receiptDataUrl, signature: sigDataUrl },
     documentId,
     generatedAt,
-  });
+  };
 
-  const pdfBytes = await renderHtmlToPdf(html);
+  // Two-pass render so the PDF can display its own content hash:
+  //   Pass 1 → canonical (un-stamped) bytes → contentHash (shown in the report).
+  //   Pass 2 → same document with contentHash stamped into the hashes table.
+  // The stored/returned hash is the SHA-256 of the FINAL (pass-2) bytes, so a
+  // re-download + re-hash always matches (see inspection-pdf.test).
+  const canonicalBytes = await renderHtmlToPdf(buildSinglePickupHtml(templateArgs));
+  const contentHash = sha256Hex(canonicalBytes);
 
-  // 6. SHA-256 of PDF bytes
+  const pdfBytes = await renderHtmlToPdf(
+    buildSinglePickupHtml({ ...templateArgs, pdfSha256: contentHash })
+  );
+
+  // 6. SHA-256 of the final PDF bytes (what gets uploaded + returned)
   const hash = sha256Hex(pdfBytes);
 
   // 7. Upload to Storage
