@@ -23,6 +23,7 @@ import BranchesPage from './pages/BranchesPage';
 import ProfilePage from './pages/ProfilePage';
 import PickupSchedulePage from './components/schedule/PickupSchedulePage';
 import MySchedulePage from './components/schedule/MySchedulePage';
+import ApprovedTransportersPage from './components/company/ApprovedTransportersPage';
 
 // Role → route mapping (keeps the existing URL scheme)
 const roleRoute: Record<string, string> = {
@@ -163,6 +164,14 @@ function App() {
           element={
             user && ['owner', 'manager', 'dispatcher'].includes(user.role)
               ? <PickupSchedulePage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/company/transporters"
+          element={
+            user && ['owner', 'manager'].includes(user.role)
+              ? <ApprovedTransportersPage />
               : <Navigate to="/login" replace />
           }
         />

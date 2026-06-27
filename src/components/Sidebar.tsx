@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon } from 'lucide-react';
+// TruckIcon reused for the company "Approved Transporters" link.
 import Logo from './Logo';
 
 interface SidebarProps {
@@ -30,6 +31,7 @@ export default function Sidebar({ role }: SidebarProps) {
   const companyLinks = [
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/company' },
     { icon: Building2Icon, label: isRTL ? 'الفروع' : 'Branches', path: '/company/branches' },
+    { icon: TruckIcon, label: isRTL ? 'الناقلون المعتمدون' : 'Approved Transporters', path: '/company/transporters' },
     { icon: CalendarClockIcon, label: isRTL ? 'جدولة الالتقاطات' : 'Schedule Pickups', path: '/company/schedule' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/company/pickups' },
   ];

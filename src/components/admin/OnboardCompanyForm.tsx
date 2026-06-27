@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
+import type { TransportCompany } from '../../lib/database.types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,7 @@ interface OnboardResult {
   companyId: string;
   userId: string;
   profileId: string;
+  warnings?: string[];
 }
 
 interface OnboardCompanyFormProps {
@@ -36,9 +38,37 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerPassword, setOwnerPassword] = useState('');
 
+  // Transport companies to link (company tenants only).
+  const [transportCompanies, setTransportCompanies] = useState<TransportCompany[]>([]);
+  const [selectedTcIds, setSelectedTcIds] = useState<string[]>([]);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardResult | null>(null);
+
+  // Load the transport-company catalog (admin can read all via RLS) so the
+  // operator can link them at company-creation time.
+  useEffect(() => {
+    if (tenantType !== 'company') return;
+    let cancelled = false;
+    (async () => {
+      const { data, error: tcErr } = await supabase
+        .from('transport_companies')
+        .select('*')
+        .order('name_ar');
+      if (cancelled) return;
+      if (!tcErr && data) setTransportCompanies(data as TransportCompany[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantType]);
+
+  function toggleTc(id: string) {
+    setSelectedTcIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +91,8 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
         owner_name_ar: ownerNameAr,
         owner_email: ownerEmail,
         owner_temp_password: ownerPassword,
+        transport_company_ids:
+          tenantType === 'company' && selectedTcIds.length > 0 ? selectedTcIds : undefined,
       };
 
       const res = await fetch(`${PDF_SERVICE_URL}/admin/onboard-company`, {
@@ -118,6 +150,18 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
                 {isRTL ? 'معرف المنشأة:' : 'Company ID:'}{' '}
                 <span className="font-mono text-foreground">{result.companyId}</span>
               </p>
+              {result.warnings && result.warnings.length > 0 && (
+                <div className="text-start text-xs text-destructive bg-destructive/10 rounded-md p-3">
+                  <p className="font-medium mb-1">
+                    {isRTL ? 'تحذيرات الربط:' : 'Link warnings:'}
+                  </p>
+                  <ul className="list-disc ms-4 space-y-1">
+                    {result.warnings.map((w, i) => (
+                      <li key={i} className="font-mono break-all">{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <Button onClick={onClose} className="mt-2">
                 {isRTL ? 'تم' : 'Done'}
               </Button>
@@ -178,6 +222,39 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
                 </Label>
                 <Input id="vat" value={vat} onChange={(e) => setVat(e.target.value)} dir="ltr" />
               </div>
+
+              {/* Link transport companies (company tenants only) */}
+              {tenantType === 'company' && (
+                <div>
+                  <Label className="text-foreground">
+                    {isRTL ? 'ربط شركات النقل' : 'Link transport companies'}
+                  </Label>
+                  {transportCompanies.length === 0 ? (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {isRTL ? 'لا توجد شركات نقل متاحة' : 'No transport companies available'}
+                    </p>
+                  ) : (
+                    <div className="mt-2 max-h-40 overflow-y-auto border border-input rounded-md p-2 space-y-1">
+                      {transportCompanies.map((tc) => (
+                        <label
+                          key={tc.id}
+                          className="flex items-center gap-2 text-sm text-foreground cursor-pointer py-1"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedTcIds.includes(tc.id)}
+                            onChange={() => toggleTc(tc.id)}
+                          />
+                          <span>
+                            {tc.name_ar}
+                            {tc.name_en ? ` — ${tc.name_en}` : ''}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="border-t border-border pt-4 space-y-4">
                 <p className="text-sm font-medium text-muted-foreground">

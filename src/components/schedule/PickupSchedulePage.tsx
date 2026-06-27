@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import AppShell from '../AppShell';
 import {
   listAssignments,
   createAssignment,
   updateAssignmentStatus,
-  getTransportCompanyForCompany,
 } from '../../lib/api/assignments';
+import { getDriversAndVehiclesForCompany } from '../../lib/api/companyTransporters';
 import { listBranches } from '../../lib/api/branches';
-import { listDrivers } from '../../lib/api/drivers';
-import { listVehicles } from '../../lib/api/vehicles';
 import type { PickupAssignment, Branch, Driver, Vehicle } from '../../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2Icon, PlusIcon, XIcon } from 'lucide-react';
+import { Loader2Icon, PlusIcon, XIcon, TruckIcon } from 'lucide-react';
 import { StatusBadge } from './statusBadge';
 
 export default function PickupSchedulePage() {
+  const navigate = useNavigate();
   const { isRTL, user } = useAuthStore();
   const companyId = user?.company_id ?? undefined;
 
@@ -24,6 +24,8 @@ export default function PickupSchedulePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  // Whether the company has any active transporter that provides drivers/vehicles.
+  const [hasTransporter, setHasTransporter] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -41,8 +43,20 @@ export default function PickupSchedulePage() {
     setLoading(true);
     setError(null);
     try {
-      const list = await listAssignments({ companyId });
+      // Load assignments, branches and the transporter-derived driver/vehicle
+      // pools together. getDriversAndVehiclesForCompany() resolves the company's
+      // active company_transporters links (replacing the old most-recent-pickup
+      // hack) and returns empty arrays when no transporter is linked.
+      const [list, branchList, pool] = await Promise.all([
+        listAssignments({ companyId }),
+        listBranches(companyId),
+        getDriversAndVehiclesForCompany(companyId),
+      ]);
       setAssignments(list);
+      setBranches(branchList.filter((b) => b.status === 'active'));
+      setDrivers(pool.drivers);
+      setVehicles(pool.vehicles);
+      setHasTransporter(pool.drivers.length > 0 || pool.vehicles.length > 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -53,30 +67,6 @@ export default function PickupSchedulePage() {
   useEffect(() => {
     reload();
   }, [reload]);
-
-  // Load dropdown data when the form opens.
-  useEffect(() => {
-    if (!showForm || !companyId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const branchList = await listBranches(companyId);
-        const transportCompanyId = await getTransportCompanyForCompany(companyId);
-        const [driverList, vehicleList] = transportCompanyId
-          ? await Promise.all([listDrivers(transportCompanyId), listVehicles(transportCompanyId)])
-          : [[], []];
-        if (cancelled) return;
-        setBranches(branchList.filter((b) => b.status === 'active'));
-        setDrivers(driverList.filter((d) => d.status === 'active'));
-        setVehicles(vehicleList.filter((v) => v.status === 'active'));
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load options');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [showForm, companyId]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -132,14 +122,31 @@ export default function PickupSchedulePage() {
               {isRTL ? 'إدارة مواعيد التقاط النفايات' : 'Manage waste pickup assignments'}
             </p>
           </div>
-          <Button onClick={() => setShowForm(true)} className="gap-2">
-            <PlusIcon className="w-4 h-4" />
-            {isRTL ? 'جدولة التقاط' : 'Schedule Pickup'}
-          </Button>
+          {hasTransporter && (
+            <Button onClick={() => setShowForm(true)} className="gap-2">
+              <PlusIcon className="w-4 h-4" />
+              {isRTL ? 'جدولة التقاط' : 'Schedule Pickup'}
+            </Button>
+          )}
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
+        {/* No active transporter linked → block scheduling and guide the user. */}
+        {!loading && !hasTransporter ? (
+          <Card className="bg-card text-card-foreground border-border">
+            <CardContent className="py-12 flex flex-col items-center text-center gap-4">
+              <TruckIcon className="w-10 h-10 text-muted-foreground" />
+              <p className="text-foreground font-medium">
+                {isRTL ? 'يرجى ربط شركة نقل أولاً' : 'Please link a transport company first'}
+              </p>
+              <Button onClick={() => navigate('/company/transporters')} className="gap-2">
+                <TruckIcon className="w-4 h-4" />
+                {isRTL ? 'الناقلون المعتمدون' : 'Approved Transporters'}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
         <Card className="bg-card text-card-foreground border-border">
           <CardHeader>
             <CardTitle>{isRTL ? 'الالتقاطات المجدولة' : 'Scheduled Pickups'}</CardTitle>
@@ -195,6 +202,7 @@ export default function PickupSchedulePage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* Schedule form modal */}

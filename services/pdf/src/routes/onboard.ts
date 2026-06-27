@@ -10,6 +10,8 @@ interface OnboardBody {
   owner_name_ar?: string;
   owner_email?: string;
   owner_temp_password?: string;
+  /** Optional: transport companies to link to a newly created company. */
+  transport_company_ids?: string[];
 }
 
 /**
@@ -150,7 +152,29 @@ export async function handleOnboardCompany(req: Request, res: Response): Promise
       return;
     }
 
-    res.status(201).json({ companyId, userId, profileId: profile.id });
+    // ── 4e. Optionally link transport companies (company tenants only) ───────
+    // Best-effort: a bad ID logs a warning but never rolls back the company.
+    const warnings: string[] = [];
+    if (
+      tenantType === 'company' &&
+      Array.isArray(body.transport_company_ids) &&
+      body.transport_company_ids.length > 0
+    ) {
+      for (const tcId of body.transport_company_ids) {
+        const { error: linkErr } = await admin.from('company_transporters').insert({
+          company_id: companyId,
+          transport_company_id: tcId,
+          status: 'active',
+        });
+        if (linkErr) {
+          const msg = `company_transporters.insert (${tcId}): ${linkErr.message}`;
+          console.error(msg);
+          warnings.push(msg);
+        }
+      }
+    }
+
+    res.status(201).json({ companyId, userId, profileId: profile.id, warnings });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Onboarding failed' });
   }
