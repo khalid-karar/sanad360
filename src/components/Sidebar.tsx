@@ -29,8 +29,8 @@ export default function Sidebar({ role }: SidebarProps) {
 
   const companyLinks = [
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/company' },
-    { icon: BarChart3Icon, label: isRTL ? 'التقارير' : 'Reports', path: '/company' },
-    { icon: ClipboardListIcon, label: isRTL ? 'السجلات' : 'Records', path: '/company' },
+    { icon: Building2Icon, label: isRTL ? 'الفروع' : 'Branches', path: '/company/branches' },
+    { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/company/pickups' },
   ];
 
   const adminLinks = [
@@ -97,6 +97,7 @@ export default function Sidebar({ role }: SidebarProps) {
             variant="ghost"
             size="default"
             className="w-full justify-start bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground rounded-xl h-12 transition-all duration-200"
+            onClick={() => { navigate('/profile'); setIsOpen(false); }}
           >
             <SettingsIcon className="w-5 h-5 ml-3" />
             <span className="font-medium">{isRTL ? 'الإعدادات' : 'Settings'}</span>

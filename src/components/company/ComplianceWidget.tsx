@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import { useCompanyStore, ComplianceData } from '../../stores/companyStore';
+import { useCompanyStore } from '../../stores/companyStore';
+import type { ComplianceData } from '../../stores/companyStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2Icon, AlertCircleIcon, SearchIcon } from 'lucide-react';
@@ -16,7 +17,8 @@ export default function ComplianceWidget({ data }: ComplianceWidgetProps) {
   const { isRTL } = useAuthStore();
   const { approveCompliance } = useCompanyStore();
   const [showReviewPanel, setShowReviewPanel] = useState(false);
-  const [testingData, setTestingData] = useState<ComplianceData>(data);
+  // Reflects real compliance data passed from the store (no mock scenarios).
+  const testingData = data;
 
   const getStatusColor = () => {
     if (testingData.percentage >= 95) return 'text-success';
@@ -33,70 +35,6 @@ export default function ComplianceWidget({ data }: ComplianceWidgetProps) {
     if (testingData.percentage >= 95) return 'green';
     if (testingData.percentage >= 80) return 'yellow';
     return 'red';
-  };
-
-  const handleGreenScenario = () => {
-    setTestingData({
-      ...data,
-      percentage: 98,
-      level: 'green',
-      issues: [],
-      status: 'pending'
-    });
-  };
-
-  const handleYellowScenario = () => {
-    setTestingData({
-      ...data,
-      percentage: 88,
-      level: 'yellow',
-      issues: [
-        {
-          id: '1',
-          type: 'warning',
-          titleAr: 'رخصة السائق تنتهي قريباً',
-          titleEn: 'Driver License Expiring Soon',
-          descriptionAr: 'رخصة السائق أحمد تنتهي خلال 30 يوماً',
-          descriptionEn: "Driver Ahmed's license expires in 30 days"
-        },
-        {
-          id: '2',
-          type: 'warning',
-          titleAr: 'وزن النفايات أعلى من المتوسط',
-          titleEn: 'Waste Weight Above Average',
-          descriptionAr: 'وزن النفايات أعلى من المتوسط بنسبة 15%',
-          descriptionEn: 'Waste weight is 15% above average'
-        }
-      ],
-      status: 'pending'
-    });
-  };
-
-  const handleRedScenario = () => {
-    setTestingData({
-      ...data,
-      percentage: 45,
-      level: 'red',
-      issues: [
-        {
-          id: '1',
-          type: 'error',
-          titleAr: 'شركة النقل غير مرخصة',
-          titleEn: 'Transporter Not Licensed',
-          descriptionAr: 'شركة النقل غير مرخصة لنقل النفايات الطبية',
-          descriptionEn: 'Transporter not licensed for medical waste'
-        },
-        {
-          id: '2',
-          type: 'error',
-          titleAr: 'موقع الالتقاط خارج النطاق',
-          titleEn: 'Pickup Location Outside Range',
-          descriptionAr: 'موقع الالتقاط خارج النطاق الجغرافي المسجل',
-          descriptionEn: 'Pickup location outside registered geofence'
-        }
-      ],
-      status: 'pending'
-    });
   };
 
   const handleMainAction = () => {
@@ -189,40 +127,6 @@ export default function ComplianceWidget({ data }: ComplianceWidgetProps) {
             </Button>
           )}
 
-          {/* Testing Controls */}
-          <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 bg-muted/20">
-            <div className="text-center mb-4">
-              <p className="text-sm font-medium text-muted-foreground">
-                {isRTL ? 'للاختبار' : 'For Testing'}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <InteractiveButton
-                onClick={handleGreenScenario}
-                size="sm"
-                className="flex-1 bg-success text-white hover:bg-success/90"
-                hapticFeedback
-              >
-                {isRTL ? 'أخضر (98%)' : 'Green (98%)'}
-              </InteractiveButton>
-              <InteractiveButton
-                onClick={handleYellowScenario}
-                size="sm"
-                className="flex-1 bg-warning text-white hover:bg-warning/90"
-                hapticFeedback
-              >
-                {isRTL ? 'أصفر (88%)' : 'Yellow (88%)'}
-              </InteractiveButton>
-              <InteractiveButton
-                onClick={handleRedScenario}
-                size="sm"
-                className="flex-1 bg-destructive text-white hover:bg-destructive/90"
-                hapticFeedback
-              >
-                {isRTL ? 'أحمر (45%)' : 'Red (45%)'}
-              </InteractiveButton>
-            </div>
-          </div>
         </CardContent>
       </Card>
 

@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useTransportStore, PickupRecord } from '../stores/transportStore';
 import AppShell from '../components/AppShell';
+import { listPickupEvents, exportPickupsCsv } from '../lib/api/pickups';
+import { listDrivers } from '../lib/api/drivers';
+import { listVehicles } from '../lib/api/vehicles';
+import { listBranches } from '../lib/api/branches';
+import type { PickupEvent, Driver, Vehicle, Branch } from '../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,203 +13,88 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  SearchIcon, 
-  CalendarIcon, 
-  TruckIcon,
-  UserIcon,
-  WeightIcon,
-  Trash2Icon,
-  FilterIcon,
-  DownloadIcon,
-  EyeIcon,
-  CheckCircle2Icon,
-  AlertTriangleIcon,
-  XCircleIcon
+import {
+  CalendarIcon, TruckIcon, UserIcon, WeightIcon, DownloadIcon, EyeIcon,
+  CheckCircle2Icon, AlertTriangleIcon, XCircleIcon, MapPinIcon, XIcon,
 } from 'lucide-react';
-
-// Mock data for pickup records
-const mockPickupRecords: PickupRecord[] = [
-  {
-    id: '1',
-    date: '2024-03-15',
-    facility: 'مطعم النجمة',
-    driver: 'أحمد محمد',
-    vehicle: 'ABC-1234',
-    wasteType: 'نفايات عضوية',
-    weight: '45 كجم',
-    complianceStatus: 'compliant'
-  },
-  {
-    id: '2',
-    date: '2024-03-15',
-    facility: 'مستشفى الأمل',
-    driver: 'خالد عبدالله',
-    vehicle: 'XYZ-5678',
-    wasteType: 'نفايات طبية',
-    weight: '23 كجم',
-    complianceStatus: 'warning'
-  },
-  {
-    id: '3',
-    date: '2024-03-14',
-    facility: 'شركة الخليج للصناعات',
-    driver: 'محمد سعيد',
-    vehicle: 'DEF-9012',
-    wasteType: 'نفايات صناعية',
-    weight: '120 كجم',
-    complianceStatus: 'compliant'
-  },
-  {
-    id: '4',
-    date: '2024-03-14',
-    facility: 'مصنع الرياض للمعادن',
-    driver: 'أحمد محمد',
-    vehicle: 'ABC-1234',
-    wasteType: 'نفايات معدنية',
-    weight: '89 كجم',
-    complianceStatus: 'non-compliant'
-  },
-  {
-    id: '5',
-    date: '2024-03-13',
-    facility: 'شركة جدة للإلكترونيات',
-    driver: 'خالد عبدالله',
-    vehicle: 'GHI-3456',
-    wasteType: 'نفايات إلكترونية',
-    weight: '67 كجم',
-    complianceStatus: 'compliant'
-  },
-  {
-    id: '6',
-    date: '2024-03-13',
-    facility: 'مطعم الأصالة',
-    driver: 'محمد سعيد',
-    vehicle: 'JKL-7890',
-    wasteType: 'نفايات عضوية',
-    weight: '34 كجم',
-    complianceStatus: 'warning'
-  },
-  {
-    id: '7',
-    date: '2024-03-12',
-    facility: 'مستشفى الملك فهد',
-    driver: 'أحمد محمد',
-    vehicle: 'XYZ-5678',
-    wasteType: 'نفايات طبية',
-    weight: '56 كجم',
-    complianceStatus: 'compliant'
-  },
-  {
-    id: '8',
-    date: '2024-03-12',
-    facility: 'شركة البتروكيماويات',
-    driver: 'خالد عبدالله',
-    vehicle: 'MNO-2468',
-    wasteType: 'نفايات كيميائية',
-    weight: '78 كجم',
-    complianceStatus: 'non-compliant'
-  }
-];
 
 export default function PickupLogPage() {
   const { isRTL } = useAuthStore();
-  const { drivers, vehicles } = useTransportStore();
-  
-  const [searchTerm, setSearchTerm] = useState('');
+
+  const [events, setEvents] = useState<PickupEvent[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<PickupEvent | null>(null);
+
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [selectedDriver, setSelectedDriver] = useState('all');
-  const [selectedVehicle, setSelectedVehicle] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedWasteType, setSelectedWasteType] = useState('all');
-  const [showFilters, setShowFilters] = useState(false);
+  const [branchId, setBranchId] = useState('all');
+  const [status, setStatus] = useState('all');
 
-  // Filter records based on all criteria
-  const filteredRecords = mockPickupRecords.filter(record => {
-    const matchesSearch = record.facility.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.vehicle.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesDateFrom = !dateFrom || record.date >= dateFrom;
-    const matchesDateTo = !dateTo || record.date <= dateTo;
-    const matchesDriver = selectedDriver === 'all' || record.driver === selectedDriver;
-    const matchesVehicle = selectedVehicle === 'all' || record.vehicle === selectedVehicle;
-    const matchesStatus = selectedStatus === 'all' || record.complianceStatus === selectedStatus;
-    const matchesWasteType = selectedWasteType === 'all' || record.wasteType.includes(selectedWasteType);
+  const driverName = (id: string) => drivers.find((d) => d.id === id)?.name_ar ?? id.slice(0, 8);
+  const vehiclePlate = (id: string) => vehicles.find((v) => v.id === id)?.plate_number ?? id.slice(0, 8);
+  const branchName = (id: string) =>
+    branches.find((b) => b.id === id)?.[isRTL ? 'name_ar' : 'name_en'] ?? branches.find((b) => b.id === id)?.name_ar ?? id.slice(0, 8);
 
-    return matchesSearch && matchesDateFrom && matchesDateTo && 
-           matchesDriver && matchesVehicle && matchesStatus && matchesWasteType;
-  });
+  async function loadEvents() {
+    setLoading(true);
+    try {
+      const data = await listPickupEvents({
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        branchId: branchId === 'all' ? undefined : branchId,
+        status: status === 'all' ? undefined : status,
+      });
+      setEvents(data);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const getStatusBadge = (status: PickupRecord['complianceStatus']) => {
-    const config = {
-      compliant: {
-        variant: 'default' as const,
-        label: isRTL ? 'متوافق' : 'Compliant',
-        icon: CheckCircle2Icon,
-        color: 'text-success'
-      },
-      warning: {
-        variant: 'secondary' as const,
-        label: isRTL ? 'تحذير' : 'Warning',
-        icon: AlertTriangleIcon,
-        color: 'text-warning'
-      },
-      'non-compliant': {
-        variant: 'destructive' as const,
-        label: isRTL ? 'غير متوافق' : 'Non-Compliant',
-        icon: XCircleIcon,
-        color: 'text-destructive'
-      }
-    };
+  useEffect(() => {
+    // Reference lists for name resolution + filter dropdowns
+    listDrivers().then(setDrivers).catch(() => {});
+    listVehicles().then(setVehicles).catch(() => {});
+    listBranches().then(setBranches).catch(() => {});
+  }, []);
 
-    const { variant, label, icon: Icon, color } = config[status];
-    
-    return (
-      <Badge variant={variant} className="flex items-center gap-1">
-        <Icon className="w-3 h-3" />
-        {label}
-      </Badge>
-    );
-  };
+  useEffect(() => {
+    loadEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, branchId, status]);
 
-  const getWasteTypeColor = (wasteType: string) => {
-    if (wasteType.includes('طبية') || wasteType.includes('Medical')) return 'text-red-600';
-    if (wasteType.includes('كيميائية') || wasteType.includes('Chemical')) return 'text-orange-600';
-    if (wasteType.includes('صناعية') || wasteType.includes('Industrial')) return 'text-blue-600';
-    if (wasteType.includes('إلكترونية') || wasteType.includes('Electronic')) return 'text-purple-600';
-    if (wasteType.includes('عضوية') || wasteType.includes('Organic')) return 'text-green-600';
-    return 'text-gray-600';
-  };
+  const counts = useMemo(() => ({
+    total: events.length,
+    compliant: events.filter((e) => e.compliance_status === 'compliant').length,
+    warning: events.filter((e) => e.compliance_status === 'warning').length,
+    nonCompliant: events.filter((e) => e.compliance_status === 'non_compliant').length,
+  }), [events]);
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setDateFrom('');
-    setDateTo('');
-    setSelectedDriver('all');
-    setSelectedVehicle('all');
-    setSelectedStatus('all');
-    setSelectedWasteType('all');
-  };
-
-  const exportData = () => {
-    // Mock export functionality
-    const csvContent = filteredRecords.map(record => 
-      `${record.date},${record.facility},${record.driver},${record.vehicle},${record.wasteType},${record.weight},${record.complianceStatus}`
-    ).join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+  function handleExport() {
+    const csv = exportPickupsCsv(events);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `pickup-log-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-  };
+    window.URL.revokeObjectURL(url);
+  }
 
-  const uniqueDrivers = [...new Set(mockPickupRecords.map(r => r.driver))];
-  const uniqueVehicles = [...new Set(mockPickupRecords.map(r => r.vehicle))];
-  const uniqueWasteTypes = [...new Set(mockPickupRecords.map(r => r.wasteType))];
+  function statusBadge(s: PickupEvent['compliance_status']) {
+    const cfg = {
+      compliant: { label: isRTL ? 'متوافق' : 'Compliant', Icon: CheckCircle2Icon, variant: 'default' as const },
+      warning: { label: isRTL ? 'تحذير' : 'Warning', Icon: AlertTriangleIcon, variant: 'secondary' as const },
+      non_compliant: { label: isRTL ? 'غير متوافق' : 'Non-Compliant', Icon: XCircleIcon, variant: 'destructive' as const },
+    }[s];
+    return (
+      <Badge variant={cfg.variant} className="flex items-center gap-1">
+        <cfg.Icon className="w-3 h-3" />{cfg.label}
+      </Badge>
+    );
+  }
 
   return (
     <AppShell role="transport">
@@ -216,311 +105,164 @@ export default function PickupLogPage() {
               {isRTL ? 'سجل الالتقاطات' : 'Pickup Log'}
             </h1>
             <p className="text-muted-foreground">
-              {isRTL ? 'تتبع وإدارة جميع عمليات الالتقاط' : 'Track and manage all pickup operations'}
+              {isRTL ? 'تتبع جميع عمليات الالتقاط الفعلية' : 'Track all real pickup operations'}
             </p>
           </div>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="bg-background text-foreground border-border hover:bg-accent hover:text-accent-foreground"
-            >
-              <FilterIcon className="w-4 h-4 mr-2" />
-              {isRTL ? 'المرشحات' : 'Filters'}
-            </Button>
-            <Button
-              onClick={exportData}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <DownloadIcon className="w-4 h-4 mr-2" />
-              {isRTL ? 'تصدير' : 'Export'}
-            </Button>
-          </div>
+          <Button onClick={handleExport} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <DownloadIcon className="w-4 h-4 mr-2" />
+            {isRTL ? 'تصدير CSV' : 'Export CSV'}
+          </Button>
         </div>
 
-        {/* Search Bar */}
+        {/* Filters */}
         <Card className="bg-card text-card-foreground border-border">
-          <CardContent className="pt-6">
-            <div className="relative">
-              <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder={isRTL ? 'البحث في السجلات...' : 'Search records...'}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-background text-foreground border-input"
-              />
+          <CardHeader>
+            <CardTitle className="text-foreground text-lg">{isRTL ? 'المرشحات' : 'Filters'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label className="text-foreground">{isRTL ? 'من تاريخ' : 'Date From'}</Label>
+                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-2" dir="ltr" />
+              </div>
+              <div>
+                <Label className="text-foreground">{isRTL ? 'إلى تاريخ' : 'Date To'}</Label>
+                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-2" dir="ltr" />
+              </div>
+              <div>
+                <Label className="text-foreground">{isRTL ? 'الفرع' : 'Branch'}</Label>
+                <Select value={branchId} onValueChange={setBranchId}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder={isRTL ? 'جميع الفروع' : 'All Branches'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{isRTL ? 'جميع الفروع' : 'All Branches'}</SelectItem>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{isRTL ? b.name_ar : (b.name_en ?? b.name_ar)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-foreground">{isRTL ? 'حالة الامتثال' : 'Compliance Status'}</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder={isRTL ? 'جميع الحالات' : 'All Statuses'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{isRTL ? 'جميع الحالات' : 'All Statuses'}</SelectItem>
+                    <SelectItem value="compliant">{isRTL ? 'متوافق' : 'Compliant'}</SelectItem>
+                    <SelectItem value="warning">{isRTL ? 'تحذير' : 'Warning'}</SelectItem>
+                    <SelectItem value="non_compliant">{isRTL ? 'غير متوافق' : 'Non-Compliant'}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Advanced Filters */}
-        {showFilters && (
-          <Card className="bg-card text-card-foreground border-border border-2 border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-foreground flex items-center gap-3">
-                <FilterIcon className="w-6 h-6 text-primary" />
-                {isRTL ? 'المرشحات المتقدمة' : 'Advanced Filters'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {[
+            { labelAr: 'الإجمالي', labelEn: 'Total', value: counts.total, Icon: CalendarIcon, cls: 'text-foreground' },
+            { labelAr: 'متوافقة', labelEn: 'Compliant', value: counts.compliant, Icon: CheckCircle2Icon, cls: 'text-success' },
+            { labelAr: 'تحذيرات', labelEn: 'Warnings', value: counts.warning, Icon: AlertTriangleIcon, cls: 'text-warning' },
+            { labelAr: 'غير متوافقة', labelEn: 'Non-Compliant', value: counts.nonCompliant, Icon: XCircleIcon, cls: 'text-destructive' },
+          ].map((c) => (
+            <Card key={c.labelEn} className="bg-card text-card-foreground border-border">
+              <CardContent className="pt-6 flex items-center justify-between">
                 <div>
-                  <Label className="text-foreground">{isRTL ? 'من تاريخ' : 'Date From'}</Label>
-                  <Input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="mt-2"
-                  />
+                  <p className="text-sm text-muted-foreground">{isRTL ? c.labelAr : c.labelEn}</p>
+                  <p className={`text-2xl font-bold ${c.cls}`}>{c.value}</p>
                 </div>
-                <div>
-                  <Label className="text-foreground">{isRTL ? 'إلى تاريخ' : 'Date To'}</Label>
-                  <Input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label className="text-foreground">{isRTL ? 'السائق' : 'Driver'}</Label>
-                  <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                    <SelectTrigger className="mt-2">
-                      <SelectValue placeholder={isRTL ? 'جميع السائقين' : 'All Drivers'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{isRTL ? 'جميع السائقين' : 'All Drivers'}</SelectItem>
-                      {uniqueDrivers.map((driver) => (
-                        <SelectItem key={driver} value={driver}>{driver}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-foreground">{isRTL ? 'المركبة' : 'Vehicle'}</Label>
-                  <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
-                    <SelectTrigger className="mt-2">
-                      <SelectValue placeholder={isRTL ? 'جميع المركبات' : 'All Vehicles'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{isRTL ? 'جميع المركبات' : 'All Vehicles'}</SelectItem>
-                      {uniqueVehicles.map((vehicle) => (
-                        <SelectItem key={vehicle} value={vehicle}>{vehicle}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-foreground">{isRTL ? 'حالة الامتثال' : 'Compliance Status'}</Label>
-                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                    <SelectTrigger className="mt-2">
-                      <SelectValue placeholder={isRTL ? 'جميع الحالات' : 'All Statuses'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{isRTL ? 'جميع الحالات' : 'All Statuses'}</SelectItem>
-                      <SelectItem value="compliant">{isRTL ? 'متوافق' : 'Compliant'}</SelectItem>
-                      <SelectItem value="warning">{isRTL ? 'تحذير' : 'Warning'}</SelectItem>
-                      <SelectItem value="non-compliant">{isRTL ? 'غير متوافق' : 'Non-Compliant'}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-foreground">{isRTL ? 'نوع النفايات' : 'Waste Type'}</Label>
-                  <Select value={selectedWasteType} onValueChange={setSelectedWasteType}>
-                    <SelectTrigger className="mt-2">
-                      <SelectValue placeholder={isRTL ? 'جميع الأنواع' : 'All Types'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{isRTL ? 'جميع الأنواع' : 'All Types'}</SelectItem>
-                      {uniqueWasteTypes.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={clearFilters}
-                  className="flex-1"
-                >
-                  {isRTL ? 'مسح المرشحات' : 'Clear Filters'}
-                </Button>
-                <Button
-                  onClick={() => setShowFilters(false)}
-                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  {isRTL ? 'تطبيق المرشحات' : 'Apply Filters'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="bg-card text-card-foreground border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{isRTL ? 'إجمالي الالتقاطات' : 'Total Pickups'}</p>
-                  <p className="text-2xl font-bold text-foreground">{filteredRecords.length}</p>
-                </div>
-                <CalendarIcon className="w-8 h-8 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-card text-card-foreground border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{isRTL ? 'متوافقة' : 'Compliant'}</p>
-                  <p className="text-2xl font-bold text-success">
-                    {filteredRecords.filter(r => r.complianceStatus === 'compliant').length}
-                  </p>
-                </div>
-                <CheckCircle2Icon className="w-8 h-8 text-success" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-card text-card-foreground border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{isRTL ? 'تحذيرات' : 'Warnings'}</p>
-                  <p className="text-2xl font-bold text-warning">
-                    {filteredRecords.filter(r => r.complianceStatus === 'warning').length}
-                  </p>
-                </div>
-                <AlertTriangleIcon className="w-8 h-8 text-warning" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-card text-card-foreground border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{isRTL ? 'غير متوافقة' : 'Non-Compliant'}</p>
-                  <p className="text-2xl font-bold text-destructive">
-                    {filteredRecords.filter(r => r.complianceStatus === 'non-compliant').length}
-                  </p>
-                </div>
-                <XCircleIcon className="w-8 h-8 text-destructive" />
-              </div>
-            </CardContent>
-          </Card>
+                <c.Icon className={`w-8 h-8 ${c.cls}`} />
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Records Table */}
+        {/* Records */}
         <Card className="bg-card text-card-foreground border-border">
           <CardHeader>
             <CardTitle className="text-foreground">
-              {isRTL ? 'سجل الالتقاطات' : 'Pickup Records'} ({filteredRecords.length})
+              {isRTL ? 'السجلات' : 'Records'} ({events.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px] pr-4">
               <div className="space-y-4">
-                {filteredRecords.map((record) => (
-                  <Card
-                    key={record.id}
-                    className={`border-2 ${
-                      record.complianceStatus === 'compliant' 
-                        ? 'bg-success/5 border-success/20'
-                        : record.complianceStatus === 'warning'
-                        ? 'bg-warning/5 border-warning/20'
-                        : 'bg-destructive/5 border-destructive/20'
-                    }`}
-                  >
+                {loading && (
+                  <div className="text-center py-12 text-muted-foreground">{isRTL ? 'جارٍ التحميل...' : 'Loading...'}</div>
+                )}
+                {!loading && events.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    {isRTL ? 'لا توجد سجلات' : 'No records found'}
+                  </div>
+                )}
+                {events.map((e) => (
+                  <Card key={e.id} className={`border-2 ${
+                    e.compliance_status === 'compliant' ? 'bg-success/5 border-success/20'
+                    : e.compliance_status === 'warning' ? 'bg-warning/5 border-warning/20'
+                    : 'bg-destructive/5 border-destructive/20'}`}>
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                            <CalendarIcon className="w-6 h-6 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-foreground text-lg">{record.facility}</h3>
-                            <p className="text-sm text-muted-foreground">{record.date}</p>
-                          </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground text-lg">{branchName(e.branch_id)}</h3>
+                          <p className="text-sm text-muted-foreground">{new Date(e.created_at).toLocaleString(isRTL ? 'ar-SA' : 'en-CA')}</p>
                         </div>
-                        
                         <div className="flex items-center gap-3">
-                          {getStatusBadge(record.complianceStatus)}
-                          <Button size="sm" variant="outline">
+                          {statusBadge(e.compliance_status)}
+                          <Button size="sm" variant="outline" onClick={() => setDetail(e)}>
                             <EyeIcon className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="flex items-center gap-2">
-                          <UserIcon className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              {isRTL ? 'السائق' : 'Driver'}
-                            </p>
-                            <p className="text-sm font-medium text-foreground">{record.driver}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <TruckIcon className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              {isRTL ? 'المركبة' : 'Vehicle'}
-                            </p>
-                            <p className="text-sm font-medium text-foreground">{record.vehicle}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Trash2Icon className={`w-4 h-4 ${getWasteTypeColor(record.wasteType)}`} />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              {isRTL ? 'نوع النفايات' : 'Waste Type'}
-                            </p>
-                            <p className={`text-sm font-medium ${getWasteTypeColor(record.wasteType)}`}>
-                              {record.wasteType}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <WeightIcon className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              {isRTL ? 'الوزن' : 'Weight'}
-                            </p>
-                            <p className="text-sm font-medium text-foreground">{record.weight}</p>
-                          </div>
-                        </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="flex items-center gap-2"><UserIcon className="w-4 h-4 text-muted-foreground" />{driverName(e.driver_id)}</div>
+                        <div className="flex items-center gap-2"><TruckIcon className="w-4 h-4 text-muted-foreground" />{vehiclePlate(e.vehicle_id)}</div>
+                        <div className="flex items-center gap-2"><WeightIcon className="w-4 h-4 text-muted-foreground" />{e.weight_kg} {isRTL ? 'كجم' : 'kg'}</div>
+                        <div className="flex items-center gap-2"><MapPinIcon className={`w-4 h-4 ${e.geofence_verified ? 'text-success' : 'text-destructive'}`} />{e.geofence_verified ? (isRTL ? 'داخل النطاق' : 'In geofence') : (isRTL ? 'خارج النطاق' : 'Out of range')}</div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
-                
-                {filteredRecords.length === 0 && (
-                  <div className="text-center py-12">
-                    <CalendarIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">
-                      {isRTL ? 'لا توجد سجلات' : 'No Records Found'}
-                    </h3>
-                    <p className="text-muted-foreground">
-                      {isRTL ? 'لم يتم العثور على سجلات تطابق المعايير المحددة' : 'No records match the specified criteria'}
-                    </p>
-                  </div>
-                )}
               </div>
             </ScrollArea>
           </CardContent>
         </Card>
       </div>
+
+      {/* Detail drawer */}
+      {detail && (
+        <div className="fixed inset-0 bg-gray-900/50 z-50 flex items-start justify-end p-4">
+          <Card className="w-full max-w-md bg-card text-card-foreground border-border max-h-[90vh] flex flex-col mt-16">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-foreground">{isRTL ? 'تفاصيل الالتقاط' : 'Pickup Detail'}</CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setDetail(null)}><XIcon className="w-5 h-5" /></Button>
+            </CardHeader>
+            <CardContent className="overflow-y-auto space-y-2 text-sm">
+              {[
+                [isRTL ? 'المعرّف' : 'ID', detail.id],
+                [isRTL ? 'التاريخ' : 'Date', new Date(detail.created_at).toLocaleString(isRTL ? 'ar-SA' : 'en-CA')],
+                [isRTL ? 'الفرع' : 'Branch', branchName(detail.branch_id)],
+                [isRTL ? 'السائق' : 'Driver', driverName(detail.driver_id)],
+                [isRTL ? 'المركبة' : 'Vehicle', vehiclePlate(detail.vehicle_id)],
+                [isRTL ? 'أنواع النفايات' : 'Waste types', detail.waste_types.join('، ')],
+                [isRTL ? 'الوزن' : 'Weight', `${detail.weight_kg} ${isRTL ? 'كجم' : 'kg'}`],
+                [isRTL ? 'حالة الامتثال' : 'Compliance', detail.compliance_status],
+                [isRTL ? 'درجة الخطورة' : 'Risk score', `${detail.risk_score}/100`],
+                [isRTL ? 'علامات الخطورة' : 'Risk flags', detail.risk_flags.join('، ') || '—'],
+                [isRTL ? 'التحقق الجغرافي' : 'Geofence verified', detail.geofence_verified ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-4 border-b border-border py-1.5">
+                  <span className="text-muted-foreground">{k}</span>
+                  <span className="text-foreground text-right break-all">{v}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AppShell>
   );
 }

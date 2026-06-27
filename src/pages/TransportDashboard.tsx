@@ -3,16 +3,16 @@ import { useAuthStore } from '../stores/authStore';
 import { useTransportStore } from '../stores/transportStore';
 import AppShell from '../components/AppShell';
 import TransportKPIs from '../components/transport/TransportKPIs';
-import AlertsList from '../components/transport/AlertsList';
+import RealAlertsPanel from '../components/transport/RealAlertsPanel';
 
 export default function TransportDashboard() {
   const { isRTL, user } = useAuthStore();
-  const { alerts, pendingTasks, complianceRate, todayPickups, loadDrivers, loadVehicles } = useTransportStore();
+  const { pendingTasks, complianceRate, todayPickups, loadDrivers, loadVehicles } = useTransportStore();
 
   useEffect(() => {
-    loadDrivers();
-    loadVehicles();
-  }, [loadDrivers, loadVehicles]);
+    loadDrivers(user?.transport_company_id ?? undefined);
+    loadVehicles(user?.transport_company_id ?? undefined);
+  }, [loadDrivers, loadVehicles, user?.transport_company_id]);
 
   return (
     <AppShell role="transport">
@@ -32,7 +32,7 @@ export default function TransportDashboard() {
           todayPickups={todayPickups}
         />
 
-        <AlertsList alerts={alerts} />
+        <RealAlertsPanel companyId={user?.company_id ?? null} />
       </div>
     </AppShell>
   );

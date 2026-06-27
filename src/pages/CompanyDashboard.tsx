@@ -21,7 +21,7 @@ function currentMonth(): string {
 
 export default function CompanyDashboard() {
   const { isRTL, user } = useAuthStore();
-  const { complianceData, recentPickups, loadRecentPickups } = useCompanyStore();
+  const { complianceData, recentPickups, loadRecentPickups, kpis, loadKpis } = useCompanyStore();
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
   const [generatingMonthly, setGeneratingMonthly] = useState(false);
@@ -29,7 +29,8 @@ export default function CompanyDashboard() {
 
   useEffect(() => {
     loadRecentPickups();
-  }, [loadRecentPickups]);
+    if (user?.company_id) loadKpis(user.company_id);
+  }, [loadRecentPickups, loadKpis, user?.company_id]);
 
   async function handleGenerateMonthly() {
     if (!user?.branch_id) {
@@ -65,6 +66,25 @@ export default function CompanyDashboard() {
 
           <FadeInUp delay={0.2}>
             <ComplianceWidget data={complianceData} />
+          </FadeInUp>
+
+          {/* Real KPIs — last 30 days */}
+          <FadeInUp delay={0.25}>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { labelAr: 'إجمالي الالتقاطات', labelEn: 'Total Pickups', value: kpis?.totalPickups ?? 0, cls: 'text-foreground' },
+                { labelAr: 'الوزن الكلي (كجم)', labelEn: 'Total Weight (kg)', value: kpis?.totalWeightKg ?? 0, cls: 'text-foreground' },
+                { labelAr: 'ممتثلة', labelEn: 'Compliant', value: kpis?.compliantCount ?? 0, cls: 'text-success' },
+                { labelAr: 'غير ممتثلة', labelEn: 'Non-Compliant', value: kpis?.nonCompliantCount ?? 0, cls: 'text-destructive' },
+              ].map((k) => (
+                <Card key={k.labelEn} className="bg-card text-card-foreground border-border">
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">{isRTL ? k.labelAr : k.labelEn}</p>
+                    <p className={`text-2xl font-bold ${k.cls}`}>{k.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </FadeInUp>
 
           {/* Monthly Inspection Report */}

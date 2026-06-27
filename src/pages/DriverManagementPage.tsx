@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useTransportStore, Driver } from '../stores/transportStore';
+import { useTransportStore } from '../stores/transportStore';
+import { licenseStatus } from '../lib/api/drivers';
 import AppShell from '../components/AppShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,88 +10,72 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  PlusIcon, 
-  SearchIcon, 
-  UserIcon, 
-  CalendarIcon, 
-  ShieldCheckIcon,
-  AlertTriangleIcon,
-  EditIcon,
-  TrashIcon
-} from 'lucide-react';
+import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTriangleIcon, PowerIcon } from 'lucide-react';
 import FadeInUp from '../components/animations/FadeInUp';
-import StaggeredList from '../components/animations/StaggeredList';
-import InteractiveButton from '../components/animations/InteractiveButton';
 
 export default function DriverManagementPage() {
-  const { isRTL } = useAuthStore();
-  const { drivers, addDriver } = useTransportStore();
+  const { isRTL, user } = useAuthStore();
+  const { drivers, loadDrivers, addDriver, removeDriver } = useTransportStore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newDriver, setNewDriver] = useState({
-    name: '',
-    licenseNumber: '',
-    licenseExpiry: '',
-    absherVerified: false,
-    status: 'active' as const
-  });
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name_ar: '', license_number: '', license_expiry: '', absher_verified: false });
 
-  const filteredDrivers = drivers.filter(driver =>
-    driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    driver.licenseNumber.toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    if (user?.transport_company_id) loadDrivers(user.transport_company_id);
+  }, [loadDrivers, user?.transport_company_id]);
+
+  const filtered = drivers.filter((d) =>
+    d.name_ar.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.license_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAddDriver = () => {
-    if (!newDriver.name || !newDriver.licenseNumber || !newDriver.licenseExpiry) {
-      toast({
-        title: isRTL ? 'خطأ' : 'Error',
-        description: isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill all required fields',
-        variant: 'destructive'
-      });
+  async function handleAdd() {
+    if (!form.name_ar || !form.license_number || !form.license_expiry) {
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: isRTL ? 'يرجى ملء جميع الحقول' : 'Please fill all fields', variant: 'destructive' });
       return;
     }
-
-    addDriver(newDriver);
-    setNewDriver({
-      name: '',
-      licenseNumber: '',
-      licenseExpiry: '',
-      absherVerified: false,
-      status: 'active'
-    });
-    setShowAddForm(false);
-    
-    toast({
-      title: isRTL ? 'تم بنجاح' : 'Success',
-      description: isRTL ? 'تم إضافة السائق بنجاح' : 'Driver added successfully'
-    });
-  };
-
-  const getExpiryStatus = (expiryDate: string) => {
-    const today = new Date();
-    const expiry = new Date(expiryDate);
-    const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (daysUntilExpiry < 0) {
-      return { status: 'expired', color: 'destructive', days: Math.abs(daysUntilExpiry) };
-    } else if (daysUntilExpiry <= 30) {
-      return { status: 'expiring', color: 'warning', days: daysUntilExpiry };
+    if (!user?.transport_company_id) {
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: isRTL ? 'لا توجد شركة نقل مرتبطة' : 'No transport company linked', variant: 'destructive' });
+      return;
     }
-    return { status: 'valid', color: 'success', days: daysUntilExpiry };
-  };
-
-  const getStatusBadge = (driver: Driver) => {
-    const expiryStatus = getExpiryStatus(driver.licenseExpiry);
-    
-    if (expiryStatus.status === 'expired') {
-      return <Badge variant="destructive">{isRTL ? 'منتهية الصلاحية' : 'Expired'}</Badge>;
-    } else if (expiryStatus.status === 'expiring') {
-      return <Badge className="bg-warning text-warning-foreground">{isRTL ? `تنتهي خلال ${expiryStatus.days} يوم` : `Expires in ${expiryStatus.days} days`}</Badge>;
+    setSaving(true);
+    try {
+      await addDriver({
+        transport_company_id: user.transport_company_id,
+        profile_id: null,
+        name_ar: form.name_ar,
+        license_number: form.license_number,
+        license_expiry: form.license_expiry,
+        absher_verified: form.absher_verified,
+        status: 'active',
+      });
+      setForm({ name_ar: '', license_number: '', license_expiry: '', absher_verified: false });
+      setShowAddForm(false);
+      toast({ title: isRTL ? 'تم بنجاح' : 'Success', description: isRTL ? 'تم إضافة السائق' : 'Driver added' });
+    } catch (e) {
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
+  }
+
+  async function handleDeactivate(id: string) {
+    try {
+      await removeDriver(id);
+      toast({ title: isRTL ? 'تم' : 'Done', description: isRTL ? 'تم تعطيل السائق' : 'Driver deactivated' });
+    } catch (e) {
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
+    }
+  }
+
+  function badge(expiry: string) {
+    const st = licenseStatus(expiry, 30);
+    if (st === 'expired') return <Badge variant="destructive">{isRTL ? 'منتهية' : 'Expired'}</Badge>;
+    if (st === 'expiring') return <Badge className="bg-warning text-warning-foreground">{isRTL ? 'تنتهي قريباً' : 'Expiring'}</Badge>;
     return <Badge variant="default">{isRTL ? 'صالحة' : 'Valid'}</Badge>;
-  };
+  }
 
   return (
     <AppShell role="transport">
@@ -98,242 +83,100 @@ export default function DriverManagementPage() {
         <FadeInUp>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                {isRTL ? 'إدارة السائقين' : 'Driver Management'}
-              </h1>
-              <p className="text-muted-foreground">
-                {isRTL ? 'إدارة وتتبع السائقين ورخصهم' : 'Manage and track drivers and their licenses'}
-              </p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">{isRTL ? 'إدارة السائقين' : 'Driver Management'}</h1>
+              <p className="text-muted-foreground">{isRTL ? 'إدارة وتتبع السائقين ورخصهم' : 'Manage and track drivers and their licenses'}</p>
             </div>
-            <InteractiveButton
-              onClick={() => setShowAddForm(true)}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              hapticFeedback
-            >
-              <PlusIcon className="w-4 h-4 mr-2" />
-              {isRTL ? 'إضافة سائق' : 'Add Driver'}
-            </InteractiveButton>
+            <Button onClick={() => setShowAddForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <PlusIcon className="w-4 h-4 mr-2" />{isRTL ? 'إضافة سائق' : 'Add Driver'}
+            </Button>
           </div>
         </FadeInUp>
 
-        {/* Search Bar */}
-        <FadeInUp delay={0.1}>
-          <Card className="bg-card text-card-foreground border-border">
-            <CardContent className="pt-6">
-              <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder={isRTL ? 'البحث عن سائق...' : 'Search drivers...'}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-background text-foreground border-input"
-                />
+        <Card className="bg-card text-card-foreground border-border">
+          <CardContent className="pt-6">
+            <div className="relative">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="text" placeholder={isRTL ? 'البحث عن سائق...' : 'Search drivers...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {showAddForm && (
+          <Card className="bg-card text-card-foreground border-2 border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3"><UserIcon className="w-6 h-6 text-primary" />{isRTL ? 'إضافة سائق جديد' : 'Add New Driver'}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>{isRTL ? 'اسم السائق' : 'Driver Name'}</Label>
+                  <Input value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className="mt-2" />
+                </div>
+                <div>
+                  <Label>{isRTL ? 'رقم الرخصة' : 'License Number'}</Label>
+                  <Input value={form.license_number} onChange={(e) => setForm({ ...form, license_number: e.target.value })} className="mt-2" />
+                </div>
+                <div>
+                  <Label>{isRTL ? 'تاريخ انتهاء الرخصة' : 'License Expiry'}</Label>
+                  <Input type="date" value={form.license_expiry} onChange={(e) => setForm({ ...form, license_expiry: e.target.value })} className="mt-2" dir="ltr" />
+                </div>
+                <div className="flex items-center gap-2 pt-8">
+                  <input type="checkbox" id="absher" checked={form.absher_verified} onChange={(e) => setForm({ ...form, absher_verified: e.target.checked })} />
+                  <Label htmlFor="absher">{isRTL ? 'تم التحقق من أبشر' : 'Absher Verified'}</Label>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button variant="outline" onClick={() => setShowAddForm(false)} className="flex-1">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+                <Button onClick={handleAdd} disabled={saving} className="flex-1 bg-primary text-primary-foreground">{isRTL ? 'إضافة السائق' : 'Add Driver'}</Button>
               </div>
             </CardContent>
           </Card>
-        </FadeInUp>
-
-        {/* Add Driver Form */}
-        {showAddForm && (
-          <FadeInUp delay={0.2}>
-            <Card className="bg-card text-card-foreground border-border border-2 border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-foreground flex items-center gap-3">
-                  <UserIcon className="w-6 h-6 text-primary" />
-                  {isRTL ? 'إضافة سائق جديد' : 'Add New Driver'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-foreground">{isRTL ? 'اسم السائق' : 'Driver Name'}</Label>
-                    <Input
-                      value={newDriver.name}
-                      onChange={(e) => setNewDriver({ ...newDriver, name: e.target.value })}
-                      placeholder={isRTL ? 'أدخل اسم السائق' : 'Enter driver name'}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-foreground">{isRTL ? 'رقم الرخصة' : 'License Number'}</Label>
-                    <Input
-                      value={newDriver.licenseNumber}
-                      onChange={(e) => setNewDriver({ ...newDriver, licenseNumber: e.target.value })}
-                      placeholder={isRTL ? 'أدخل رقم الرخصة' : 'Enter license number'}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-foreground">{isRTL ? 'تاريخ انتهاء الرخصة' : 'License Expiry Date'}</Label>
-                    <Input
-                      type="date"
-                      value={newDriver.licenseExpiry}
-                      onChange={(e) => setNewDriver({ ...newDriver, licenseExpiry: e.target.value })}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2 pt-8">
-                    <input
-                      type="checkbox"
-                      id="absher-verified"
-                      checked={newDriver.absherVerified}
-                      onChange={(e) => setNewDriver({ ...newDriver, absherVerified: e.target.checked })}
-                      className="rounded border-input"
-                    />
-                    <Label htmlFor="absher-verified" className="text-foreground">
-                      {isRTL ? 'تم التحقق من أبشر' : 'Absher Verified'}
-                    </Label>
-                  </div>
-                </div>
-                
-                <div className="flex gap-3 pt-4">
-                  <InteractiveButton
-                    variant="outline"
-                    onClick={() => setShowAddForm(false)}
-                    className="flex-1"
-                    hapticFeedback
-                  >
-                    {isRTL ? 'إلغاء' : 'Cancel'}
-                  </InteractiveButton>
-                  <InteractiveButton
-                    onClick={handleAddDriver}
-                    className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-                    hapticFeedback
-                    soundFeedback
-                  >
-                    {isRTL ? 'إضافة السائق' : 'Add Driver'}
-                  </InteractiveButton>
-                </div>
-              </CardContent>
-            </Card>
-          </FadeInUp>
         )}
 
-        {/* Drivers List */}
-        <FadeInUp delay={0.3}>
-          <Card className="bg-card text-card-foreground border-border">
-            <CardHeader>
-              <CardTitle className="text-foreground">
-                {isRTL ? 'قائمة السائقين' : 'Drivers List'} ({filteredDrivers.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[600px] pr-4">
-                <StaggeredList staggerDelay={0.05}>
-                  {filteredDrivers.map((driver) => {
-                    const expiryStatus = getExpiryStatus(driver.licenseExpiry);
-                    
-                    return (
-                      <Card
-                        key={driver.id}
-                        className={`border-2 ${
-                          expiryStatus.status === 'expired' 
-                            ? 'bg-destructive/5 border-destructive/20'
-                            : expiryStatus.status === 'expiring'
-                            ? 'bg-warning/5 border-warning/20'
-                            : 'bg-success/5 border-success/20'
-                        }`}
-                      >
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                                <UserIcon className="w-6 h-6 text-primary" />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-foreground text-lg">{driver.name}</h3>
-                                <p className="text-sm text-muted-foreground">{driver.licenseNumber}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-3">
-                              {getStatusBadge(driver)}
-                              <div className="flex gap-2">
-                                <InteractiveButton size="sm" variant="outline" hapticFeedback>
-                                  <EditIcon className="w-4 h-4" />
-                                </InteractiveButton>
-                                <InteractiveButton size="sm" variant="outline" className="text-destructive hover:text-destructive" hapticFeedback>
-                                  <TrashIcon className="w-4 h-4" />
-                                </InteractiveButton>
-                              </div>
-                            </div>
+        <Card className="bg-card text-card-foreground border-border">
+          <CardHeader>
+            <CardTitle>{isRTL ? 'قائمة السائقين' : 'Drivers List'} ({filtered.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[600px] pr-4">
+              <div className="space-y-4">
+                {filtered.map((d) => (
+                  <Card key={d.id} className={`border-2 ${d.status !== 'active' ? 'opacity-60 border-border' : 'border-border'}`}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-primary" /></div>
+                          <div>
+                            <h3 className="font-semibold text-foreground text-lg">{d.name_ar}</h3>
+                            <p className="text-sm text-muted-foreground">{d.license_number}</p>
                           </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
-                            <div className="flex items-center gap-2">
-                              <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  {isRTL ? 'تاريخ الانتهاء' : 'Expiry Date'}
-                                </p>
-                                <p className="text-sm font-medium text-foreground">{driver.licenseExpiry}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <ShieldCheckIcon className={`w-4 h-4 ${driver.absherVerified ? 'text-success' : 'text-muted-foreground'}`} />
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  {isRTL ? 'التحقق من أبشر' : 'Absher Verification'}
-                                </p>
-                                <p className={`text-sm font-medium ${driver.absherVerified ? 'text-success' : 'text-muted-foreground'}`}>
-                                  {driver.absherVerified 
-                                    ? (isRTL ? 'تم التحقق' : 'Verified')
-                                    : (isRTL ? 'غير محقق' : 'Not Verified')
-                                  }
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${driver.status === 'active' ? 'bg-success' : 'bg-muted-foreground'}`} />
-                              <div>
-                                <p className="text-xs text-muted-foreground">
-                                  {isRTL ? 'الحالة' : 'Status'}
-                                </p>
-                                <p className="text-sm font-medium text-foreground">
-                                  {driver.status === 'active' 
-                                    ? (isRTL ? 'نشط' : 'Active')
-                                    : (isRTL ? 'غير نشط' : 'Inactive')
-                                  }
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {expiryStatus.status === 'expiring' && (
-                            <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-center gap-3">
-                              <AlertTriangleIcon className="w-5 h-5 text-warning flex-shrink-0" />
-                              <p className="text-sm text-warning">
-                                {isRTL 
-                                  ? `تحذير: رخصة السائق تنتهي خلال ${expiryStatus.days} يوم`
-                                  : `Warning: Driver's license expires in ${expiryStatus.days} days`
-                                }
-                              </p>
-                            </div>
-                          )}
-                          
-                          {expiryStatus.status === 'expired' && (
-                            <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3">
-                              <AlertTriangleIcon className="w-5 h-5 text-destructive flex-shrink-0" />
-                              <p className="text-sm text-destructive">
-                                {isRTL 
-                                  ? `خطر: رخصة السائق منتهية الصلاحية منذ ${expiryStatus.days} يوم`
-                                  : `Critical: Driver's license expired ${expiryStatus.days} days ago`
-                                }
-                              </p>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </StaggeredList>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </FadeInUp>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {badge(d.license_expiry)}
+                          <Button size="sm" variant="outline" className="text-destructive" disabled={d.status !== 'active'} onClick={() => handleDeactivate(d.id)} title={isRTL ? 'تعطيل' : 'Deactivate'}>
+                            <PowerIcon className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-border text-sm">
+                        <div className="flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-muted-foreground" />{d.license_expiry}</div>
+                        <div className="flex items-center gap-2"><ShieldCheckIcon className={`w-4 h-4 ${d.absher_verified ? 'text-success' : 'text-muted-foreground'}`} />{d.absher_verified ? (isRTL ? 'محقق أبشر' : 'Absher Verified') : (isRTL ? 'غير محقق' : 'Not Verified')}</div>
+                        <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${d.status === 'active' ? 'bg-success' : 'bg-muted-foreground'}`} />{d.status === 'active' ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'غير نشط' : 'Inactive')}</div>
+                      </div>
+                      {licenseStatus(d.license_expiry, 30) !== 'ok' && d.status === 'active' && (
+                        <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-center gap-3">
+                          <AlertTriangleIcon className="w-5 h-5 text-warning flex-shrink-0" />
+                          <p className="text-sm text-warning">{isRTL ? 'رخصة السائق تحتاج إلى تجديد' : 'Driver license needs renewal'}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+                {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">{isRTL ? 'لا يوجد سائقون' : 'No drivers'}</div>}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
       </div>
     </AppShell>
   );

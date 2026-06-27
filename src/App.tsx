@@ -19,6 +19,8 @@ import TransportDashboard from './pages/TransportDashboard';
 import DriverManagementPage from './pages/DriverManagementPage';
 import VehicleManagementPage from './pages/VehicleManagementPage';
 import PickupLogPage from './pages/PickupLogPage';
+import BranchesPage from './pages/BranchesPage';
+import ProfilePage from './pages/ProfilePage';
 
 // Role → route mapping (keeps the existing URL scheme)
 const roleRoute: Record<string, string> = {
@@ -52,8 +54,21 @@ function App() {
 
         if (event === 'INITIAL_SESSION') {
           if (session?.user) {
-            hydrate(session.user.id).finally(() => {
-              if (!cancelled) setSessionChecked(true);
+            // Session self-heal: validate the token against the server. After a
+            // `supabase db reset` the local JWT references a user that no longer
+            // exists; getUser() then returns an error and we must sign out (once)
+            // and route to login rather than spin in a hydrate loop.
+            supabase.auth.getUser().then(({ error }) => {
+              if (cancelled) return;
+              if (error) {
+                useAuthStore.getState().logout().finally(() => {
+                  if (!cancelled) setSessionChecked(true);
+                });
+              } else {
+                hydrate(session.user.id).finally(() => {
+                  if (!cancelled) setSessionChecked(true);
+                });
+              }
             });
           } else {
             setSessionChecked(true);
@@ -114,6 +129,30 @@ function App() {
           element={
             user && ['owner', 'manager'].includes(user.role)
               ? <CompanyDashboard />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/company/branches"
+          element={
+            user && ['owner', 'manager'].includes(user.role)
+              ? <BranchesPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/company/pickups"
+          element={
+            user && ['owner', 'manager'].includes(user.role)
+              ? <PickupLogPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            user
+              ? <ProfilePage />
               : <Navigate to="/login" replace />
           }
         />

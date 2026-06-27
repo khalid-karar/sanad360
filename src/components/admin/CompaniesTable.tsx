@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
+import { listAllCompanies } from '../../lib/api/admin';
+import type { Company as DbCompany } from '../../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,18 +15,27 @@ interface Company {
   status: 'low' | 'medium' | 'high';
 }
 
-const companies: Company[] = [
-  { id: '1', name: 'شركة النخيل للصناعات', lastSubmission: '2024-01-15', riskScore: 92, status: 'low' },
-  { id: '2', name: 'مصنع الخليج للبلاستيك', lastSubmission: '2024-01-14', riskScore: 85, status: 'low' },
-  { id: '3', name: 'شركة الصحراء للكيماويات', lastSubmission: '2024-01-10', riskScore: 78, status: 'medium' },
-  { id: '4', name: 'مصنع الرياض للمعادن', lastSubmission: '2024-01-08', riskScore: 65, status: 'high' },
-  { id: '5', name: 'شركة جدة للإلكترونيات', lastSubmission: '2024-01-13', riskScore: 88, status: 'low' },
-];
-
 export default function CompaniesTable() {
   const { isRTL } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+
+  useEffect(() => {
+    listAllCompanies()
+      .then((rows: DbCompany[]) =>
+        setCompanies(
+          rows.map((c) => ({
+            id: c.id,
+            name: isRTL ? c.name_ar : (c.name_en ?? c.name_ar),
+            lastSubmission: new Date(c.created_at).toISOString().slice(0, 10),
+            riskScore: 0,
+            status: 'low' as const,
+          }))
+        )
+      )
+      .catch(() => setCompanies([]));
+  }, [isRTL]);
 
   const filteredCompanies = companies.filter((company) =>
     company.name.toLowerCase().includes(searchTerm.toLowerCase())

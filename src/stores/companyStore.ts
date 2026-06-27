@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useNotificationStore } from './notificationStore';
 import { listPickups } from '../lib/api/pickups';
+import { getDashboardKpis, type DashboardKpis } from '../lib/api/analytics';
 import type { PickupEvent } from '../lib/database.types';
 
 export interface ComplianceIssue {
@@ -36,7 +37,10 @@ interface CompanyState {
   complianceData: ComplianceData;
   recentPickups: RecentPickup[];
   isLoadingPickups: boolean;
+  kpis: DashboardKpis | null;
+  isLoadingKpis: boolean;
 
+  loadKpis: (companyId: string) => Promise<void>;
   loadRecentPickups: () => Promise<void>;
   approveCompliance: () => void;
   overrideAndApprove: () => void;
@@ -58,16 +62,44 @@ function pickupEventToRecentPickup(event: PickupEvent): RecentPickup {
   };
 }
 
+function levelFromRate(rate: number): 'green' | 'yellow' | 'red' {
+  if (rate >= 95) return 'green';
+  if (rate >= 80) return 'yellow';
+  return 'red';
+}
+
 export const useCompanyStore = create<CompanyState>((set) => ({
   complianceData: {
-    date: new Date(Date.now() - 86400000).toLocaleDateString('ar-SA'),
-    percentage: 94,
+    date: new Date().toLocaleDateString('ar-SA'),
+    percentage: 0,
     status: 'pending',
     level: 'green',
     issues: [],
   },
   recentPickups: [],
   isLoadingPickups: false,
+  kpis: null,
+  isLoadingKpis: false,
+
+  loadKpis: async (companyId: string) => {
+    set({ isLoadingKpis: true });
+    try {
+      const kpis = await getDashboardKpis(companyId);
+      set({
+        kpis,
+        isLoadingKpis: false,
+        complianceData: {
+          date: new Date().toLocaleDateString('ar-SA'),
+          percentage: kpis.complianceRate,
+          status: 'pending',
+          level: levelFromRate(kpis.complianceRate),
+          issues: [],
+        },
+      });
+    } catch {
+      set({ isLoadingKpis: false });
+    }
+  },
 
   loadRecentPickups: async () => {
     set({ isLoadingPickups: true });

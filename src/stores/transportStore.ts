@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { useNotificationStore } from './notificationStore';
-import { listDrivers, createDriver } from '../lib/api/drivers';
-import { listVehicles, createVehicle } from '../lib/api/vehicles';
+import { listDrivers, createDriver, updateDriver, deactivateDriver } from '../lib/api/drivers';
+import { listVehicles, createVehicle, updateVehicle, deactivateVehicle } from '../lib/api/vehicles';
 import type { Driver, Vehicle, CreateDriverInput, CreateVehicleInput } from '../lib/database.types';
 
 export type AlertType = 'warning' | 'critical';
@@ -44,10 +44,14 @@ interface TransportState {
   isLoadingDrivers: boolean;
   isLoadingVehicles: boolean;
 
-  loadDrivers: () => Promise<void>;
-  loadVehicles: () => Promise<void>;
+  loadDrivers: (transportCompanyId?: string) => Promise<void>;
+  loadVehicles: (transportCompanyId?: string) => Promise<void>;
   addDriver: (driver: CreateDriverInput) => Promise<void>;
   addVehicle: (vehicle: CreateVehicleInput) => Promise<void>;
+  editDriver: (id: string, fields: Partial<Driver>) => Promise<void>;
+  editVehicle: (id: string, fields: Partial<Vehicle>) => Promise<void>;
+  removeDriver: (id: string) => Promise<void>;
+  removeVehicle: (id: string) => Promise<void>;
 
   // Alert actions (alerts remain local for Phase 1 — wired to real data in Phase 3)
   uploadDocument: (alertId: string, document: File) => void;
@@ -96,24 +100,44 @@ export const useTransportStore = create<TransportState>((set, get) => ({
   isLoadingDrivers: false,
   isLoadingVehicles: false,
 
-  loadDrivers: async () => {
+  loadDrivers: async (transportCompanyId?: string) => {
     set({ isLoadingDrivers: true });
     try {
-      const drivers = await listDrivers();
+      const drivers = await listDrivers(transportCompanyId);
       set({ drivers, isLoadingDrivers: false });
     } catch {
       set({ isLoadingDrivers: false });
     }
   },
 
-  loadVehicles: async () => {
+  loadVehicles: async (transportCompanyId?: string) => {
     set({ isLoadingVehicles: true });
     try {
-      const vehicles = await listVehicles();
+      const vehicles = await listVehicles(transportCompanyId);
       set({ vehicles, isLoadingVehicles: false });
     } catch {
       set({ isLoadingVehicles: false });
     }
+  },
+
+  editDriver: async (id, fields) => {
+    const updated = await updateDriver(id, fields);
+    set((s) => ({ drivers: s.drivers.map((d) => (d.id === id ? updated : d)) }));
+  },
+
+  editVehicle: async (id, fields) => {
+    const updated = await updateVehicle(id, fields);
+    set((s) => ({ vehicles: s.vehicles.map((v) => (v.id === id ? updated : v)) }));
+  },
+
+  removeDriver: async (id) => {
+    const updated = await deactivateDriver(id);
+    set((s) => ({ drivers: s.drivers.map((d) => (d.id === id ? updated : d)) }));
+  },
+
+  removeVehicle: async (id) => {
+    const updated = await deactivateVehicle(id);
+    set((s) => ({ vehicles: s.vehicles.map((v) => (v.id === id ? updated : v)) }));
   },
 
   addDriver: async (input: CreateDriverInput) => {
