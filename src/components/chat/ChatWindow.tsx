@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import { useChatStore, ChatMessage, ChatUser, Conversation } from '../../stores/chatStore';
+import { useChatStore, ChatUser, Conversation } from '../../stores/chatStore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
-  MessageSquareIcon, XIcon, SendIcon, UserIcon, UsersIcon, ChevronLeftIcon, CircleDotIcon
+  XIcon, SendIcon, UserIcon, ChevronLeftIcon, CircleDotIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import FadeInUp from '../animations/FadeInUp';
 import { cn } from '@/lib/utils';
 
 interface ChatWindowProps {
@@ -65,11 +64,6 @@ export default function ChatWindow({ isOpen, onClose }: ChatWindowProps) {
 
   const getUnreadCountForConversation = (conv: Conversation) => {
     return conv.messages.filter(msg => msg.senderId !== currentUser?.id && !msg.read).length;
-  };
-
-  const getChatPartner = (conv: Conversation) => {
-    const partnerId = conv.participants.find(pId => pId !== currentUser?.id);
-    return users.find(u => u.id === partnerId);
   };
 
   const handleSelectConversation = (convId: string) => {

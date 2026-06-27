@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, ShieldIcon, MapPinIcon, PackageIcon, AlertTriangleIcon } from 'lucide-react';
+import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon } from 'lucide-react';
 import Logo from './Logo';
 
 interface SidebarProps {
@@ -23,13 +23,14 @@ export default function Sidebar({ role }: SidebarProps) {
 
   const driverLinks = [
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/driver' },
-    { icon: ClipboardListIcon, label: isRTL ? 'جدول اليوم' : "Today's Schedule", path: '/driver' },
+    { icon: CalendarClockIcon, label: isRTL ? 'جدولي' : 'My Schedule', path: '/driver/schedule' },
     { icon: MapPinIcon, label: isRTL ? 'المواقع' : 'Locations', path: '/driver' },
   ];
 
   const companyLinks = [
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/company' },
     { icon: Building2Icon, label: isRTL ? 'الفروع' : 'Branches', path: '/company/branches' },
+    { icon: CalendarClockIcon, label: isRTL ? 'جدولة الالتقاطات' : 'Schedule Pickups', path: '/company/schedule' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/company/pickups' },
   ];
 

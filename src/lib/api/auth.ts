@@ -1,6 +1,9 @@
 import { supabase } from '../supabase';
 import type { Profile, Membership, MemberRole } from '../database.types';
 
+// Re-export so consumers (e.g. authStore) can import the role union from here.
+export type { MemberRole };
+
 export interface AuthUser {
   id: string;
   name: string;

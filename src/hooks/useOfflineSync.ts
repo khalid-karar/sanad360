@@ -144,7 +144,7 @@ export function useOfflineSync(): UseOfflineSyncReturn {
 }
 
 // Mock API call function - replace with actual API calls
-async function mockApiCall(type: string, data: any): Promise<{ ok: boolean }> {
+async function mockApiCall(type: string, _data: unknown): Promise<{ ok: boolean }> {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
   

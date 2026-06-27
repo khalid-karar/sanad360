@@ -1,5 +1,9 @@
 import { supabase } from '../supabase';
-import type { PickupEvent, CreatePickupEventInput } from '../database.types';
+import type {
+  PickupEvent,
+  CreatePickupEventInput,
+  ComplianceStatus,
+} from '../database.types';
 
 // Error code prefixes from the BEFORE INSERT trigger
 const TRIGGER_ERRORS: Record<string, string> = {
@@ -112,7 +116,7 @@ export async function listPickups(filters: ListPickupsFilters = {}): Promise<Pic
     query = query.lte('created_at', filters.dateTo + 'T23:59:59Z');
   }
   if (filters.complianceStatus) {
-    query = query.eq('compliance_status', filters.complianceStatus);
+    query = query.eq('compliance_status', filters.complianceStatus as ComplianceStatus);
   }
   if (filters.limit) {
     query = query.limit(filters.limit);
@@ -150,7 +154,7 @@ export async function listPickupEvents(
   if (filters.branchId) query = query.eq('branch_id', filters.branchId);
   if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
   if (filters.dateTo) query = query.lte('created_at', filters.dateTo + 'T23:59:59Z');
-  if (filters.status) query = query.eq('compliance_status', filters.status);
+  if (filters.status) query = query.eq('compliance_status', filters.status as ComplianceStatus);
 
   const { data, error } = await query;
   if (error) throw error;

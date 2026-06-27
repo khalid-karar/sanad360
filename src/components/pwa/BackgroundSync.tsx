@@ -1,12 +1,10 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNotificationStore } from '../../stores/notificationStore';
-import { usePWA } from '../../hooks/usePWA';
 
 export default function BackgroundSync() {
   const { user } = useAuthStore();
   const { addNotification } = useNotificationStore();
-  const { isOffline } = usePWA();
 
   useEffect(() => {
     // Register background sync when service worker is available
@@ -15,11 +13,11 @@ export default function BackgroundSync() {
         console.log('PWA: Background sync registered');
         
         // Register sync events for different data types
-        registration.sync.register('background-sync-compliance').catch((error) => {
+        registration.sync?.register('background-sync-compliance').catch((error: unknown) => {
           console.error('PWA: Failed to register compliance sync', error);
         });
-        
-        registration.sync.register('background-sync-pickups').catch((error) => {
+
+        registration.sync?.register('background-sync-pickups').catch((error: unknown) => {
           console.error('PWA: Failed to register pickup sync', error);
         });
       });
@@ -45,8 +43,8 @@ export default function BackgroundSync() {
       // Trigger background sync
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.ready.then((registration) => {
-          registration.sync.register('background-sync-compliance');
-          registration.sync.register('background-sync-pickups');
+          registration.sync?.register('background-sync-compliance');
+          registration.sync?.register('background-sync-pickups');
         });
       }
     };

@@ -3,7 +3,7 @@ import { useOfflineSync } from '../../hooks/useOfflineSync';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { RefreshCwIcon, CloudOffIcon, CloudIcon } from 'lucide-react';
+import { RefreshCwIcon, CloudOffIcon } from 'lucide-react';
 
 export default function SyncStatus() {
   const { isRTL } = useAuthStore();

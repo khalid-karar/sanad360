@@ -123,7 +123,7 @@ export default function AlertActionModal({ alert, actionType, onClose }: AlertAc
                 <SelectContent>
                   {drivers.filter(d => d.status === 'active').map((driver) => (
                     <SelectItem key={driver.id} value={driver.id}>
-                      {driver.name} - {driver.licenseNumber}
+                      {driver.name_ar} - {driver.license_number}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -141,7 +141,7 @@ export default function AlertActionModal({ alert, actionType, onClose }: AlertAc
                 <SelectContent>
                   {vehicles.filter(v => v.status === 'active').map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plateNumber} - {vehicle.type} ({vehicle.licenseType})
+                      {vehicle.plate_number} - {vehicle.type} ({vehicle.waste_license_type})
                     </SelectItem>
                   ))}
                 </SelectContent>

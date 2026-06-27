@@ -210,25 +210,48 @@ export interface NotificationRow {
   created_at: string;
 }
 
+// Each table exposes Row (full read shape), Insert (write shape — server-set
+// columns optional), and Update (all columns optional). supabase-js uses Insert
+// for `.insert()` and Update for `.update()`. We model Insert/Update as
+// Partial<Row> because the API layer always supplies the required columns and
+// the DB/triggers fill the rest; this keeps the typed client permissive enough
+// for our hand-written input types while still type-checking column names.
+// Mapped-type wrapper: our Row shapes are `interface`s, which (unlike type
+// literals) are NOT assignable to `Record<string, unknown>` and therefore fail
+// supabase-js's `GenericSchema` constraint — silently collapsing every table to
+// `never`. Re-mapping the keys produces an index-signature-compatible object
+// type that satisfies the constraint while preserving the original columns.
+type Indexed<Row> = { [K in keyof Row]: Row[K] };
+
+type TableShape<Row> = {
+  Row: Indexed<Row>;
+  Insert: Partial<Indexed<Row>>;
+  Update: Partial<Indexed<Row>>;
+  Relationships: [];
+};
+
 export interface Database {
   public: {
     Tables: {
-      companies: { Row: Company };
-      branches: { Row: Branch };
-      transport_companies: { Row: TransportCompany };
-      profiles: { Row: Profile };
-      memberships: { Row: Membership };
-      drivers: { Row: Driver };
-      vehicles: { Row: Vehicle };
-      pickup_events: { Row: PickupEvent };
-      audit_log: { Row: AuditLog };
-      inspection_pdfs: { Row: InspectionPdf };
-      pickup_assignments: { Row: PickupAssignment };
-      alert_acknowledgements: { Row: AlertAcknowledgement };
-      notifications: { Row: NotificationRow };
+      companies: TableShape<Company>;
+      branches: TableShape<Branch>;
+      transport_companies: TableShape<TransportCompany>;
+      profiles: TableShape<Profile>;
+      memberships: TableShape<Membership>;
+      drivers: TableShape<Driver>;
+      vehicles: TableShape<Vehicle>;
+      pickup_events: TableShape<PickupEvent>;
+      audit_log: TableShape<AuditLog>;
+      inspection_pdfs: TableShape<InspectionPdf>;
+      pickup_assignments: TableShape<PickupAssignment>;
+      alert_acknowledgements: TableShape<AlertAcknowledgement>;
+      notifications: TableShape<NotificationRow>;
     };
     Views: {
-      pickup_events_latest: { Row: PickupEvent };
+      pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };
     };
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }

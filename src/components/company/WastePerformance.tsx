@@ -1,7 +1,7 @@
 import { useAuthStore } from '../../stores/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Line, ComposedChart, Legend, PieChart, Pie, Cell
 } from 'recharts';
 import { Separator } from '@/components/ui/separator';

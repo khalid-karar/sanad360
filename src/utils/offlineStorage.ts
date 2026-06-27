@@ -108,11 +108,13 @@ class OfflineStorage {
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['offlineData'], 'readonly');
       const store = transaction.objectStore('offlineData');
-      const index = store.index('synced');
-      const request = index.getAll(false);
+      // IndexedDB cannot index on boolean keys, so we read everything and
+      // filter unsynced items in JS rather than querying the index with `false`.
+      const request = store.getAll();
 
       request.onsuccess = () => {
-        resolve(request.result);
+        const all = request.result as OfflineData[];
+        resolve(all.filter((item) => !item.synced));
       };
 
       request.onerror = () => {

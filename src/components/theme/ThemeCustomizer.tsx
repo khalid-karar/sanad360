@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeStore, Theme, ColorScheme } from '../../stores/themeStore';
 import { Button } from '@/components/ui/button';

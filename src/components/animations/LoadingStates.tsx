@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import { LoadingSpinner } from '../ui/loading-spinner';
 import { Skeleton } from '../ui/skeleton';
-import { useAuthStore } from '../../stores/authStore';
 
 interface LoadingStatesProps {
   type?: 'spinner' | 'skeleton' | 'dots' | 'pulse';
@@ -16,7 +15,6 @@ export default function LoadingStates({
   text,
   className 
 }: LoadingStatesProps) {
-  const { isRTL } = useAuthStore();
 
   if (type === 'skeleton') {
     return (

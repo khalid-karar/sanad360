@@ -1,7 +1,7 @@
 import { useAuthStore } from '../../stores/authStore';
 import { usePWA } from '../../hooks/usePWA';
 import { Badge } from '@/components/ui/badge';
-import { WifiOffIcon, WifiIcon } from 'lucide-react';
+import { WifiOffIcon } from 'lucide-react';
 
 export default function OfflineIndicator() {
   const { isRTL } = useAuthStore();

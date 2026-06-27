@@ -14,7 +14,6 @@ import {
   InfoIcon, 
   CheckCircle2Icon,
   XCircleIcon,
-  SettingsIcon,
   VolumeXIcon,
   Volume2Icon
 } from 'lucide-react';
@@ -26,10 +25,9 @@ interface NotificationCenterProps {
 
 export default function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
   const { isRTL, user } = useAuthStore();
-  const { 
-    notifications, 
-    unreadCount, 
-    soundEnabled, 
+  const {
+    unreadCount,
+    soundEnabled,
     markAsRead, 
     markAllAsRead, 
     removeNotification, 
