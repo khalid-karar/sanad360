@@ -205,4 +205,17 @@ VALUES
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- ─────────────────────────────────────────────────────────────
+-- COMPANY ↔ TRANSPORTER LINK
+-- Link seeded company to seeded transport company
+-- ─────────────────────────────────────────────────────────────
+INSERT INTO public.company_transporters (id, company_id, transport_company_id, status)
+VALUES (
+  'f1000000-0000-0000-0000-000000000001',
+  'a0000000-0000-0000-0000-000000000001',  -- seeded company
+  'c0000000-0000-0000-0000-000000000001',  -- seeded transport company
+  'active'
+)
+ON CONFLICT (id) DO NOTHING;
+
 END $$;
