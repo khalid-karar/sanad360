@@ -126,6 +126,60 @@ export async function listPickups(filters: ListPickupsFilters = {}): Promise<Pic
   return (data as PickupEvent[]) ?? [];
 }
 
+export interface ListPickupEventsFilters {
+  companyId?: string;
+  branchId?: string;
+  dateFrom?: string;   // ISO date (YYYY-MM-DD)
+  dateTo?: string;     // ISO date (YYYY-MM-DD)
+  status?: string;     // compliance_status
+}
+
+/**
+ * Phase 3 history query — latest revision per logical event with real filters.
+ * Reads pickup_events_latest (security_invoker view → RLS enforced).
+ */
+export async function listPickupEvents(
+  filters: ListPickupEventsFilters = {}
+): Promise<PickupEvent[]> {
+  let query = supabase
+    .from('pickup_events_latest')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (filters.companyId) query = query.eq('company_id', filters.companyId);
+  if (filters.branchId) query = query.eq('branch_id', filters.branchId);
+  if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
+  if (filters.dateTo) query = query.lte('created_at', filters.dateTo + 'T23:59:59Z');
+  if (filters.status) query = query.eq('compliance_status', filters.status);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data as PickupEvent[]) ?? [];
+}
+
+/** Build a CSV string from pickup events for download. */
+export function exportPickupsCsv(events: PickupEvent[]): string {
+  const header = [
+    'id', 'created_at', 'branch_id', 'driver_id', 'vehicle_id',
+    'waste_types', 'weight_kg', 'compliance_status', 'risk_score',
+    'risk_flags', 'geofence_verified',
+  ];
+  const rows = events.map((e) => [
+    e.id,
+    e.created_at,
+    e.branch_id,
+    e.driver_id,
+    e.vehicle_id,
+    `"${e.waste_types.join('; ')}"`,
+    String(e.weight_kg),
+    e.compliance_status,
+    String(e.risk_score),
+    `"${e.risk_flags.join('; ')}"`,
+    String(e.geofence_verified),
+  ]);
+  return [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
+}
+
 export async function getPickup(id: string): Promise<PickupEvent | null> {
   const { data, error } = await supabase
     .from('pickup_events')

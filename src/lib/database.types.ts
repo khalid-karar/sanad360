@@ -24,6 +24,7 @@ export interface Branch {
   geofence_lat: number | null;
   geofence_lng: number | null;
   geofence_radius_m: number;
+  status: 'active' | 'inactive';
   created_at: string;
 }
 
@@ -158,6 +159,57 @@ export type CreatePickupEventInput = {
 export type CreateDriverInput = Omit<Driver, 'id' | 'created_at'>;
 export type CreateVehicleInput = Omit<Vehicle, 'id' | 'created_at'>;
 
+// ─── Phase 3 tables ──────────────────────────────────────────────────────────
+
+export type AssignmentStatus =
+  | 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface PickupAssignment {
+  id: string;
+  company_id: string;
+  branch_id: string;
+  driver_id: string;
+  vehicle_id: string;
+  scheduled_at: string;
+  status: AssignmentStatus;
+  pickup_event_id: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CreateAssignmentInput = {
+  company_id: string;
+  branch_id: string;
+  driver_id: string;
+  vehicle_id: string;
+  scheduled_at: string;
+  notes?: string;
+  created_by?: string;
+};
+
+export interface AlertAcknowledgement {
+  id: string;
+  company_id: string;
+  alert_key: string;
+  acknowledged_by: string | null;
+  acknowledged_at: string;
+}
+
+export interface NotificationRow {
+  id: string;
+  profile_id: string;
+  company_id: string | null;
+  title_ar: string;
+  title_en: string;
+  body_ar: string | null;
+  body_en: string | null;
+  link: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -171,6 +223,9 @@ export interface Database {
       pickup_events: { Row: PickupEvent };
       audit_log: { Row: AuditLog };
       inspection_pdfs: { Row: InspectionPdf };
+      pickup_assignments: { Row: PickupAssignment };
+      alert_acknowledgements: { Row: AlertAcknowledgement };
+      notifications: { Row: NotificationRow };
     };
     Views: {
       pickup_events_latest: { Row: PickupEvent };
