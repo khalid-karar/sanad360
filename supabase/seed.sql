@@ -1,11 +1,13 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Sanad 360 – Dev Seed
 -- Creates: 1 company, 1 branch, 1 transport company, 1 driver record,
---          1 vehicle, 2 auth users (manager + driver), 2 memberships.
+--          1 vehicle, 4 auth users, 4 memberships.
 --
 -- Credentials (local dev only — never use in production):
 --   Company manager: manager@sanad360.dev / DevPass1234!
 --   Driver:          0501234567@driver.sanad360.com / DevPass1234!
+--   Dispatcher:      dispatcher@sanad360.dev / DevPass1234!
+--   Admin:           admin@sanad360.dev / DevPass1234!
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Fixed UUIDs make this seed idempotent and test-referenceable.
@@ -44,6 +46,28 @@ INSERT INTO auth.users (
   '{"provider":"email","providers":["email"]}',
   '{"name_ar":"محمد بن عبدالله الغامدي","phone":"0501234567"}',
   now(), now(), '', '', '', ''
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  'f0000000-0000-0000-0000-000000000003',
+  'authenticated', 'authenticated',
+  'dispatcher@sanad360.dev',
+  crypt('DevPass1234!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name_ar":"مشرف التوزيع"}',
+  now(), now(), '', '', '', ''
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  'f0000000-0000-0000-0000-000000000004',
+  'authenticated', 'authenticated',
+  'admin@sanad360.dev',
+  crypt('DevPass1234!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name_ar":"مدير النظام"}',
+  now(), now(), '', '', '', ''
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -65,6 +89,20 @@ INSERT INTO auth.identities (
   '0501234567@driver.sanad360.com',
   '{"sub":"f0000000-0000-0000-0000-000000000002","email":"0501234567@driver.sanad360.com"}'::jsonb,
   'email', now(), now(), now()
+),
+(
+  'f0000000-0000-0000-0000-000000000003',
+  'f0000000-0000-0000-0000-000000000003',
+  'dispatcher@sanad360.dev',
+  '{"sub":"f0000000-0000-0000-0000-000000000003","email":"dispatcher@sanad360.dev"}'::jsonb,
+  'email', now(), now(), now()
+),
+(
+  'f0000000-0000-0000-0000-000000000004',
+  'f0000000-0000-0000-0000-000000000004',
+  'admin@sanad360.dev',
+  '{"sub":"f0000000-0000-0000-0000-000000000004","email":"admin@sanad360.dev"}'::jsonb,
+  'email', now(), now(), now()
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -81,6 +119,14 @@ VALUES
 (
   'f0000000-0000-0000-0000-000000000002',
   'محمد بن عبدالله الغامدي', 'Mohammed Abdullah Al-Ghamdi', '0501234567'
+),
+(
+  'f0000000-0000-0000-0000-000000000003',
+  'مشرف التوزيع', 'Dispatcher', NULL
+),
+(
+  'f0000000-0000-0000-0000-000000000004',
+  'مدير النظام', 'System Admin', NULL
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -202,6 +248,22 @@ VALUES
   NULL,
   'c0000000-0000-0000-0000-000000000001',  -- transport company
   'b0000000-0000-0000-0000-000000000001'   -- default branch to serve
+),
+(
+  '10000000-0000-0000-0000-000000000003',
+  'f0000000-0000-0000-0000-000000000003',  -- dispatcher auth user
+  'dispatcher',
+  NULL,
+  'c0000000-0000-0000-0000-000000000001',  -- transport company
+  NULL
+),
+(
+  '10000000-0000-0000-0000-000000000004',
+  'f0000000-0000-0000-0000-000000000004',  -- admin auth user
+  'admin',
+  NULL,   -- no tenant — admin sees all
+  NULL,
+  NULL
 )
 ON CONFLICT (id) DO NOTHING;
 
