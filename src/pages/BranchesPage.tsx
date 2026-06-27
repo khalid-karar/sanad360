@@ -12,8 +12,20 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { PlusIcon, MapPinIcon, PowerIcon } from 'lucide-react';
+import GeofenceMapPicker from '@/components/map/GeofenceMapPicker';
 
 const EMPTY = { name_ar: '', name_en: '', city: '', geofence_lat: '', geofence_lng: '', geofence_radius_m: '150' };
+
+/** Map raw Supabase/Postgres errors to a friendly bilingual message. */
+function describeError(e: unknown, isRTL: boolean): string {
+  const msg = e instanceof Error ? e.message : String(e ?? '');
+  const code = (e as { code?: string } | null)?.code;
+  // 42501 = permission denied; RLS violations mention "row-level security"
+  if (code === '42501' || /permission denied|row-level security|not authorized/i.test(msg)) {
+    return isRTL ? 'غير مصرح' : 'Not authorized';
+  }
+  return msg || (isRTL ? 'فشل' : 'Failed');
+}
 
 export default function BranchesPage() {
   const { isRTL, user } = useAuthStore();
@@ -82,7 +94,7 @@ export default function BranchesPage() {
       await load();
       toast({ title: isRTL ? 'تم بنجاح' : 'Success', description: isRTL ? 'تم حفظ الفرع' : 'Branch saved' });
     } catch (e) {
-      toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: describeError(e, isRTL), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -94,7 +106,7 @@ export default function BranchesPage() {
       await load();
       toast({ title: isRTL ? 'تم' : 'Done', description: isRTL ? 'تم تعطيل الفرع' : 'Branch deactivated' });
     } catch (e) {
-      toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: describeError(e, isRTL), variant: 'destructive' });
     }
   }
 
@@ -133,18 +145,27 @@ export default function BranchesPage() {
                   <Label>{isRTL ? 'المدينة' : 'City'}</Label>
                   <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="mt-2" />
                 </div>
-                <div>
-                  <Label>{isRTL ? 'نصف قطر النطاق (متر)' : 'Geofence Radius (m)'}</Label>
-                  <Input type="number" value={form.geofence_radius_m} onChange={(e) => setForm({ ...form, geofence_radius_m: e.target.value })} className="mt-2" dir="ltr" />
-                </div>
-                <div>
-                  <Label>{isRTL ? 'خط العرض' : 'Latitude'}</Label>
-                  <Input type="number" step="any" value={form.geofence_lat} onChange={(e) => setForm({ ...form, geofence_lat: e.target.value })} className="mt-2" dir="ltr" />
-                </div>
-                <div>
-                  <Label>{isRTL ? 'خط الطول' : 'Longitude'}</Label>
-                  <Input type="number" step="any" value={form.geofence_lng} onChange={(e) => setForm({ ...form, geofence_lng: e.target.value })} className="mt-2" dir="ltr" />
-                </div>
+              </div>
+
+              <div>
+                <Label className="flex items-center gap-2 mb-2">
+                  <MapPinIcon className="w-4 h-4 text-primary" />
+                  {isRTL ? 'الموقع والنطاق الجغرافي' : 'Location & Geofence'}
+                </Label>
+                <GeofenceMapPicker
+                  lat={form.geofence_lat ? Number(form.geofence_lat) : null}
+                  lng={form.geofence_lng ? Number(form.geofence_lng) : null}
+                  radiusM={form.geofence_radius_m ? Number(form.geofence_radius_m) : 150}
+                  isRTL={isRTL}
+                  onChange={(lat, lng, radiusM) =>
+                    setForm((f) => ({
+                      ...f,
+                      geofence_lat: String(lat),
+                      geofence_lng: String(lng),
+                      geofence_radius_m: String(radiusM),
+                    }))
+                  }
+                />
               </div>
               <div className="flex gap-3 pt-4">
                 <Button variant="outline" onClick={() => setShowForm(false)} className="flex-1">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
