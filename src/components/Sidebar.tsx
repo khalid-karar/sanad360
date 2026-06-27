@@ -17,8 +17,8 @@ export default function Sidebar({ role }: SidebarProps) {
   const { user, logout, isRTL } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
