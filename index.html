@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tadweer360 - Waste Management System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="theme-color" content="#176B36" />
+    <meta name="description" content="Tadweer360 - Saudi Waste Compliance Automation Cloud" />
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Tadweer360" />
+    <meta name="msapplication-TileColor" content="#176B36" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="152x152" href="https://c.animaapp.com/mg7ujeibgE7gyO/img/chatgpt-image-oct-1-2025-04_42_05-pm-copy.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="https://c.animaapp.com/mg7ujeibgE7gyO/img/chatgpt-image-oct-1-2025-04_42_05-pm-copy.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="https://c.animaapp.com/mg7ujeibgE7gyO/img/chatgpt-image-oct-1-2025-04_42_05-pm-copy.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="https://c.animaapp.com/mg7ujeibgE7gyO/img/chatgpt-image-oct-1-2025-04_42_05-pm-copy.png" />
+    
+    <!-- Splash Screens for iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-startup-image" href="https://c.animaapp.com/mg7ujeibgE7gyO/img/chatgpt-image-oct-1-2025-04_42_05-pm-copy.png" />
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/src/index.css" as="style" />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" as="style" />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" as="style" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/index.tsx"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>

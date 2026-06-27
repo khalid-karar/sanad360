@@ -1,0 +1,32 @@
+import { useAuthStore } from '../stores/authStore';
+import { useDriverStore } from '../stores/driverStore';
+import AppShell from '../components/AppShell';
+import AwaitingPickup from '../components/driver/AwaitingPickup';
+import QRScanner from '../components/driver/QRScanner';
+import GeolocationVerified from '../components/driver/GeolocationVerified';
+import DigitalManifest from '../components/driver/DigitalManifest';
+import SignaturePad from '../components/driver/SignaturePad';
+import PickupConfirmation from '../components/driver/PickupConfirmation';
+
+export default function DriverDashboard() {
+  const { isRTL } = useAuthStore();
+  const { pickupState } = useDriverStore();
+
+  const renderContent = () => {
+    switch (pickupState) {
+      case 'awaiting':            return <AwaitingPickup />;
+      case 'qr-scan':             return <QRScanner />;
+      case 'geolocation-verified':return <GeolocationVerified />;
+      case 'manifest':            return <DigitalManifest />;
+      case 'signature':           return <SignaturePad />;
+      case 'confirmation':        return <PickupConfirmation />;
+      default:                    return <AwaitingPickup />;
+    }
+  };
+
+  return (
+    <AppShell role="driver">
+      <div className={isRTL ? 'rtl' : 'ltr'}>{renderContent()}</div>
+    </AppShell>
+  );
+}

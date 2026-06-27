@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tadweer360 - Offline</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Noto Sans Arabic', 'Inter', system-ui, sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #334155;
+    }
+    
+    .offline-container {
+      text-align: center;
+      max-width: 400px;
+      background: white;
+      padding: 40px 30px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #1e293b;
+    }
+    
+    p {
+      font-size: 16px;
+      color: #64748b;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+    
+    .retry-btn {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 15px;
+    }
+    
+    .retry-btn:hover {
+      background: #16a34a;
+      transform: translateY(-1px);
+    }
+    
+    .offline-features {
+      background: #f1f5f9;
+      padding: 20px;
+      border-radius: 12px;
+      margin-top: 20px;
+      text-align: right;
+    }
+    
+    .offline-features h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #1e293b;
+    }
+    
+    .offline-features ul {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .offline-features li {
+      padding: 8px 0;
+      color: #475569;
+      font-size: 14px;
+    }
+    
+    .offline-features li:before {
+      content: "✓";
+      color: #22c55e;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    
+    .connection-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: #fee2e2;
+      color: #dc2626;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 20px;
+    }
+    
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      background: #dc2626;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .ltr {
+      direction: ltr;
+      text-align: center;
+    }
+    
+    .ltr .offline-features {
+      text-align: left;
+    }
+    
+    .ltr .offline-features li:before {
+      margin-right: 10px;
+      margin-left: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-container">
+    <div class="logo">360</div>
+    
+    <div class="connection-status">
+      <div class="connection-dot"></div>
+      <span id="connection-text">غير متصل بالإنترنت</span>
+    </div>
+    
+    <h1 id="title">تدوير 360</h1>
+    <p id="description">يبدو أنك غير متصل بالإنترنت. بعض الميزات متاحة في وضع عدم الاتصال.</p>
+    
+    <button class="retry-btn" onclick="retryConnection()" id="retry-btn">
+      إعادة المحاولة
+    </button>
+    
+    <div class="offline-features">
+      <h3 id="features-title">الميزات المتاحة بدون إنترنت:</h3>
+      <ul id="features-list">
+        <li>عرض البيانات المحفوظة محلياً</li>
+        <li>إدخال بيانات الالتقاط الجديدة</li>
+        <li>مراجعة السجلات السابقة</li>
+        <li>إعدادات التطبيق</li>
+        <li>المزامنة التلقائية عند العودة للإنترنت</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    let isRTL = true;
+    
+    // Check for language preference
+    const urlParams = new URLSearchParams(window.location.search);
+    const lang = urlParams.get('lang') || localStorage.getItem('tadweer-language') || 'ar';
+    
+    if (lang === 'en') {
+      isRTL = false;
+      document.documentElement.lang = 'en';
+      document.documentElement.dir = 'ltr';
+      document.body.classList.add('ltr');
+      
+      // Update text content for English
+      document.getElementById('connection-text').textContent = 'No Internet Connection';
+      document.getElementById('title').textContent = 'Tadweer360';
+      document.getElementById('description').textContent = 'You appear to be offline. Some features are available in offline mode.';
+      document.getElementById('retry-btn').textContent = 'Retry Connection';
+      document.getElementById('features-title').textContent = 'Available Offline Features:';
+      
+      const featuresList = document.getElementById('features-list');
+      featuresList.innerHTML = `
+        <li>View locally cached data</li>
+        <li>Enter new pickup data</li>
+        <li>Review previous records</li>
+        <li>App settings</li>
+        <li>Auto-sync when back online</li>
+      `;
+    }
+    
+    // Retry connection function
+    function retryConnection() {
+      const button = document.getElementById('retry-btn');
+      button.textContent = isRTL ? 'جاري المحاولة...' : 'Retrying...';
+      button.disabled = true;
+      
+      // Check if online
+      if (navigator.onLine) {
+        window.location.href = '/';
+      } else {
+        setTimeout(() => {
+          button.textContent = isRTL ? 'إعادة المحاولة' : 'Retry Connection';
+          button.disabled = false;
+        }, 2000);
+      }
+    }
+    
+    // Listen for online/offline events
+    window.addEventListener('online', () => {
+      console.log('Back online');
+      window.location.href = '/';
+    });
+    
+    window.addEventListener('offline', () => {
+      console.log('Gone offline');
+    });
+    
+    // Auto-retry every 30 seconds
+    setInterval(() => {
+      if (navigator.onLine) {
+        window.location.href = '/';
+      }
+    }, 30000);
+  </script>
+</body>
+</html>

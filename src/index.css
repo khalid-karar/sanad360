@@ -1,0 +1,368 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Light Theme - Default (Saudi Green & Blue) */
+  :root,
+  .light.theme-default {
+    --background: 0 0% 98%;
+    --foreground: 220 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+
+    --primary: 150 65% 26%; /* #176B36 - Saudi Green */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 70% 40%; /* #1E40AF - Saudi Blue */
+    --secondary-foreground: 0 0% 100%;
+
+    --tertiary: 210 90% 56%;
+    --tertiary-foreground: 0 0% 100%;
+
+    --neutral: 0 0% 96%;
+    --neutral-foreground: 220 15% 20%;
+
+    --muted: 220 13% 95%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 220 13% 95%;
+    --accent-foreground: 220 20% 15%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 150 65% 26%; /* Using primary green for success */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 150 65% 26%; /* Using primary green for ring */
+
+    --radius: 16px;
+  }
+
+  /* Dark Theme - Default (Saudi Green & Blue) */
+  .dark.theme-default {
+    --background: 222 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 150 65% 26%; /* #176B36 - Saudi Green */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 70% 40%; /* #1E40AF - Saudi Blue */
+    --secondary-foreground: 0 0% 100%;
+
+    --tertiary: 210 90% 56%;
+    --tertiary-foreground: 0 0% 100%;
+
+    --neutral: 217 32% 17%;
+    --neutral-foreground: 215 20% 65%;
+
+    --muted: 217 32% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 32% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 150 65% 26%; /* Using primary green for success */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 84% 4.9%;
+
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 150 65% 26%; /* Using primary green for ring */
+  }
+
+  /* Blue Theme - Light (Custom Blue) */
+  .light.theme-blue {
+    --primary: 210 90% 56%; /* A different blue */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 80% 48%;
+    --ring: 210 90% 56%;
+  }
+
+  /* Blue Theme - Dark (Custom Blue) */
+  .dark.theme-blue {
+    --primary: 210 90% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 80% 48%;
+    --ring: 210 90% 56%;
+  }
+
+  /* Purple Theme - Light */
+  .light.theme-purple {
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 262 83% 50%;
+    --ring: 262 83% 58%;
+  }
+
+  /* Purple Theme - Dark */
+  .dark.theme-purple {
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 262 83% 50%;
+    --ring: 262 83% 58%;
+  }
+
+  /* Orange Theme - Light */
+  .light.theme-orange {
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 95% 45%;
+    --ring: 24 95% 53%;
+  }
+
+  /* Orange Theme - Dark */
+  .dark.theme-orange {
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 95% 45%;
+    --ring: 24 95% 53%;
+  }
+
+  * {
+    @apply border-border;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
+
+  html,
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Arabic font support */
+  .rtl {
+    direction: rtl;
+    font-family: 'Noto Sans Arabic', 'Inter', system-ui, sans-serif;
+  }
+
+  .ltr {
+    direction: ltr;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  /* Enhanced card styles */
+  .card-elevated {
+    @apply shadow-md hover:shadow-lg transition-shadow duration-200;
+  }
+
+  .card-interactive {
+    @apply hover:shadow-md hover:scale-[1.02] transition-all duration-200 cursor-pointer;
+  }
+
+  /* Status indicators */
+  .status-success {
+    @apply bg-success/10 text-success border-success/20;
+  }
+
+  .status-warning {
+    @apply bg-warning/10 text-warning border-warning/20;
+  }
+
+  .status-error {
+    @apply bg-destructive/10 text-destructive border-destructive/20;
+  }
+
+  .status-info {
+    @apply bg-primary/10 text-primary border-primary/20;
+  }
+
+  /* Button enhancements */
+  .btn-primary {
+    @apply bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-muted hover:bg-muted/80 text-muted-foreground border border-border hover:border-border/80 transition-all duration-200;
+  }
+
+  /* Typography improvements */
+  .text-display {
+    @apply text-4xl font-bold tracking-tight;
+  }
+
+  .text-heading {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  .text-subheading {
+    @apply text-lg font-medium;
+  }
+
+  .text-body {
+    @apply text-sm leading-relaxed;
+  }
+
+  .text-caption {
+    @apply text-xs text-muted-foreground;
+  }
+
+  /* Layout improvements */
+  .container-padding {
+    @apply px-6 py-8 lg:px-12 lg:py-12;
+  }
+
+  .section-spacing {
+    @apply space-y-8;
+  }
+
+  .grid-responsive {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+  }
+
+  /* Focus states */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  /* Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+}
+
+@layer utilities {
+  /* Custom shadows */
+  .shadow-soft {
+    box-shadow: 0 2px 8px 0 rgb(0 0 0 / 0.06);
+  }
+
+  .shadow-medium {
+    box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08);
+  }
+
+  .shadow-strong {
+    box-shadow: 0 8px 24px 0 rgb(0 0 0 / 0.12);
+  }
+
+  /* Gradient backgrounds */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  }
+
+  .bg-gradient-success {
+    background: linear-gradient(135deg, hsl(var(--success)) 0%, hsl(142 60% 45%) 100%);
+  }
+
+  .bg-gradient-warning {
+    background: linear-gradient(135deg, hsl(var(--warning)) 0%, hsl(38 80% 60%) 100%);
+  }
+
+  /* Text gradients */
+  .text-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Improved spacing */
+  .space-y-section {
+    @apply space-y-12;
+  }
+
+  .space-y-component {
+    @apply space-y-6;
+  }
+
+  .space-y-element {
+    @apply space-y-4;
+  }
+}
+
+/* Keyframe animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Selection styling */
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary-foreground));
+}
