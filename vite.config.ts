@@ -24,5 +24,10 @@ export default defineConfig({
     // unprefixed vars like SUPABASE_SERVICE_ROLE_KEY that Vitest's
     // automatic VITE_-prefix loading would otherwise skip.
     setupFiles: ['./src/test-setup.ts'],
+    // Server-side PDF generation launches a headless Chromium and renders an
+    // Arabic-shaped document; the first (cold) render can exceed Vitest's 5s
+    // default. 30s gives the PDF integration tests room without masking real hangs.
+    testTimeout: 30000,
+    hookTimeout: 30000,
   },
 });

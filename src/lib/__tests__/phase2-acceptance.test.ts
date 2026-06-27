@@ -541,11 +541,20 @@ describe('Phase 2 Acceptance Tests', () => {
       // visual RTL order for Arabic.  We only assert PRESENCE of key tokens, not
       // order.  Arabic glyph shaping (connected letters, RTL flow, no tofu boxes)
       // CANNOT be tested programmatically — it must be eyeballed in the saved PDF.
+      // pdf-parse v2 exposes a `PDFParse` class (new PDFParse({data}).getText());
+      // v1 exposed a default callable. Support both so the test is version-robust.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pdfParseModule = await import('pdf-parse') as any;
-      const pdfParse = pdfParseModule.default ?? pdfParseModule;
-      const parsed = await pdfParse(pdfBytes) as { text: string };
-      const text = parsed.text;
+      let text: string;
+      if (typeof pdfParseModule.PDFParse === 'function') {
+        const parser = new pdfParseModule.PDFParse({ data: pdfBytes });
+        const result = await parser.getText() as { text: string };
+        text = result.text;
+      } else {
+        const pdfParse = pdfParseModule.default ?? pdfParseModule;
+        const parsed = await pdfParse(pdfBytes) as { text: string };
+        text = parsed.text;
+      }
 
       // Weight value is numeric — present in any character encoding
       expect(text).toContain(String(weightKg));

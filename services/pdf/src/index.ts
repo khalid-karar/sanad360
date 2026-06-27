@@ -1,6 +1,7 @@
 // Load .env into process.env BEFORE any module that reads Supabase config.
 import './lib/env.js';
 import express from 'express';
+import type { Request, Response } from 'express';
 import { authMiddleware } from './lib/auth.js';
 import { handleSinglePickup } from './routes/single.js';
 import { handleMonthly } from './routes/monthly.js';
@@ -10,6 +11,20 @@ import type { AuthedRequest } from './types.js';
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+
+// Express 4 does not forward rejected promises from async handlers, so an
+// unhandled rejection would crash the whole process. Wrap async handlers so any
+// thrown error is converted to a 500 response instead of taking the server down.
+function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
+  return (req: Request, res: Response): void => {
+    fn(req, res).catch((err: unknown) => {
+      console.error('[pdf-service] handler error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Internal error' });
+      }
+    });
+  };
+}
 
 app.use(express.json({ limit: '1mb' }));
 
@@ -31,18 +46,18 @@ app.get('/health', (_req, res) => {
 app.post(
   '/generate/single-pickup',
   authMiddleware,
-  (req, res) => handleSinglePickup(req as AuthedRequest, res)
+  asyncHandler((req, res) => handleSinglePickup(req as AuthedRequest, res))
 );
 
 app.post(
   '/generate/monthly-summary',
   authMiddleware,
-  (req, res) => handleMonthly(req as AuthedRequest, res)
+  asyncHandler((req, res) => handleMonthly(req as AuthedRequest, res))
 );
 
 // Admin onboarding — does its own JWT + admin-membership check (NOT authMiddleware,
 // which only requires *any* membership). Never exposes the service-role key.
-app.post('/admin/onboard-company', (req, res) => handleOnboardCompany(req, res));
+app.post('/admin/onboard-company', asyncHandler((req, res) => handleOnboardCompany(req, res)));
 
 app.listen(PORT, () => {
   console.log(`[pdf-service] Listening on http://localhost:${PORT}`);
