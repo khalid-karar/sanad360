@@ -210,6 +210,14 @@ export interface NotificationRow {
   created_at: string;
 }
 
+export interface CompanyTransporter {
+  id: string;
+  company_id: string;
+  transport_company_id: string;
+  status: 'active' | 'inactive';
+  created_at: string;
+}
+
 // Each table exposes Row (full read shape), Insert (write shape — server-set
 // columns optional), and Update (all columns optional). supabase-js uses Insert
 // for `.insert()` and Update for `.update()`. We model Insert/Update as
@@ -246,6 +254,7 @@ export interface Database {
       pickup_assignments: TableShape<PickupAssignment>;
       alert_acknowledgements: TableShape<AlertAcknowledgement>;
       notifications: TableShape<NotificationRow>;
+      company_transporters: TableShape<CompanyTransporter>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };

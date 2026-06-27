@@ -108,26 +108,7 @@ export async function completeAssignment(
   return updateAssignmentStatus(assignmentId, 'completed', pickupEventId);
 }
 
-/**
- * Resolve the transport company a company actually works with, so manager/
- * dispatcher schedule screens can populate driver/vehicle dropdowns.
- *
- * The schema does not store a direct company → transport_company link, so we
- * derive it from the most recent pickup_event for the company (every event
- * records both company_id and transport_company_id). Returns null if the
- * company has no history yet.
- */
-export async function getTransportCompanyForCompany(
-  companyId: string
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('pickup_events_latest')
-    .select('transport_company_id')
-    .eq('company_id', companyId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle<{ transport_company_id: string }>();
-
-  if (error) throw error;
-  return data?.transport_company_id ?? null;
-}
+// NOTE: getTransportCompanyForCompany() (the most-recent-pickup-event hack) was
+// removed in phase3c. Schedule screens now resolve eligible drivers/vehicles via
+// the explicit company_transporters link — see
+// src/lib/api/companyTransporters.ts → getDriversAndVehiclesForCompany().
