@@ -33,8 +33,13 @@ export async function signIn(email: string, password: string): Promise<SignInRes
 }
 
 export async function signOut(): Promise<void> {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  // Race signOut against a 3-second timeout so a hanging network call (e.g. an
+  // unhealthy local Supabase or an already-invalid JWT) never blocks logout
+  // navigation. Local auth state is cleared by the caller regardless.
+  await Promise.race([
+    supabase.auth.signOut(),
+    new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+  ]);
 }
 
 export async function getSession() {

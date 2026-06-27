@@ -42,13 +42,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    set({ isLoading: true });
+    // Clear local state immediately so the user is logged out instantly and
+    // navigation can proceed even if the network signOut hangs or fails.
+    set({ user: null, isLoading: false });
+    // Best-effort network sign-out (already timeout-guarded in api/auth).
     try {
       await apiSignOut();
-      set({ user: null, isLoading: false });
-    } catch (err) {
-      // Clear local state even if network call failed
-      set({ user: null, isLoading: false });
+    } catch {
+      /* ignore — local state is already cleared */
     }
   },
 
