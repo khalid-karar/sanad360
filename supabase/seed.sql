@@ -182,6 +182,33 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- Additional transport companies — NOT linked to the seeded company, so they
+-- appear as available options in the "Add Transporter" modal (Bug/Seed 5).
+INSERT INTO public.transport_companies (
+  id, name_ar, name_en,
+  commercial_registration,
+  ncwm_license_number,
+  ncwm_license_expiry
+)
+VALUES
+(
+  'c0000000-0000-0000-0000-000000000002',
+  'شركة الخليج للنقل البيئي',
+  'Gulf Environmental Transport',
+  '1010000003',
+  'NCWM-2024-002',
+  '2026-12-31'
+),
+(
+  'c0000000-0000-0000-0000-000000000003',
+  'مؤسسة النقل الأخضر',
+  'Green Transport Est.',
+  '1010000004',
+  'NCWM-2024-003',
+  '2027-06-30'
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- ─────────────────────────────────────────────────────────────
 -- DRIVER RECORD  (links to driver auth user via profile_id)
 -- ─────────────────────────────────────────────────────────────
