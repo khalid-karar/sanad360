@@ -113,8 +113,9 @@ export async function handleMonthly(req: AuthedRequest, res: Response): Promise<
   const pdfBytes = await renderHtmlToPdf(html);
   const hash = sha256Hex(pdfBytes);
 
-  // 8. Upload & record
-  const filename = `${month}.pdf`;
+  // 8. Upload & record — versioned filename (content-hash suffix) so a
+  //    re-generation never overwrites a previously recorded PDF.
+  const filename = `${month}-${hash.slice(0, 12)}.pdf`;
   const pdfPath = await uploadPdf(branch.company_id, branch_id, filename, pdfBytes);
 
   // period_month stored as first-of-month date for the DB date column

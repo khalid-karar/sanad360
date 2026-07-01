@@ -47,14 +47,16 @@ export async function handleOnboardCompany(req: Request, res: Response): Promise
   }
   const callerId = userData.user.id;
 
-  // ── 3. Confirm active admin membership (service client) ─────────────────────
+  // ── 3. Confirm admin membership (service client) ────────────────────────────
+  // NOTE: memberships has NO status column (see migration 004's comment); the
+  // previous .eq('status','active') filter errored on the unknown column and
+  // made this endpoint return 403 for every caller, including real admins.
   const { data: membership } = await admin
     .from('memberships')
-    .select('role, status')
+    .select('role')
     .eq('user_id', callerId)
     .eq('role', 'admin')
-    .eq('status', 'active')
-    .maybeSingle<{ role: string; status: string }>();
+    .maybeSingle<{ role: string }>();
 
   if (!membership) {
     res.status(403).json({ error: 'Forbidden' });

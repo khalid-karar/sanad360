@@ -3,29 +3,49 @@ import { admin } from './supabase.js';
 
 const PDF_BUCKET = 'inspection-pdfs';
 
-// Download an evidence file from Supabase Storage and return as base64 data URL.
-// Returns null if path is null (evidence not captured).
-export async function evidenceToDataUrl(
+// A downloaded evidence file: base64 data URL for embedding in the PDF, plus
+// the SHA-256 of the actual downloaded bytes so the route can re-verify the
+// client-supplied hash server-side.
+export interface EvidenceFetch {
+  dataUrl: string;
+  sha256: string;
+}
+
+// Download an evidence file from Supabase Storage. Returns the base64 data URL
+// (for Playwright embedding) together with a server-computed SHA-256 of the
+// downloaded bytes. Returns null if path is null (evidence not captured) or
+// the object cannot be downloaded.
+export async function fetchEvidence(
   bucket: string,
   path: string | null
-): Promise<string | null> {
+): Promise<EvidenceFetch | null> {
   if (!path) return null;
 
   const { data, error } = await admin.storage.from(bucket).download(path);
   if (error || !data) return null;
 
   const arrayBuffer = await data.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString('base64');
+  const bytes = Buffer.from(arrayBuffer);
   const mime = data.type || 'image/jpeg';
-  return `data:${mime};base64,${base64}`;
+  return {
+    dataUrl: `data:${mime};base64,${bytes.toString('base64')}`,
+    sha256: sha256Hex(bytes),
+  };
 }
 
 // Upload the generated PDF bytes to the inspection-pdfs bucket.
 // Returns the storage path.
+//
+// upsert is deliberately FALSE: every generation writes a NEW object (callers
+// version the filename with a content-hash prefix), so the bytes an
+// inspection_pdfs row points at can never change after the row is written —
+// the stored sha256_hash stays verifiable forever. The previous upsert:true
+// overwrote the object on re-generation, silently invalidating the hash of
+// every earlier inspection_pdfs row for the same path.
 export async function uploadPdf(
   companyId: string,
   branchId: string,
-  filename: string, // pickup_event_id.pdf or YYYY-MM.pdf
+  filename: string, // e.g. {event_id}-r{rev}-{hash12}.pdf or {YYYY-MM}-{hash12}.pdf
   pdfBytes: Buffer
 ): Promise<string> {
   const path = `${companyId}/${branchId}/${filename}`;
@@ -34,7 +54,7 @@ export async function uploadPdf(
     .from(PDF_BUCKET)
     .upload(path, pdfBytes, {
       contentType: 'application/pdf',
-      upsert: true, // allow re-generation (overwrites previous file)
+      upsert: false,
     });
 
   if (error) throw new Error(`Storage upload failed: ${error.message}`);

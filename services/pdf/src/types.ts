@@ -16,6 +16,18 @@ export interface GenerateResult {
   inspection_pdf_id: string;
 }
 
+// Server-side integrity verdict for one evidence file:
+//   verified    – file downloaded, server hash equals the ledger hash
+//   mismatch    – ledger hash present but the file is missing or hashes differ
+//   unavailable – no evidence claimed, or no ledger hash to verify against
+export type HashCheck = 'verified' | 'mismatch' | 'unavailable';
+
+export interface EvidenceHashChecks {
+  photo: HashCheck;
+  receipt: HashCheck;
+  signature: HashCheck;
+}
+
 // Express Request extended with JWT-validated fields (set by authMiddleware)
 export interface AuthedRequest extends Request {
   userId: string;

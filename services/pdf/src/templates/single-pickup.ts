@@ -5,7 +5,20 @@ import {
 import type {
   PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow,
+  HashCheck, EvidenceHashChecks,
 } from '../types.js';
+
+// Render the server-side verification verdict next to an evidence hash.
+function hashVerdict(check: HashCheck | undefined): string {
+  switch (check) {
+    case 'verified':
+      return ' <span style="color:#166534">✓ تم التحقق من الخادم</span>';
+    case 'mismatch':
+      return ' <span style="color:#991b1b">✗ غير مطابق للملف المخزَّن</span>';
+    default:
+      return '';
+  }
+}
 
 interface EvidenceDataUrls {
   photo: string | null;
@@ -40,6 +53,7 @@ export function buildSinglePickupHtml(opts: {
   driver: DriverRow;
   vehicle: VehicleRow;
   evidence: EvidenceDataUrls;
+  hashChecks?: EvidenceHashChecks; // server-side re-hash verdicts (threaded from the route)
   documentId: string; // short ID for the footer
   generatedAt: string; // ISO timestamp
   pdfSha256?: string;  // SHA-256 of the rendered PDF bytes (threaded from the route)
@@ -193,9 +207,9 @@ export function buildSinglePickupHtml(opts: {
     <div class="section-body">
       <table>
         <tr><td>رقم التعريف / Reference</td><td class="hash">${esc(event.id)}</td></tr>
-        <tr><td>تجزئة الصورة / Photo SHA-256</td><td class="hash">${esc(event.photo_sha256 ?? 'N/A')}</td></tr>
-        <tr><td>تجزئة التوقيع / Signature SHA-256</td><td class="hash">${esc(event.signature_sha256 ?? 'N/A')}</td></tr>
-        <tr><td>تجزئة الإيصال / Receipt SHA-256</td><td class="hash">${esc(event.receipt_sha256 ?? 'N/A')}</td></tr>
+        <tr><td>تجزئة الصورة / Photo SHA-256</td><td class="hash">${esc(event.photo_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.photo)}</td></tr>
+        <tr><td>تجزئة التوقيع / Signature SHA-256</td><td class="hash">${esc(event.signature_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.signature)}</td></tr>
+        <tr><td>تجزئة الإيصال / Receipt SHA-256</td><td class="hash">${esc(event.receipt_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.receipt)}</td></tr>
         <tr><td>تجزئة الملف / PDF SHA-256</td><td class="hash">${esc(opts.pdfSha256 ?? 'N/A')}</td></tr>
       </table>
     </div>

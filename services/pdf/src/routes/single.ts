@@ -1,10 +1,29 @@
 import type { Response } from 'express';
 import { admin } from '../lib/supabase.js';
-import { evidenceToDataUrl, uploadPdf, sha256Hex, recordAndSign } from '../lib/storage.js';
+import { fetchEvidence, uploadPdf, sha256Hex, recordAndSign } from '../lib/storage.js';
+import type { EvidenceFetch } from '../lib/storage.js';
 import { renderHtmlToPdf } from '../lib/renderer.js';
 import { buildSinglePickupHtml } from '../templates/single-pickup.js';
 import { assertCompanyAccess } from '../lib/auth.js';
-import type { AuthedRequest, PickupEventRow, CompanyRow, BranchRow, TransportCompanyRow, DriverRow, VehicleRow } from '../types.js';
+import type {
+  AuthedRequest, PickupEventRow, CompanyRow, BranchRow,
+  TransportCompanyRow, DriverRow, VehicleRow, HashCheck, EvidenceHashChecks,
+} from '../types.js';
+
+// Server-side integrity check: compare the SHA-256 recorded in the append-only
+// ledger (client-computed at upload time) against a fresh hash of the bytes
+// actually in Storage. The ledger hash can never change (append-only) and the
+// object can never be overwritten (storage policies), so 'verified' means the
+// evidence bytes are exactly what the driver's device uploaded.
+function checkHash(
+  path: string | null,
+  ledgerSha256: string | null,
+  fetched: EvidenceFetch | null
+): HashCheck {
+  if (!path || !ledgerSha256) return 'unavailable';
+  if (!fetched) return 'mismatch'; // hash recorded but file unretrievable
+  return fetched.sha256 === ledgerSha256 ? 'verified' : 'mismatch';
+}
 
 export async function handleSinglePickup(req: AuthedRequest, res: Response): Promise<void> {
   const { pickup_event_id } = req.body as { pickup_event_id?: string };
@@ -43,12 +62,19 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     return;
   }
 
-  // 4. Fetch evidence files as base64 data URLs so Playwright doesn't need to hit Storage URLs
-  const [photoDataUrl, receiptDataUrl, sigDataUrl] = await Promise.all([
-    evidenceToDataUrl('pickup-photos',    event.photo_path),
-    evidenceToDataUrl('pickup-receipts',  event.receipt_path),
-    evidenceToDataUrl('pickup-signatures', event.signature_path),
+  // 4. Fetch evidence files (base64 data URLs for Playwright) and re-hash the
+  //    downloaded bytes server-side against the hashes in the ledger.
+  const [photo, receipt, signature] = await Promise.all([
+    fetchEvidence('pickup-photos',     event.photo_path),
+    fetchEvidence('pickup-receipts',   event.receipt_path),
+    fetchEvidence('pickup-signatures', event.signature_path),
   ]);
+
+  const hashChecks: EvidenceHashChecks = {
+    photo:     checkHash(event.photo_path,     event.photo_sha256,     photo),
+    receipt:   checkHash(event.receipt_path,   event.receipt_sha256,   receipt),
+    signature: checkHash(event.signature_path, event.signature_sha256, signature),
+  };
 
   // 5. Render HTML → PDF
   const generatedAt = new Date().toISOString();
@@ -61,7 +87,12 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     transport: transportRes.data!,
     driver:    driverRes.data!,
     vehicle:   vehicleRes.data!,
-    evidence:  { photo: photoDataUrl, receipt: receiptDataUrl, signature: sigDataUrl },
+    evidence:  {
+      photo:     photo?.dataUrl ?? null,
+      receipt:   receipt?.dataUrl ?? null,
+      signature: signature?.dataUrl ?? null,
+    },
+    hashChecks,
     documentId,
     generatedAt,
   };
@@ -81,8 +112,10 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
   // 6. SHA-256 of the final PDF bytes (what gets uploaded + returned)
   const hash = sha256Hex(pdfBytes);
 
-  // 7. Upload to Storage
-  const pdfPath = await uploadPdf(event.company_id, event.branch_id, `${event.id}.pdf`, pdfBytes);
+  // 7. Upload to Storage under a versioned name (content-hash suffix) so a
+  //    re-generation never overwrites a previously recorded PDF.
+  const filename = `${event.id}-r${event.revision}-${contentHash.slice(0, 12)}.pdf`;
+  const pdfPath = await uploadPdf(event.company_id, event.branch_id, filename, pdfBytes);
 
   // 8. Insert DB row + get signed URL
   const { signedUrl, inspectionPdfId } = await recordAndSign({
@@ -101,5 +134,6 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     pdf_path:          pdfPath,
     sha256_hash:       hash,
     inspection_pdf_id: inspectionPdfId,
+    hash_checks:       hashChecks,
   });
 }
