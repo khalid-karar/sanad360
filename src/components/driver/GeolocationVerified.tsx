@@ -9,20 +9,13 @@ type GpsStatus = 'acquiring' | 'success' | 'error' | 'denied';
 
 export default function GeolocationVerified() {
   const { isRTL } = useAuthStore();
-  const { currentPickup, setPickupState, updateManifestData } = useDriverStore();
+  const { currentAssignment, setPickupState, updateManifestData } = useDriverStore();
 
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('acquiring');
   const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (currentPickup) {
-      updateManifestData({
-        location: currentPickup.address,
-        generator: currentPickup.company,
-      });
-    }
-
     if (!navigator.geolocation) {
       setGpsStatus('error');
       setErrorMsg(isRTL ? 'المتصفح لا يدعم تحديد الموقع' : 'Browser does not support geolocation');
@@ -121,9 +114,11 @@ export default function GeolocationVerified() {
           <div className="space-y-2 text-center">
             <div className="flex items-center justify-center gap-3">
               <MapPinIcon className="w-6 h-6 text-primary" />
-              <p className="text-lg font-medium text-foreground">{currentPickup?.company}</p>
+              <p className="text-lg font-medium text-foreground">
+                {currentAssignment?.companyName} — {currentAssignment?.branchName}
+              </p>
             </div>
-            <p className="text-muted-foreground text-sm">{currentPickup?.address}</p>
+            <p className="text-muted-foreground text-sm">{currentAssignment?.branchAddress}</p>
           </div>
 
           {/* GPS result */}

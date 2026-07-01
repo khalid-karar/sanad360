@@ -10,21 +10,6 @@ export async function listVehicles(transportCompanyId?: string): Promise<Vehicle
   return (data as Vehicle[]) ?? [];
 }
 
-export async function getFirstActiveVehicle(): Promise<Vehicle | null> {
-  const { data, error } = await supabase
-    .from('vehicles')
-    .select('*')
-    .eq('status', 'active')
-    .limit(1)
-    .single<Vehicle>();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data;
-}
-
 export async function createVehicle(input: CreateVehicleInput): Promise<Vehicle> {
   const { data, error } = await supabase
     .from('vehicles')

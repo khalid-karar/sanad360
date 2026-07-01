@@ -3,9 +3,15 @@ import { useNotificationStore } from './notificationStore';
 import { useAuthStore } from './authStore';
 import { createPickupEvent } from '../lib/api/pickups';
 import { uploadSignature, uploadPhoto, uploadReceipt } from '../lib/api/storage';
-import { getFirstActiveVehicle } from '../lib/api/vehicles';
+import {
+  listAssignments,
+  updateAssignmentStatus,
+  completeAssignment,
+} from '../lib/api/assignments';
+import { getBranch, getCompany } from '../lib/api/companies';
+import type { PickupAssignment } from '../lib/database.types';
 
-// Extended to include QR scan step before geolocation
+// Evidence capture state machine: QR scan → GPS → manifest → signature → submit
 export type PickupState =
   | 'awaiting'
   | 'qr-scan'
@@ -14,22 +20,20 @@ export type PickupState =
   | 'signature'
   | 'confirmation';
 
-export interface Pickup {
-  id: string;
-  company: string;
-  address: string;
-  wasteType: string;
-  time: string;
-  completed: boolean;
+/** A real pickup_assignments row enriched with display names the driver can
+ *  read thanks to migration 009 (linked-transporter SELECT on branches/companies). */
+export interface AssignmentView {
+  assignment: PickupAssignment;
+  companyName: string;
+  branchName: string;
+  branchAddress: string;
 }
 
 export interface ManifestData {
-  date: string;
-  time: string;
   location: string;
   generator: string;
   wasteType: string[];
-  weight: string;
+  weight: string; // plain numeric string, e.g. "42.5"
   // Evidence fields
   gps_lat?: number;
   gps_lng?: number;
@@ -41,16 +45,22 @@ export interface ManifestData {
 
 interface DriverState {
   pickupState: PickupState;
-  currentPickup: Pickup | null;
-  pickups: Pickup[];
+  assignments: AssignmentView[];
+  assignmentsLoading: boolean;
+  assignmentsError: string | null;
+  currentAssignment: AssignmentView | null;
   manifestData: ManifestData;
-  signature: string | null;    // base64 data URL from canvas
+  signature: string | null; // base64 data URL from canvas
   isSubmitting: boolean;
   submitError: string | null;
-  vehicleId: string | null;    // resolved on first use
+  /** Set once the ledger insert succeeds, so a retry after a failed
+   *  assignment-completion update never double-inserts the pickup event. */
+  createdEventId: string | null;
 
   setPickupState: (state: PickupState) => void;
-  setCurrentPickup: (pickup: Pickup | null) => void;
+  loadAssignments: () => Promise<void>;
+  /** Enter the evidence flow for a real assignment (accepts + starts it). */
+  beginPickup: (assignment: PickupAssignment) => Promise<void>;
   updateManifestData: (data: Partial<ManifestData>) => void;
   setSignature: (signature: string) => void;
   completePickup: () => Promise<void>;
@@ -59,40 +69,41 @@ interface DriverState {
 }
 
 const initialManifest: ManifestData = {
-  date: new Date().toLocaleDateString('ar-SA'),
-  time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
   location: '',
   generator: '',
   wasteType: [],
   weight: '',
 };
 
-// Seeded branch data shown in the driver's schedule (Phase 1 — static until
-// pickup_assignments table is implemented in Phase 2).
-const SEEDED_PICKUPS: Pickup[] = [
-  {
-    id: 'seed-1',
-    company: 'شركة المذاق الأصيل للمطاعم – فرع العليا',
-    address: 'شارع العليا، حي العليا، الرياض',
-    wasteType: 'نفايات عضوية',
-    time: '09:00',
-    completed: false,
-  },
-];
+/** Statuses a driver can still act on. */
+const ACTIONABLE: PickupAssignment['status'][] = ['pending', 'accepted', 'in_progress'];
+
+async function enrich(assignment: PickupAssignment): Promise<AssignmentView> {
+  const [branch, company] = await Promise.all([
+    getBranch(assignment.branch_id),
+    getCompany(assignment.company_id),
+  ]);
+  return {
+    assignment,
+    companyName: company?.name_ar ?? '—',
+    branchName: branch?.name_ar ?? '—',
+    branchAddress: branch?.address_ar ?? branch?.city ?? '',
+  };
+}
 
 export const useDriverStore = create<DriverState>((set, get) => ({
   pickupState: 'awaiting',
-  currentPickup: null,
-  pickups: SEEDED_PICKUPS,
+  assignments: [],
+  assignmentsLoading: false,
+  assignmentsError: null,
+  currentAssignment: null,
   manifestData: initialManifest,
   signature: null,
   isSubmitting: false,
   submitError: null,
-  vehicleId: null,
+  createdEventId: null,
 
   setPickupState: (state) => set({ pickupState: state }),
-
-  setCurrentPickup: (pickup) => set({ currentPickup: pickup }),
 
   updateManifestData: (data) =>
     set((state) => ({
@@ -103,101 +114,131 @@ export const useDriverStore = create<DriverState>((set, get) => ({
 
   clearSubmitError: () => set({ submitError: null }),
 
+  loadAssignments: async () => {
+    const authUser = useAuthStore.getState().user;
+    if (!authUser?.driver_record_id) {
+      set({
+        assignments: [],
+        assignmentsError: 'No driver record linked to this account.',
+      });
+      return;
+    }
+    set({ assignmentsLoading: true, assignmentsError: null });
+    try {
+      const rows = await listAssignments({ driverId: authUser.driver_record_id });
+      const active = rows.filter((a) => ACTIONABLE.includes(a.status));
+      const views = await Promise.all(active.map(enrich));
+      set({ assignments: views, assignmentsLoading: false });
+    } catch (err) {
+      set({
+        assignmentsError: err instanceof Error ? err.message : 'Failed to load assignments',
+        assignmentsLoading: false,
+      });
+    }
+  },
+
+  beginPickup: async (assignment) => {
+    // Reuse an already-enriched view when we have one; enrich otherwise
+    // (MySchedulePage hands us a bare row).
+    const existing = get().assignments.find((v) => v.assignment.id === assignment.id);
+    const view = existing ?? (await enrich(assignment));
+
+    // Flip to in_progress so dispatch sees the job is being worked.
+    let started = view.assignment;
+    if (started.status !== 'in_progress') {
+      started = await updateAssignmentStatus(started.id, 'in_progress');
+    }
+
+    set({
+      currentAssignment: { ...view, assignment: started },
+      manifestData: {
+        ...initialManifest,
+        location: view.branchAddress || view.branchName,
+        generator: view.companyName,
+      },
+      signature: null,
+      submitError: null,
+      createdEventId: null,
+      pickupState: 'qr-scan',
+    });
+  },
+
   completePickup: async () => {
     const state = get();
     const authUser = useAuthStore.getState().user;
+    const view = state.currentAssignment;
 
     if (!authUser) {
       set({ submitError: 'Not authenticated' });
-      return;
-    }
-    if (!authUser.driver_record_id) {
-      set({ submitError: 'Driver record not found. Contact your administrator.' });
       return;
     }
     if (!authUser.transport_company_id) {
       set({ submitError: 'Transport company not associated with this account.' });
       return;
     }
-    if (!authUser.branch_id) {
-      set({ submitError: 'No branch assigned to this driver account.' });
+    if (!view) {
+      set({ submitError: 'No active assignment for this pickup.' });
       return;
     }
 
-    // We need a company_id — the branch's parent company.
-    // For Phase 1 we derive it from the seed's known mapping.
-    // Phase 2: add company_id to the membership or fetch from the branch record.
-    // For now, fetch the branch to get company_id.
-    const { getBranch } = await import('../lib/api/companies');
-    const branch = await getBranch(authUser.branch_id);
-    if (!branch) {
-      set({ submitError: 'Branch not found.' });
-      return;
-    }
-
-    // Resolve vehicle: use first active vehicle for this transport company
-    let vehicleId = get().vehicleId;
-    if (!vehicleId) {
-      const vehicle = await getFirstActiveVehicle();
-      vehicleId = vehicle?.id ?? null;
-    }
-    if (!vehicleId) {
-      set({ submitError: 'No active vehicle found for your transport company.' });
-      return;
-    }
-    set({ vehicleId });
+    const a = view.assignment;
+    // The ledger records who was actually present: the signed-in driver's own
+    // record when it exists, falling back to the assigned driver.
+    const driverId = authUser.driver_record_id ?? a.driver_id;
 
     set({ isSubmitting: true, submitError: null });
     try {
-      // Generate a stable UUID for this event so we can use it in storage paths
-      const eventId = crypto.randomUUID();
+      let eventId = state.createdEventId;
 
-      // Upload evidence files in parallel. Each upload computes a SHA-256 of the
-      // bytes and returns { path, sha256 }; both are persisted on the pickup event.
-      const [signatureRes, photoRes, receiptRes] = await Promise.all([
-        state.signature
-          ? uploadSignature(branch.company_id, authUser.branch_id, eventId, state.signature)
-          : Promise.resolve(undefined),
-        state.manifestData.photoFile
-          ? uploadPhoto(branch.company_id, authUser.branch_id, eventId, state.manifestData.photoFile)
-          : Promise.resolve(undefined),
-        state.manifestData.receiptFile
-          ? uploadReceipt(branch.company_id, authUser.branch_id, eventId, state.manifestData.receiptFile)
-          : Promise.resolve(undefined),
-      ]);
+      if (!eventId) {
+        // Stable UUID used for the storage paths AND as the ledger logical_id.
+        const newEventId = crypto.randomUUID();
 
-      const signaturePath = signatureRes?.path;
-      const photoPath = photoRes?.path;
-      const receiptPath = receiptRes?.path;
+        // Upload evidence in parallel; each returns { path, sha256 } and both
+        // are persisted on the pickup event (re-verified server-side by the
+        // PDF service).
+        const [signatureRes, photoRes, receiptRes] = await Promise.all([
+          state.signature
+            ? uploadSignature(a.company_id, a.branch_id, newEventId, state.signature)
+            : Promise.resolve(undefined),
+          state.manifestData.photoFile
+            ? uploadPhoto(a.company_id, a.branch_id, newEventId, state.manifestData.photoFile)
+            : Promise.resolve(undefined),
+          state.manifestData.receiptFile
+            ? uploadReceipt(a.company_id, a.branch_id, newEventId, state.manifestData.receiptFile)
+            : Promise.resolve(undefined),
+        ]);
 
-      const weightKg = parseFloat(state.manifestData.weight.replace(/[^\d.]/g, ''));
+        const event = await createPickupEvent({
+          logical_id: newEventId,
+          company_id: a.company_id,
+          branch_id: a.branch_id,
+          transport_company_id: authUser.transport_company_id,
+          driver_id: driverId,
+          vehicle_id: a.vehicle_id,
+          waste_types: state.manifestData.wasteType,
+          weight_kg: parseFloat(state.manifestData.weight),
+          gps_lat: state.manifestData.gps_lat,
+          gps_lng: state.manifestData.gps_lng,
+          gps_accuracy_m: state.manifestData.gps_accuracy_m,
+          qr_code_value: state.manifestData.qr_code_value,
+          photo_path: photoRes?.path,
+          receipt_path: receiptRes?.path,
+          signature_path: signatureRes?.path,
+          photo_sha256: photoRes?.sha256,
+          receipt_sha256: receiptRes?.sha256,
+          signature_sha256: signatureRes?.sha256,
+        });
+        eventId = event.id;
+        set({ createdEventId: eventId });
+      }
 
-      await createPickupEvent({
-        logical_id: eventId,
-        company_id: branch.company_id,
-        branch_id: authUser.branch_id,
-        transport_company_id: authUser.transport_company_id,
-        driver_id: authUser.driver_record_id,
-        vehicle_id: vehicleId,
-        waste_types: state.manifestData.wasteType,
-        weight_kg: weightKg,
-        gps_lat: state.manifestData.gps_lat,
-        gps_lng: state.manifestData.gps_lng,
-        gps_accuracy_m: state.manifestData.gps_accuracy_m,
-        qr_code_value: state.manifestData.qr_code_value,
-        photo_path: photoPath,
-        receipt_path: receiptPath,
-        signature_path: signaturePath,
-        photo_sha256: photoRes?.sha256,
-        receipt_sha256: receiptRes?.sha256,
-        signature_sha256: signatureRes?.sha256,
-      });
+      // Link the ledger event and flip the assignment to completed. If this
+      // fails, retry re-runs ONLY this step (createdEventId guards the insert).
+      await completeAssignment(a.id, eventId);
 
-      // Mark pickup as completed in the local schedule list
       set((s) => ({
-        pickups: s.pickups.map((p) =>
-          p.id === s.currentPickup?.id ? { ...p, completed: true } : p
-        ),
+        assignments: s.assignments.filter((v) => v.assignment.id !== a.id),
         isSubmitting: false,
       }));
 
@@ -221,13 +262,10 @@ export const useDriverStore = create<DriverState>((set, get) => ({
   resetFlow: () =>
     set({
       pickupState: 'awaiting',
-      currentPickup: null,
-      manifestData: {
-        ...initialManifest,
-        date: new Date().toLocaleDateString('ar-SA'),
-        time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-      },
+      currentAssignment: null,
+      manifestData: initialManifest,
       signature: null,
       submitError: null,
+      createdEventId: null,
     }),
 }));

@@ -54,7 +54,8 @@ export default function DigitalManifest() {
   };
 
   const handleComplete = () => {
-    updateManifestData({ weight: weight + ' كجم' });
+    // Plain numeric string — parsed with parseFloat() at submit time.
+    updateManifestData({ weight });
     setPickupState('signature');
   };
 
@@ -80,13 +81,11 @@ export default function DigitalManifest() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-foreground">{isRTL ? 'التاريخ' : 'Date'}</Label>
-              <p className="text-sm text-muted-foreground mt-1">{manifestData.date}</p>
-            </div>
-            <div>
-              <Label className="text-foreground">{isRTL ? 'الوقت' : 'Time'}</Label>
-              <p className="text-sm text-muted-foreground mt-1">{manifestData.time}</p>
+            <div className="col-span-2">
+              <Label className="text-foreground">{isRTL ? 'التاريخ والوقت' : 'Date & Time'}</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                {new Date().toLocaleString(isRTL ? 'ar-SA' : 'en-GB')}
+              </p>
             </div>
             <div className="col-span-2">
               <Label className="text-foreground">{isRTL ? 'الموقع' : 'Location'}</Label>
