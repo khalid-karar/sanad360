@@ -65,6 +65,20 @@ export interface PickupEventRow {
   created_at: string;
 }
 
+// Chain-of-custody row (migration 010) — one per pickup event, append-only.
+export interface DisposalRow {
+  id: string;
+  pickup_event_id: string;
+  facility_name_ar: string;
+  facility_license_number: string | null;
+  ticket_path: string | null;
+  ticket_sha256: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface CompanyRow {
   id: string;
   name_ar: string;

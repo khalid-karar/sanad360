@@ -25,7 +25,7 @@ export default function Sidebar({ role }: SidebarProps) {
   const driverLinks = [
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/driver' },
     { icon: CalendarClockIcon, label: isRTL ? 'جدولي' : 'My Schedule', path: '/driver/schedule' },
-    { icon: MapPinIcon, label: isRTL ? 'المواقع' : 'Locations', path: '/driver' },
+    { icon: MapPinIcon, label: isRTL ? 'تأكيد التسليم' : 'Deliveries', path: '/driver/deliveries' },
   ];
 
   const companyLinks = [

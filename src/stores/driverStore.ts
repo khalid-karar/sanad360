@@ -9,6 +9,7 @@ import {
   completeAssignment,
 } from '../lib/api/assignments';
 import { getBranch, getCompany } from '../lib/api/companies';
+import { enqueueSubmission, isNetworkError } from '../lib/offline/pickupQueue';
 import type { PickupAssignment } from '../lib/database.types';
 
 // Evidence capture state machine: QR scan → GPS → manifest → signature → submit
@@ -53,6 +54,9 @@ interface DriverState {
   signature: string | null; // base64 data URL from canvas
   isSubmitting: boolean;
   submitError: string | null;
+  /** True when the submission was persisted to the offline queue instead of
+   *  sent — it will sync automatically when connectivity returns. */
+  queuedOffline: boolean;
   /** Set once the ledger insert succeeds, so a retry after a failed
    *  assignment-completion update never double-inserts the pickup event. */
   createdEventId: string | null;
@@ -101,6 +105,7 @@ export const useDriverStore = create<DriverState>((set, get) => ({
   signature: null,
   isSubmitting: false,
   submitError: null,
+  queuedOffline: false,
   createdEventId: null,
 
   setPickupState: (state) => set({ pickupState: state }),
@@ -158,6 +163,7 @@ export const useDriverStore = create<DriverState>((set, get) => ({
       },
       signature: null,
       submitError: null,
+      queuedOffline: false,
       createdEventId: null,
       pickupState: 'qr-scan',
     });
@@ -186,7 +192,7 @@ export const useDriverStore = create<DriverState>((set, get) => ({
     // record when it exists, falling back to the assigned driver.
     const driverId = authUser.driver_record_id ?? a.driver_id;
 
-    set({ isSubmitting: true, submitError: null });
+    set({ isSubmitting: true, submitError: null, queuedOffline: false });
     try {
       let eventId = state.createdEventId;
 
@@ -254,6 +260,45 @@ export const useDriverStore = create<DriverState>((set, get) => ({
         duration: 5000,
       });
     } catch (err) {
+      // Connectivity failure → persist the full submission to IndexedDB and
+      // let the sync triggers replay it when the network returns. A server
+      // REJECTION (RLS, validation, trigger) still surfaces as an error.
+      if (isNetworkError(err) && !state.createdEventId) {
+        try {
+          await enqueueSubmission({
+            eventId: crypto.randomUUID(),
+            assignmentId: a.id,
+            companyId: a.company_id,
+            branchId: a.branch_id,
+            transportCompanyId: authUser.transport_company_id,
+            driverId,
+            vehicleId: a.vehicle_id,
+            wasteTypes: state.manifestData.wasteType,
+            weightKg: parseFloat(state.manifestData.weight),
+            gpsLat: state.manifestData.gps_lat,
+            gpsLng: state.manifestData.gps_lng,
+            gpsAccuracyM: state.manifestData.gps_accuracy_m,
+            qrCodeValue: state.manifestData.qr_code_value,
+            signatureDataUrl: state.signature ?? undefined,
+            photoBlob: state.manifestData.photoFile,
+            photoName: state.manifestData.photoFile?.name,
+            photoType: state.manifestData.photoFile?.type,
+            receiptBlob: state.manifestData.receiptFile,
+            receiptName: state.manifestData.receiptFile?.name,
+            receiptType: state.manifestData.receiptFile?.type,
+            queuedAt: Date.now(),
+            attempts: 0,
+          });
+          set((s) => ({
+            assignments: s.assignments.filter((v) => v.assignment.id !== a.id),
+            queuedOffline: true,
+            isSubmitting: false,
+          }));
+          return;
+        } catch {
+          // IndexedDB unavailable — fall through to the normal error path.
+        }
+      }
       const message = err instanceof Error ? err.message : 'Submission failed';
       set({ submitError: message, isSubmitting: false });
     }
@@ -266,6 +311,7 @@ export const useDriverStore = create<DriverState>((set, get) => ({
       manifestData: initialManifest,
       signature: null,
       submitError: null,
+      queuedOffline: false,
       createdEventId: null,
     }),
 }));

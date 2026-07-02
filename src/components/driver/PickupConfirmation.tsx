@@ -7,7 +7,9 @@ import { useEffect } from 'react';
 
 export default function PickupConfirmation() {
   const { isRTL } = useAuthStore();
-  const { completePickup, resetFlow, isSubmitting, submitError, clearSubmitError } = useDriverStore();
+  const {
+    completePickup, resetFlow, isSubmitting, submitError, clearSubmitError, queuedOffline,
+  } = useDriverStore();
 
   // Trigger the API call as soon as this screen mounts
   useEffect(() => {
@@ -82,20 +84,26 @@ export default function PickupConfirmation() {
             </>
           )}
 
-          {/* Success */}
+          {/* Success (sent, or safely queued for offline sync) */}
           {!isSubmitting && !submitError && (
             <>
               <div className="flex justify-center">
-                <div className="w-32 h-32 bg-success/10 rounded-full flex items-center justify-center animate-pulse">
-                  <CheckCircle2Icon className="w-16 h-16 text-success" />
+                <div className={`w-32 h-32 rounded-full flex items-center justify-center animate-pulse ${queuedOffline ? 'bg-warning/10' : 'bg-success/10'}`}>
+                  <CheckCircle2Icon className={`w-16 h-16 ${queuedOffline ? 'text-warning' : 'text-success'}`} />
                 </div>
               </div>
               <div className="text-center space-y-4">
                 <h2 className="text-3xl font-bold text-foreground">
-                  {isRTL ? 'تم بنجاح!' : 'Success!'}
+                  {queuedOffline
+                    ? (isRTL ? 'تم الحفظ محلياً' : 'Saved Offline')
+                    : (isRTL ? 'تم بنجاح!' : 'Success!')}
                 </h2>
                 <p className="text-lg text-muted-foreground">
-                  {isRTL ? 'تم حفظ البيان بشكل دائم' : 'Manifest permanently saved'}
+                  {queuedOffline
+                    ? (isRTL
+                        ? 'لا يوجد اتصال — سيُرسل البيان تلقائياً عند عودة الشبكة'
+                        : 'No connection — the manifest will sync automatically when back online')
+                    : (isRTL ? 'تم حفظ البيان بشكل دائم' : 'Manifest permanently saved')}
                 </p>
               </div>
               <Button

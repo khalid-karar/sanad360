@@ -8,6 +8,7 @@ import { assertCompanyAccess } from '../lib/auth.js';
 import type {
   AuthedRequest, PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow, HashCheck, EvidenceHashChecks,
+  DisposalRow,
 } from '../types.js';
 
 // Server-side integrity check: compare the SHA-256 recorded in the append-only
@@ -76,6 +77,28 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     signature: checkHash(event.signature_path, event.signature_sha256, signature),
   };
 
+  // 4b. Chain of custody: the disposal confirmation for this event (or any
+  //     revision of the same logical pickup), with its ticket re-hashed.
+  const { data: revisionRows } = await admin
+    .from('pickup_events')
+    .select('id')
+    .eq('logical_id', event.logical_id);
+  const revisionIds = ((revisionRows ?? []) as { id: string }[]).map((r) => r.id);
+
+  const { data: disposal } = await admin
+    .from('disposal_confirmations')
+    .select('*')
+    .in('pickup_event_id', revisionIds.length > 0 ? revisionIds : [event.id])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<DisposalRow>();
+
+  let disposalTicketCheck: HashCheck = 'unavailable';
+  if (disposal) {
+    const ticket = await fetchEvidence('disposal-tickets', disposal.ticket_path);
+    disposalTicketCheck = checkHash(disposal.ticket_path, disposal.ticket_sha256, ticket);
+  }
+
   // 5. Render HTML → PDF
   const generatedAt = new Date().toISOString();
   const documentId = event.id.substring(0, 8).toUpperCase();
@@ -93,6 +116,8 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
       signature: signature?.dataUrl ?? null,
     },
     hashChecks,
+    disposal: disposal ?? null,
+    disposalTicketCheck,
     documentId,
     generatedAt,
   };

@@ -224,6 +224,37 @@ export interface CompanyTransporter {
   created_at: string;
 }
 
+// Append-only chain-of-custody record: one per pickup event, written by the
+// driver at the receiving facility (migration 010). company/branch/transport
+// fields and created_by are server-set by triggers.
+export interface DisposalConfirmation {
+  id: string;
+  pickup_event_id: string;
+  company_id: string;
+  branch_id: string;
+  transport_company_id: string;
+  facility_name_ar: string;
+  facility_license_number: string | null;
+  ticket_path: string | null;
+  ticket_sha256: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type CreateDisposalConfirmationInput = {
+  pickup_event_id: string;
+  facility_name_ar: string;
+  facility_license_number?: string;
+  ticket_path?: string;
+  ticket_sha256?: string;
+  gps_lat?: number;
+  gps_lng?: number;
+  notes?: string;
+};
+
 // Each table exposes Row (full read shape), Insert (write shape — server-set
 // columns optional), and Update (all columns optional). supabase-js uses Insert
 // for `.insert()` and Update for `.update()`. We model Insert/Update as
@@ -261,6 +292,7 @@ export interface Database {
       alert_acknowledgements: TableShape<AlertAcknowledgement>;
       notifications: TableShape<NotificationRow>;
       company_transporters: TableShape<CompanyTransporter>;
+      disposal_confirmations: TableShape<DisposalConfirmation>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };

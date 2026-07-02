@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useThemeStore } from './stores/themeStore';
+import { useNotificationStore } from './stores/notificationStore';
+import { initPickupQueueSync } from './lib/offline/pickupQueue';
 import { supabase } from './lib/supabase';
 import { Toaster } from './components/ui/toaster';
 import ToastNotification from './components/notifications/ToastNotification';
@@ -23,6 +25,7 @@ import BranchesPage from './pages/BranchesPage';
 import ProfilePage from './pages/ProfilePage';
 import PickupSchedulePage from './components/schedule/PickupSchedulePage';
 import MySchedulePage from './components/schedule/MySchedulePage';
+import DriverDeliveriesPage from './pages/DriverDeliveriesPage';
 import ApprovedTransportersPage from './components/company/ApprovedTransportersPage';
 import CompaniesPage from './pages/CompaniesPage';
 import AdminUsersPage from './pages/AdminUsersPage';
@@ -46,6 +49,24 @@ function App() {
   useEffect(() => {
     initializeTheme();
   }, [initializeTheme]);
+
+  // Offline pickup queue: replay any pending submissions on app start and
+  // whenever connectivity returns; notify the driver on success.
+  useEffect(() => {
+    return initPickupQueueSync((r) => {
+      useNotificationStore.getState().addNotification({
+        type: 'success',
+        priority: 'medium',
+        title: 'تمت مزامنة الالتقاطات المحفوظة',
+        titleEn: 'Queued Pickups Synced',
+        message: `تم إرسال ${r.synced} بيان محفوظ محلياً`,
+        messageEn: `${r.synced} locally saved manifest(s) submitted`,
+        role: 'driver',
+        autoHide: true,
+        duration: 5000,
+      });
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +156,14 @@ function App() {
           element={
             user?.role === 'driver'
               ? <MySchedulePage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/driver/deliveries"
+          element={
+            user?.role === 'driver'
+              ? <DriverDeliveriesPage />
               : <Navigate to="/login" replace />
           }
         />

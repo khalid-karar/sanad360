@@ -53,7 +53,7 @@ export async function computeSha256(bytes: Uint8Array): Promise<string> {
  * existing path fails rather than overwriting.
  */
 export async function uploadEvidenceFile(
-  bucket: 'pickup-photos' | 'pickup-signatures' | 'pickup-receipts',
+  bucket: 'pickup-photos' | 'pickup-signatures' | 'pickup-receipts' | 'disposal-tickets',
   path: string,
   file: File | Uint8Array | Blob,
   contentType?: string

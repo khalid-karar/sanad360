@@ -5,7 +5,7 @@ import {
 import type {
   PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow,
-  HashCheck, EvidenceHashChecks,
+  HashCheck, EvidenceHashChecks, DisposalRow,
 } from '../types.js';
 
 // Render the server-side verification verdict next to an evidence hash.
@@ -54,6 +54,8 @@ export function buildSinglePickupHtml(opts: {
   vehicle: VehicleRow;
   evidence: EvidenceDataUrls;
   hashChecks?: EvidenceHashChecks; // server-side re-hash verdicts (threaded from the route)
+  disposal?: DisposalRow | null;   // chain-of-custody confirmation (migration 010)
+  disposalTicketCheck?: HashCheck; // server-side re-hash verdict for the ticket
   documentId: string; // short ID for the footer
   generatedAt: string; // ISO timestamp
   pdfSha256?: string;  // SHA-256 of the rendered PDF bytes (threaded from the route)
@@ -190,6 +192,28 @@ export function buildSinglePickupHtml(opts: {
         <div class="label" style="margin-bottom:4px;">العلامات المُفعَّلة</div>
         <div class="flag-list">${flagRows}</div>
       </div>` : '<div class="label" style="margin-top:6px;">✓ لا توجد علامات مخاطر</div>'}
+    </div>
+  </div>
+
+  <!-- ── Chain of Custody: disposal leg ─────────────────────── -->
+  <div class="section">
+    <div class="section-header">سلسلة العهدة — التسليم لمنشأة المعالجة</div>
+    <div class="section-body">
+      ${opts.disposal ? `
+      <div class="row"><span class="label">منشأة المعالجة</span><span class="value">${esc(opts.disposal.facility_name_ar)}</span></div>
+      ${opts.disposal.facility_license_number ? `<div class="row"><span class="label">رقم ترخيص المنشأة</span><span class="value">${esc(opts.disposal.facility_license_number)}</span></div>` : ''}
+      <div class="row"><span class="label">تاريخ التسليم</span><span class="value">${esc(arabicDateTime(opts.disposal.created_at))}</span></div>
+      ${opts.disposal.gps_lat && opts.disposal.gps_lng
+        ? `<div class="row"><span class="label">إحداثيات التسليم</span><span class="value">${opts.disposal.gps_lat.toFixed(5)}, ${opts.disposal.gps_lng.toFixed(5)}</span></div>`
+        : ''}
+      <div class="row">
+        <span class="label">إيصال الميزان SHA-256</span>
+        <span class="value hash">${esc(opts.disposal.ticket_sha256 ?? 'N/A')}${hashVerdict(opts.disposalTicketCheck)}</span>
+      </div>
+      ${opts.disposal.notes ? `<div class="row"><span class="label">ملاحظات التسليم</span><span class="value">${esc(opts.disposal.notes)}</span></div>` : ''}
+      ` : `
+      <p style="font-size:10.5pt; color:#991b1b;">⚠ لم يتم تأكيد التسليم لمنشأة معالجة بعد — سلسلة العهدة غير مكتملة</p>
+      `}
     </div>
   </div>
 
