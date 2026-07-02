@@ -224,6 +224,14 @@ export interface CompanyTransporter {
   created_at: string;
 }
 
+// The membership a user is currently "acting as" (migration 012). Self-managed;
+// my_membership() prefers it and falls back to the oldest membership.
+export interface UserActiveTenant {
+  user_id: string;
+  membership_id: string;
+  updated_at: string;
+}
+
 // Append-only chain-of-custody record: one per pickup event, written by the
 // driver at the receiving facility (migration 010). company/branch/transport
 // fields and created_by are server-set by triggers.
@@ -293,6 +301,7 @@ export interface Database {
       notifications: TableShape<NotificationRow>;
       company_transporters: TableShape<CompanyTransporter>;
       disposal_confirmations: TableShape<DisposalConfirmation>;
+      user_active_tenant: TableShape<UserActiveTenant>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };

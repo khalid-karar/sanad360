@@ -24,13 +24,27 @@ export async function authMiddleware(
     return;
   }
 
-  // Fetch the user's membership (LIMIT 1 — single-tenant Phase 1 behaviour)
-  const { data: membership, error: memberError } = await admin
+  // Resolve the user's ACTIVE membership — same precedence as the DB helper
+  // my_membership() (migration 012): the user_active_tenant selection wins,
+  // otherwise the oldest membership.
+  const { data: active } = await admin
+    .from('user_active_tenant')
+    .select('membership_id')
+    .eq('user_id', user.id)
+    .maybeSingle<{ membership_id: string }>();
+
+  let membershipQuery = admin
     .from('memberships')
     .select('role, company_id, transport_company_id')
-    .eq('user_id', user.id)
-    .limit(1)
-    .single();
+    .eq('user_id', user.id);
+  if (active?.membership_id) {
+    membershipQuery = membershipQuery.eq('id', active.membership_id);
+  } else {
+    membershipQuery = membershipQuery
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true });
+  }
+  const { data: membership, error: memberError } = await membershipQuery.limit(1).single();
 
   if (memberError || !membership) {
     res.status(403).json({ error: 'No membership found for this user' });

@@ -10,12 +10,16 @@ export interface AuthUser {
   role: MemberRole;
   email: string | null;
   phone: string | null;
-  // Tenant context
+  // Tenant context (from the ACTIVE membership — see migration 012)
   company_id: string | null;
   transport_company_id: string | null;
   branch_id: string | null;
   // For drivers: their drivers table row id
   driver_record_id: string | null;
+  /** All memberships this user holds (consultants hold several). */
+  memberships: Membership[];
+  /** The membership currently acted as — mirrors my_membership() server-side. */
+  active_membership_id: string;
 }
 
 export interface SignInResult {
@@ -61,15 +65,27 @@ export async function fetchMyProfile(userId: string): Promise<AuthUser> {
 
   if (profileError) throw profileError;
 
-  // Fetch membership
-  const { data: membership, error: membershipError } = await supabase
+  // All memberships, oldest first — mirrors my_membership()'s fallback order.
+  const { data: membershipRows, error: membershipError } = await supabase
     .from('memberships')
     .select('*')
     .eq('user_id', userId)
-    .limit(1)
-    .single<Membership>();
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
 
   if (membershipError) throw membershipError;
+  const memberships = (membershipRows as Membership[]) ?? [];
+  if (memberships.length === 0) throw new Error('No membership found for this user');
+
+  // Active-tenant selection (migration 012); fall back to the oldest.
+  const { data: active } = await supabase
+    .from('user_active_tenant')
+    .select('membership_id')
+    .eq('user_id', userId)
+    .maybeSingle<{ membership_id: string }>();
+
+  const membership =
+    memberships.find((m) => m.id === active?.membership_id) ?? memberships[0];
 
   // For driver role: look up their drivers table row by profile_id
   let driverRecordId: string | null = null;
@@ -92,5 +108,22 @@ export async function fetchMyProfile(userId: string): Promise<AuthUser> {
     transport_company_id: membership.transport_company_id,
     branch_id: membership.branch_id,
     driver_record_id: driverRecordId,
+    memberships,
+    active_membership_id: membership.id,
   };
+}
+
+/**
+ * Switch the caller's active tenant (consultant flow). Upserts the selection
+ * row that my_membership() prefers server-side; callers should re-hydrate the
+ * AuthUser afterwards so client state matches RLS reality.
+ */
+export async function setActiveTenant(userId: string, membershipId: string): Promise<void> {
+  const { error } = await supabase
+    .from('user_active_tenant')
+    .upsert(
+      { user_id: userId, membership_id: membershipId, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
+  if (error) throw error;
 }

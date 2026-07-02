@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import { signIn as apiSignIn, signOut as apiSignOut, fetchMyProfile } from '../lib/api/auth';
+import {
+  signIn as apiSignIn,
+  signOut as apiSignOut,
+  fetchMyProfile,
+  setActiveTenant,
+} from '../lib/api/auth';
 import type { AuthUser, MemberRole } from '../lib/api/auth';
 
 // Re-export so existing imports stay compatible
@@ -19,6 +24,11 @@ interface AuthState {
    * Hydrates the user from the DB rather than requiring a fresh login.
    */
   hydrate: (userId: string) => Promise<void>;
+  /**
+   * Consultant flow: switch the active tenant (migration 012), then re-hydrate
+   * so role/tenant state matches what RLS now enforces server-side.
+   */
+  switchTenant: (membershipId: string) => Promise<void>;
   clearError: () => void;
   toggleLanguage: () => void;
 }
@@ -50,6 +60,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       await apiSignOut();
     } catch {
       /* ignore — local state is already cleared */
+    }
+  },
+
+  switchTenant: async (membershipId: string) => {
+    const current = useAuthStore.getState().user;
+    if (!current) throw new Error('Not authenticated');
+    set({ isLoading: true, error: null });
+    try {
+      await setActiveTenant(current.id, membershipId);
+      const user = await fetchMyProfile(current.id);
+      set({ user, isLoading: false });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Tenant switch failed';
+      set({ error: message, isLoading: false });
+      throw err;
     }
   },
 

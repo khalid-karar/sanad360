@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { GlobeIcon, PaletteIcon } from 'lucide-react';
 import NotificationBell from './notifications/NotificationBell';
 import ThemeCustomizer from './theme/ThemeCustomizer';
+import TenantSwitcher from './TenantSwitcher';
 
 export default function Topbar() {
   const { isRTL, toggleLanguage } = useAuthStore();
@@ -23,6 +24,7 @@ export default function Topbar() {
             <GlobeIcon className="w-4 h-4 mr-2" />
             <span className="font-medium">{isRTL ? 'English' : 'العربية'}</span>
           </Button>
+          <TenantSwitcher />
         </div>
 
         {/* Right side content */}
