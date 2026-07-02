@@ -70,7 +70,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["Inter", '"IBM Plex Sans"', "sans-serif"],
+        sans: ['"IBM Plex Sans Arabic"', "Inter", "system-ui", "sans-serif"],
         mono: ['"IBM Plex Mono"', "monospace"],
       },
       borderRadius: {

@@ -123,6 +123,10 @@ export default function Sidebar({ role }: SidebarProps) {
           <LogOutIcon className="w-4 h-4 me-2" />
           <span className="font-medium">{isRTL ? 'تسجيل الخروج' : 'Logout'}</span>
         </Button>
+        <p className="text-[11px] text-muted-foreground text-center mt-4">
+          {isRTL ? 'مدعوم من ' : 'Powered by '}
+          <span className="font-semibold" dir="ltr">Maya AI</span>
+        </p>
       </div>
     </div>
   );

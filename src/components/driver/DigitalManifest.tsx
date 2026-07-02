@@ -212,13 +212,17 @@ export default function DigitalManifest() {
         </CardContent>
       </Card>
 
-      <Button
-        onClick={handleComplete}
-        disabled={!canProceed}
-        className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-      >
-        {isRTL ? 'إكمال الالتقاط' : 'Complete Pickup'}
-      </Button>
+      {/* Field mode: the step's single primary action stays in the thumb zone,
+          floating above the bottom nav — the driver never scrolls to proceed. */}
+      <div className="sticky bottom-20 lg:bottom-4 z-30 bg-background/95 backdrop-blur-sm rounded-xl pt-2">
+        <Button
+          onClick={handleComplete}
+          disabled={!canProceed}
+          className="w-full h-12 text-base bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {isRTL ? 'إكمال الالتقاط' : 'Complete Pickup'}
+        </Button>
+      </div>
     </div>
   );
 }

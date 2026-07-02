@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { RiskGauge } from '@/components/ui/risk-gauge';
+import { formatDateTime } from '../lib/format';
 import AppShell from '../components/AppShell';
 import {
   listFlaggedPickups,
@@ -154,13 +156,16 @@ export default function ReviewQueuePage() {
               >
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-start justify-between flex-wrap gap-3">
-                    <div>
-                      <p className="text-sm text-foreground" dir="ltr">
-                        {new Date(r.event.created_at).toLocaleString(isRTL ? 'ar-SA' : 'en-GB')}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1" dir="ltr">
-                        {r.event.weight_kg} kg — {isRTL ? 'درجة الخطورة' : 'risk'} {r.event.risk_score}/100
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <RiskGauge score={r.event.risk_score} />
+                      <div>
+                        <p className="text-sm text-foreground" dir="ltr">
+                          {formatDateTime(r.event.created_at, isRTL)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1" dir="ltr">
+                          {r.event.weight_kg} kg
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
                       {r.reasons.map((reason) => (

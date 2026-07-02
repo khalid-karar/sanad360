@@ -116,18 +116,18 @@ export default function SignaturePad() {
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 sticky bottom-20 lg:bottom-4 z-30 bg-background/95 backdrop-blur-sm rounded-xl pt-2">
             <Button
               variant="outline"
               onClick={clearSignature}
-              className="flex-1 bg-background text-foreground border-border hover:bg-accent hover:text-accent-foreground"
+              className="flex-1 h-12 bg-background text-foreground border-border hover:bg-accent hover:text-accent-foreground"
             >
               {isRTL ? 'إعادة' : 'Clear'}
             </Button>
             <Button
               onClick={confirmSignature}
               disabled={!hasSignature}
-              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 h-12 text-base bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {isRTL ? 'تأكيد التوقيع' : 'Confirm Signature'}
             </Button>

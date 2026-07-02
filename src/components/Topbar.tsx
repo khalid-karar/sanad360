@@ -6,7 +6,7 @@ import NotificationBell from './notifications/NotificationBell';
 import ThemeCustomizer from './theme/ThemeCustomizer';
 import TenantSwitcher from './TenantSwitcher';
 
-export default function Topbar() {
+export default function Topbar({ minimal = false }: { minimal?: boolean }) {
   const { isRTL, toggleLanguage } = useAuthStore();
   const [showThemeCustomizer, setShowThemeCustomizer] = useState(false);
 
@@ -30,16 +30,19 @@ export default function Topbar() {
         {/* Right side content */}
         <div className="flex items-center gap-3">
           <NotificationBell />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setShowThemeCustomizer(true)}
-            className="bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-            title={isRTL ? 'تخصيص المظهر' : 'Customize Theme'}
-            aria-label={isRTL ? 'تخصيص المظهر' : 'Customize Theme'}
-          >
-            <PaletteIcon className="w-4 h-4" />
-          </Button>
+          {/* Field mode (driver): no theme customization in the field */}
+          {!minimal && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setShowThemeCustomizer(true)}
+              className="bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200"
+              title={isRTL ? 'تخصيص المظهر' : 'Customize Theme'}
+              aria-label={isRTL ? 'تخصيص المظهر' : 'Customize Theme'}
+            >
+              <PaletteIcon className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </header>
 

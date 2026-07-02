@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { formatDateTime } from '../lib/format';
 import AppShell from '../components/AppShell';
 import {
   listPendingDeliveries,
@@ -137,7 +138,7 @@ export default function DriverDeliveriesPage() {
                 <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm text-foreground" dir="ltr">
-                      {new Date(d.event.created_at).toLocaleString(isRTL ? 'ar-SA' : 'en-GB')}
+                      {formatDateTime(d.event.created_at, isRTL)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1" dir="ltr">
                       {d.event.weight_kg} kg — {d.event.waste_types.join(', ')}

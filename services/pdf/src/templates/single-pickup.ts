@@ -252,7 +252,7 @@ export function buildSinglePickupHtml(opts: {
 
 <!-- ── Footer (fixed, appears on every page) ──────────────── -->
 <div class="footer">
-  <span>سند 360 — سجل مانع للعبث بتقنية SHA-256</span>
+  <span>سند 360 — سجل مانع للعبث بتقنية SHA-256 · <span style="direction:ltr; unicode-bidi:embed;">Powered by Maya AI</span></span>
   <span>تاريخ الإصدار: ${esc(genDateTime)}</span>
   <span>للتحقق: راجع قاعدة البيانات برقم الوثيقة ${esc(opts.documentId)}</span>
 </div>

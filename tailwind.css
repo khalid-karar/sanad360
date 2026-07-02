@@ -39,3 +39,19 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Design system: base typography + mobile safe areas ──────────────────── */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-feature-settings: "tnum" 1; /* tabular numbers in tables/KPIs */
+    text-rendering: optimizeLegibility;
+  }
+  /* Arabic reads smaller at equal px — nudge base size up in RTL contexts */
+  [dir="rtl"] body, .rtl { letter-spacing: 0; }
+}
+
+@layer utilities {
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .h-safe-bottom { height: env(safe-area-inset-bottom); }
+}

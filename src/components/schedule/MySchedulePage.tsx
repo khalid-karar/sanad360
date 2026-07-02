@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatDateTime } from '../../lib/format';
 import { useAuthStore } from '../../stores/authStore';
 import { useDriverStore } from '../../stores/driverStore';
 import AppShell from '../AppShell';
@@ -149,7 +150,7 @@ export default function MySchedulePage() {
                       </p>
                     )}
                     <p className="text-sm text-muted-foreground" dir="ltr">
-                      {new Date(a.scheduled_at).toLocaleString(isRTL ? 'ar-SA' : 'en-GB')}
+                      {formatDateTime(a.scheduled_at, isRTL)}
                     </p>
                     {a.notes && <p className="text-xs text-muted-foreground">{a.notes}</p>}
                     <div className="pt-1">

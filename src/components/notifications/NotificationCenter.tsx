@@ -99,8 +99,14 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/50 z-50 flex items-start justify-end p-4">
-      <Card className="w-full max-w-md bg-card text-card-foreground border-border max-h-[90vh] flex flex-col mt-16">
+    <div
+      className="fixed inset-0 bg-gray-900/50 z-50 flex items-end sm:items-start justify-center sm:justify-end sm:p-4"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full sm:max-w-md bg-card text-card-foreground border-border max-h-[75vh] sm:max-h-[85vh] flex flex-col rounded-b-none sm:rounded-2xl sm:mt-16 pb-safe"
+        onClick={(e) => e.stopPropagation()}
+      >
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

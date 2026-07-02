@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
+import { formatDateTime } from '../../lib/format';
 import { useDriverStore } from '../../stores/driverStore';
 import type { AssignmentView } from '../../stores/driverStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,9 +79,7 @@ export default function AwaitingPickup() {
                   <div className="flex items-center gap-2">
                     <ClockIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     <p className="text-xs text-foreground" dir="ltr">
-                      {new Date(view.assignment.scheduled_at).toLocaleString(
-                        isRTL ? 'ar-SA' : 'en-GB'
-                      )}
+                      {formatDateTime(view.assignment.scheduled_at, isRTL)}
                     </p>
                   </div>
                   {view.assignment.notes && (

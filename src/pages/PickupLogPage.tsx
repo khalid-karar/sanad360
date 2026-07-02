@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { StatusPill } from '@/components/ui/status-pill';
 import AppShell from '../components/AppShell';
 import { listPickupEvents, exportPickupsCsv } from '../lib/api/pickups';
 import { listDrivers } from '../lib/api/drivers';
@@ -10,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -28,6 +28,8 @@ export default function PickupLogPage() {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<PickupEvent | null>(null);
 
+  // Mobile: the 4-field filter block eats a full screen — collapsed by default
+  const [showFilters, setShowFilters] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [branchId, setBranchId] = useState('all');
@@ -83,17 +85,9 @@ export default function PickupLogPage() {
     window.URL.revokeObjectURL(url);
   }
 
+  // Design system: THE compliance visual — same pill everywhere.
   function statusBadge(s: PickupEvent['compliance_status']) {
-    const cfg = {
-      compliant: { label: isRTL ? 'ممتثل' : 'Compliant', Icon: CheckCircle2Icon, variant: 'default' as const },
-      warning: { label: isRTL ? 'تحذير' : 'Warning', Icon: AlertTriangleIcon, variant: 'secondary' as const },
-      non_compliant: { label: isRTL ? 'غير ممتثل' : 'Non-Compliant', Icon: XCircleIcon, variant: 'destructive' as const },
-    }[s];
-    return (
-      <Badge variant={cfg.variant} className="flex items-center gap-1">
-        <cfg.Icon className="w-3 h-3" />{cfg.label}
-      </Badge>
-    );
+    return <StatusPill status={s} isRTL={isRTL} />;
   }
 
   return (
@@ -114,12 +108,22 @@ export default function PickupLogPage() {
           </Button>
         </div>
 
-        {/* Filters */}
+        {/* Filters — always open on desktop, toggle on mobile */}
         <Card className="bg-card text-card-foreground border-border">
           <CardHeader>
-            <CardTitle className="text-foreground text-lg">{isRTL ? 'المرشحات' : 'Filters'}</CardTitle>
+            <button
+              type="button"
+              className="w-full flex items-center justify-between md:pointer-events-none"
+              onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}
+            >
+              <CardTitle className="text-foreground text-lg">{isRTL ? 'المرشحات' : 'Filters'}</CardTitle>
+              <span className="md:hidden text-sm text-primary font-medium">
+                {showFilters ? (isRTL ? 'إخفاء' : 'Hide') : (isRTL ? 'إظهار' : 'Show')}
+              </span>
+            </button>
           </CardHeader>
-          <CardContent>
+          <CardContent className={showFilters ? '' : 'hidden md:block'}>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <Label className="text-foreground">{isRTL ? 'من تاريخ' : 'Date From'}</Label>

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>Sanad 360 - Waste Management System</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#176B36" />
     <meta name="description" content="Sanad 360 - Saudi Waste Compliance Automation Cloud" />
     
@@ -28,10 +28,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="apple-touch-startup-image" href="https://c.animaapp.com/mg7ujeibgE7gyO/img/chatgpt-image-oct-1-2025-04_42_05-pm-copy.png" />
     
-    <!-- Preload critical resources -->
-    <link rel="preload" href="/src/index.css" as="style" />
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" as="style" />
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap" as="style" />
+    <!-- Fonts: IBM Plex Sans Arabic is the PRIMARY UI face (Arabic-first
+         product); Inter covers Latin. Loaded as real stylesheets — the old
+         preloads were never applied, so Arabic fell back to system fonts. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" />
   </head>
   <body>
     <div id="root"></div>

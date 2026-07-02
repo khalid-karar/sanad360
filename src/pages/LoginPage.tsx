@@ -11,7 +11,6 @@ import PageTransition from '../components/animations/PageTransition';
 import FadeInUp from '../components/animations/FadeInUp';
 import ScaleIn from '../components/animations/ScaleIn';
 import InteractiveButton from '../components/animations/InteractiveButton';
-import FloatingElements from '../components/animations/FloatingElements';
 import FAQModal from '../components/FAQModal';
 import Logo from '../components/Logo';
 
@@ -97,7 +96,7 @@ export default function LoginPage() {
     <PageTransition>
       <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background p-6 ${isRTL ? 'rtl' : 'ltr'}`}>
         <FadeInUp delay={0.1}>
-          <div className="absolute top-8 left-8 z-10">
+          <div className="absolute top-4 start-4 z-10">
             <InteractiveButton
               variant="outline"
               size="sm"
@@ -105,7 +104,7 @@ export default function LoginPage() {
               className="bg-card/80 backdrop-blur-sm text-foreground border-border hover:bg-accent hover:text-accent-foreground shadow-soft"
               hapticFeedback
             >
-              <GlobeIcon className="w-4 h-4 mr-2" />
+              <GlobeIcon className="w-4 h-4 me-2" />
               {isRTL ? 'English' : 'العربية'}
             </InteractiveButton>
           </div>
@@ -116,11 +115,9 @@ export default function LoginPage() {
             <CardHeader className="text-center space-y-4">
               <FadeInUp delay={0.3}>
                 <div className="flex justify-center mb-6">
-                  <FloatingElements intensity="subtle">
-                    <div className="w-20 h-20 bg-gradient-primary rounded-2xl flex items-center justify-center shadow-medium p-2">
-                      <Logo className="w-full h-full" />
-                    </div>
-                  </FloatingElements>
+                  <div className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center p-2">
+                    <Logo className="w-full h-full" />
+                  </div>
                 </div>
               </FadeInUp>
               <FadeInUp delay={0.4}>
@@ -361,6 +358,10 @@ export default function LoginPage() {
                       <span dir="ltr">+966 50 123 4567</span>
                     </a>
                   </div>
+                  <p className="text-xs text-muted-foreground pt-2 border-t border-border">
+                    {isRTL ? 'مدعوم من ' : 'Powered by '}
+                    <span className="font-semibold text-foreground" dir="ltr">Maya AI</span>
+                  </p>
                 </div>
               </FadeInUp>
             </CardContent>
