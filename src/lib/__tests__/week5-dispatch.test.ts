@@ -80,6 +80,13 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
   let serviceUp = false;
 
   const createdAssignments: string[] = [];
+  // Dedicated company + ACTIVE link for the dispatcher tests: the shared seed
+  // link (company A ↔ TC1) is toggled inactive/active by
+  // company-transporters.test.ts running in parallel, so depending on it makes
+  // the 011 link-gated policies flaky.
+  let dispatchCompanyId = '';
+  let dispatchBranchId = '';
+  let dispatchLinkId = '';
   let unlinkedTcId = '';
   let unlinkedOwnerId = '';
   let unlinkedDriverId = '';
@@ -94,6 +101,30 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
       sessionClient(SEED.dispatcherEmail),
       sessionClient(SEED.driverEmail),
     ]);
+
+    // Dedicated company + branch, actively linked to the seed transport company.
+    const { data: cw } = await admin
+      .from('companies')
+      .insert({ name_ar: `شركة الإسناد ${RUN}`, commercial_registration: `CR-W5-${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    dispatchCompanyId = cw!.id;
+    const { data: bw } = await admin
+      .from('branches')
+      .insert({ company_id: dispatchCompanyId, name_ar: `فرع الإسناد ${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    dispatchBranchId = bw!.id;
+    const { data: lw } = await admin
+      .from('company_transporters')
+      .insert({
+        company_id: dispatchCompanyId,
+        transport_company_id: SEED.transportCompanyId,
+        status: 'active',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    dispatchLinkId = lw!.id;
 
     // Unlinked transport company + owner + driver (for the negative dispatch test).
     const { data: tc } = await admin
@@ -163,6 +194,9 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
       await admin.auth.admin.deleteUser(unlinkedOwnerId);
     }
     if (unlinkedTcId) await admin.from('transport_companies').delete().eq('id', unlinkedTcId);
+    if (dispatchLinkId) await admin.from('company_transporters').delete().eq('id', dispatchLinkId);
+    if (dispatchBranchId) await admin.from('branches').delete().eq('id', dispatchBranchId);
+    if (dispatchCompanyId) await admin.from('companies').delete().eq('id', dispatchCompanyId);
   });
 
   it('1. creating an assignment notifies the assigned driver (server trigger)', async () => {
@@ -197,8 +231,8 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
     const { data: a, error } = await dispatcherClient
       .from('pickup_assignments')
       .insert({
-        company_id: SEED.companyId,
-        branch_id: SEED.branchId,
+        company_id: dispatchCompanyId,
+        branch_id: dispatchBranchId,
         driver_id: SEED.driverId,
         vehicle_id: SEED.vehicleId,
         scheduled_at: new Date().toISOString(),
@@ -231,8 +265,8 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
     const { data: a, error: insErr } = await dispatcherClient
       .from('pickup_assignments')
       .insert({
-        company_id: SEED.companyId,
-        branch_id: SEED.branchId,
+        company_id: dispatchCompanyId,
+        branch_id: dispatchBranchId,
         driver_id: SEED.driverId,
         vehicle_id: SEED.vehicleId,
         scheduled_at: new Date().toISOString(),

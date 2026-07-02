@@ -25,6 +25,9 @@ export interface Branch {
   geofence_lng: number | null;
   geofence_radius_m: number;
   status: 'active' | 'inactive';
+  /** Secret printed as the facility QR board; scans are verified against it
+   *  server-side (migration 013). */
+  qr_token: string;
   created_at: string;
 }
 
@@ -96,6 +99,7 @@ export interface PickupEvent {
   gps_lng: number | null;
   gps_accuracy_m: number | null;
   geofence_verified: boolean;
+  qr_verified: boolean;
   qr_code_value: string | null;
   photo_path: string | null;
   receipt_path: string | null;

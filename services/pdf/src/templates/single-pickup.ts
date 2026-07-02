@@ -147,7 +147,7 @@ export function buildSinglePickupHtml(opts: {
       <div class="row"><span class="label">أنواع النفايات</span><span class="value">${esc(wasteAr)}</span></div>
       <div class="row"><span class="label">الوزن</span><span class="value">${event.weight_kg} كيلوجرام</span></div>
       <div class="row"><span class="label">التاريخ والوقت</span><span class="value">${esc(eventDateTime)}</span></div>
-      ${event.qr_code_value ? `<div class="row"><span class="label">قيمة رمز QR</span><span class="value">${esc(event.qr_code_value)}</span></div>` : ''}
+      ${event.qr_code_value ? `<div class="row"><span class="label">التحقق من رمز QR</span><span class="value" style="color:${event.qr_verified ? '#166534' : '#991b1b'}">${event.qr_verified ? '✓ مطابق للفرع' : '✗ غير مطابق'}</span></div>` : ''}
       <div class="row">
         <span class="label">الإحداثيات GPS</span>
         <span class="value">${esc(gpsText)}</span>

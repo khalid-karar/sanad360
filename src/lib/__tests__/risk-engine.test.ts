@@ -115,6 +115,7 @@ async function insertPickup(opts: {
   signaturePath?: string | null;
   gpsLat?: number | null;
   gpsLng?: number | null;
+  gpsAccuracyM?: number | null;
 }): Promise<InsertResult> {
   const { data, error } = await admin
     .from('pickup_events')
@@ -131,6 +132,8 @@ async function insertPickup(opts: {
       // Use !== undefined so explicit null is forwarded as null (not replaced by the default)
       gps_lat:         opts.gpsLat         !== undefined ? opts.gpsLat         : 24.6877,
       gps_lng:         opts.gpsLng         !== undefined ? opts.gpsLng         : 46.6876,
+      // Migration 013: geofence requires credible accuracy; default to a good fix
+      gps_accuracy_m:  opts.gpsAccuracyM   !== undefined ? opts.gpsAccuracyM   : 10,
       photo_path:      opts.photoPath      !== undefined ? opts.photoPath      : 'company/branch/event/photo.jpg',
       signature_path:  opts.signaturePath  !== undefined ? opts.signaturePath  : 'company/branch/event/signature.png',
     })

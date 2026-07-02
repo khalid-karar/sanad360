@@ -167,6 +167,8 @@ async function insertPickup(opts: {
     weight_kg:            opts.weightKg            ?? 42,
     gps_lat:              opts.gpsLat  !== undefined ? opts.gpsLat  : SEED.branchLat,
     gps_lng:              opts.gpsLng  !== undefined ? opts.gpsLng  : SEED.branchLng,
+    // Migration 013: geofence requires credible accuracy — send a good fix
+    gps_accuracy_m:       10,
     photo_path:           opts.photoPath      !== undefined ? opts.photoPath      : 'co/br/photo.jpg',
     signature_path:       opts.signaturePath  !== undefined ? opts.signaturePath  : 'co/br/sig.png',
   };

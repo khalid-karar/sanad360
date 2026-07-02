@@ -51,6 +51,7 @@ export interface PickupEventRow {
   gps_lat: number | null;
   gps_lng: number | null;
   geofence_verified: boolean;
+  qr_verified: boolean;
   qr_code_value: string | null;
   photo_path: string | null;
   receipt_path: string | null;
