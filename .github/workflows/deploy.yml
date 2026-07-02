@@ -89,8 +89,8 @@ jobs:
       # deploy step (e.g. Vercel/Netlify/Cloudflare Pages action or
       # rsync to a VM) publishing ./dist
       # ──────────────────────────────────────────────────────────────────
-      - name: Deploy frontend → staging [PLACEHOLDER]
-        run: echo "TODO(host):: publish ./dist to the staging frontend host"
+      - name: "Deploy frontend → staging [PLACEHOLDER]"
+        run: 'echo "TODO(host):: publish ./dist to the staging frontend host"'
 
       # ──────────────────────────────────────────────────────────────────
       # TODO(host): PDF-service host not chosen yet. Replace with the real
@@ -98,8 +98,8 @@ jobs:
       # SUPABASE_URL, SUPABASE_ANON_KEY, PDF_SERVICE_SUPABASE_SERVICE_ROLE_KEY
       # and CORS_ORIGIN injected from this environment's secrets.
       # ──────────────────────────────────────────────────────────────────
-      - name: Deploy PDF service → staging [PLACEHOLDER]
-        run: echo "TODO(host):: deploy services/pdf/dist to the staging PDF host"
+      - name: "Deploy PDF service → staging [PLACEHOLDER]"
+        run: 'echo "TODO(host):: deploy services/pdf/dist to the staging PDF host"'
 
       - name: Smoke check
         env:
@@ -167,11 +167,11 @@ jobs:
       # TODO(host): Dammam/CNTXT infra not provisioned yet — replace both
       # placeholders when the production hosts exist (see DEPLOYMENT.md
       # manual checklist steps 5-7).
-      - name: Deploy frontend → production [PLACEHOLDER]
-        run: echo "TODO(host):: publish ./dist to the production frontend host"
+      - name: "Deploy frontend → production [PLACEHOLDER]"
+        run: 'echo "TODO(host):: publish ./dist to the production frontend host"'
 
-      - name: Deploy PDF service → production [PLACEHOLDER]
-        run: echo "TODO(host):: deploy services/pdf/dist to the production PDF host"
+      - name: "Deploy PDF service → production [PLACEHOLDER]"
+        run: 'echo "TODO(host):: deploy services/pdf/dist to the production PDF host"'
 
       - name: Smoke check
         env:

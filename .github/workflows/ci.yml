@@ -69,12 +69,19 @@ jobs:
 
       - name: Start PDF service
         run: |
-          node services/pdf/dist/index.js &
+          node services/pdf/dist/index.js > pdf-service.log 2>&1 &
           for i in $(seq 1 60); do
-            if curl -sf http://localhost:3001/health > /dev/null; then exit 0; fi
+            if curl -sf http://127.0.0.1:3001/health > /dev/null; then
+              echo "PDF service up after ${i}s"; exit 0
+            fi
             sleep 1
           done
-          echo "PDF service failed to start" && exit 1
+          echo "::error::PDF service failed to start — diagnostics follow"
+          echo "--- pdf-service.log ---"; cat pdf-service.log || true
+          echo "--- dist layout ---"; ls -la services/pdf/dist | head -20
+          echo "--- env presence (names only) ---"; grep -o '^[A-Z_]*' .env
+          echo "--- node ---"; node --version
+          exit 1
 
       # Integration tests run as REAL authenticated users against local RLS;
       # the PDF suites require the service started above.
