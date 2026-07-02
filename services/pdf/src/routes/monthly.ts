@@ -60,6 +60,19 @@ export async function handleMonthly(req: AuthedRequest, res: Response): Promise<
 
   const typedEvents = (events ?? []) as PickupEventRow[];
 
+  // 4b. Chain of custody: which of the month's events have a disposal
+  //     confirmation (any revision of the same logical pickup counts).
+  const eventIds = typedEvents.map((e) => e.id);
+  let custodyConfirmedIds: string[] = [];
+  if (eventIds.length > 0) {
+    const { data: confirmations } = await admin
+      .from('disposal_confirmations')
+      .select('pickup_event_id')
+      .in('pickup_event_id', eventIds);
+    custodyConfirmedIds = ((confirmations ?? []) as { pickup_event_id: string }[])
+      .map((c) => c.pickup_event_id);
+  }
+
   // 5. Fetch company row
   const { data: company } = await admin
     .from('companies')
@@ -106,6 +119,7 @@ export async function handleMonthly(req: AuthedRequest, res: Response): Promise<
     month,
     events:         typedEvents,
     expiryWarnings,
+    custodyConfirmedIds,
     documentId,
     generatedAt,
   });

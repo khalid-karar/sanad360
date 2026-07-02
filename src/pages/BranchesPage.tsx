@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, MapPinIcon, PowerIcon } from 'lucide-react';
+import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, XIcon } from 'lucide-react';
 import GeofenceMapPicker from '@/components/map/GeofenceMapPicker';
+import QRCode from 'qrcode';
 
 const EMPTY = { name_ar: '', name_en: '', city: '', geofence_lat: '', geofence_lng: '', geofence_radius_m: '150' };
 
@@ -35,6 +36,59 @@ export default function BranchesPage() {
   const [editing, setEditing] = useState<Branch | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
+
+  // QR board: the branch qr_token rendered as a scannable, printable code.
+  // Drivers scan it at the waste point; the server verifies the value against
+  // branches.qr_token (migration 013) — so this board is what makes the QR
+  // check real in the field.
+  const [qrBranch, setQrBranch] = useState<Branch | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  async function openQr(b: Branch) {
+    try {
+      const dataUrl = await QRCode.toDataURL(b.qr_token, { width: 480, margin: 2 });
+      setQrDataUrl(dataUrl);
+      setQrBranch(b);
+    } catch {
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: isRTL ? 'تعذر إنشاء الرمز' : 'Could not generate QR', variant: 'destructive' });
+    }
+  }
+
+  function printQr() {
+    if (!qrBranch || !qrDataUrl) return;
+    const w = window.open('', '_blank', 'width=800,height=1000');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>${qrBranch.name_ar} — رمز نقطة النفايات</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; text-align: center; color: #111; margin: 0; }
+    .brand { font-size: 20pt; font-weight: 700; margin-top: 10mm; }
+    .brand span { color: #16a34a; }
+    h1 { font-size: 26pt; margin: 8mm 0 2mm; }
+    .en { font-size: 13pt; color: #555; margin: 0 0 8mm; direction: ltr; }
+    img { width: 120mm; height: 120mm; }
+    .hint { font-size: 14pt; margin-top: 8mm; }
+    .hint-en { font-size: 11pt; color: #555; direction: ltr; }
+    .footer { position: fixed; bottom: 10mm; left: 0; right: 0; font-size: 9pt; color: #888; }
+  </style>
+</head>
+<body>
+  <div class="brand">سند <span>360</span></div>
+  <h1>${qrBranch.name_ar}</h1>
+  ${qrBranch.name_en ? `<p class="en">${qrBranch.name_en}</p>` : ''}
+  <img src="${qrDataUrl}" alt="QR">
+  <p class="hint">يُثبَّت هذا الرمز عند نقطة تسليم النفايات — يمسحه السائق لتأكيد الموقع</p>
+  <p class="hint-en">Post this code at the waste hand-over point — the driver scans it to confirm the location</p>
+  <div class="footer">سند 360 — رمز فرع يُتحقق منه خادمياً</div>
+  <script>window.onload = () => { window.print(); };</script>
+</body>
+</html>`);
+    w.document.close();
+  }
 
   async function load() {
     if (!user?.company_id) return;
@@ -195,6 +249,9 @@ export default function BranchesPage() {
                 </div>
                 <div className="flex gap-2 mt-4">
                   <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(b)}>{isRTL ? 'تعديل' : 'Edit'}</Button>
+                  <Button size="sm" variant="outline" onClick={() => openQr(b)} title={isRTL ? 'رمز QR للفرع' : 'Branch QR board'}>
+                    <QrCodeIcon className="w-4 h-4" />
+                  </Button>
                   <Button size="sm" variant="outline" className="text-destructive" disabled={b.status !== 'active'} onClick={() => handleDeactivate(b)}>
                     <PowerIcon className="w-4 h-4" />
                   </Button>
@@ -205,6 +262,36 @@ export default function BranchesPage() {
           {branches.length === 0 && <div className="text-center py-12 text-muted-foreground col-span-2">{isRTL ? 'لا توجد فروع' : 'No branches'}</div>}
         </div>
       </div>
+
+      {/* Branch QR board modal — preview + print */}
+      {qrBranch && qrDataUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
+          <Card className={`w-full max-w-sm bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <QrCodeIcon className="w-5 h-5 text-primary" />
+                {isRTL ? 'رمز نقطة النفايات' : 'Waste-Point QR Board'}
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setQrBranch(null)}>
+                <XIcon className="w-5 h-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4 text-center">
+              <p className="font-semibold text-lg text-foreground">{qrBranch.name_ar}</p>
+              {qrBranch.name_en && <p className="text-sm text-muted-foreground" dir="ltr">{qrBranch.name_en}</p>}
+              <img src={qrDataUrl} alt="Branch QR" className="mx-auto w-56 h-56 rounded-md border border-border bg-white p-2" />
+              <p className="text-xs text-muted-foreground">
+                {isRTL
+                  ? 'اطبع هذا الرمز وثبّته عند نقطة تسليم النفايات — يمسحه السائق ويتحقق منه الخادم'
+                  : 'Print and post at the waste hand-over point — the driver scans it and the server verifies it'}
+              </p>
+              <Button onClick={printQr} className="w-full bg-primary text-primary-foreground">
+                <PrinterIcon className="w-4 h-4 mr-2" />{isRTL ? 'طباعة' : 'Print'}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AppShell>
   );
 }

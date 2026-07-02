@@ -77,7 +77,11 @@ export function buildSinglePickupHtml(opts: {
     ? `${event.gps_lat.toFixed(5)}, ${event.gps_lng.toFixed(5)}`
     : 'غير متاح';
 
-  const geofenceText = event.geofence_verified ? '✓ داخل النطاق' : '✗ خارج النطاق';
+  // Honest claim: the geofence check is computed server-side, but the GPS fix
+  // itself comes from the driver's device sensor.
+  const geofenceText = event.geofence_verified
+    ? '✓ داخل النطاق (وفق جهاز السائق)'
+    : '✗ خارج النطاق / موقع غير مؤكد';
   const geofenceColor = event.geofence_verified ? '#166534' : '#991b1b';
 
   return `<!DOCTYPE html>
@@ -236,6 +240,11 @@ export function buildSinglePickupHtml(opts: {
         <tr><td>تجزئة الإيصال / Receipt SHA-256</td><td class="hash">${esc(event.receipt_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.receipt)}</td></tr>
         <tr><td>تجزئة الملف / PDF SHA-256</td><td class="hash">${esc(opts.pdfSha256 ?? 'N/A')}</td></tr>
       </table>
+      <p style="font-size:8.5pt; color:#6b7280; margin-top:8px;">
+        نطاق التحقق: تجزئات الملفات يُعاد حسابها خادمياً من الملفات المخزَّنة، ورمز QR يُطابَق مع رمز الفرع السري.
+        الموقع الجغرافي ودقّته مُبلَّغان من مستشعر جهاز السائق ولا يمكن للخادم إثبات أصالتهما.
+        <span dir="ltr" style="display:block; text-align:left;">Verification scope: file hashes are re-computed server-side from the stored files; the QR is matched against the branch secret. GPS position and accuracy are reported by the driver's device sensor and their authenticity cannot be proven by the server.</span>
+      </p>
     </div>
   </div>
 

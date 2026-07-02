@@ -84,7 +84,9 @@ export default function GeolocationVerified() {
       <Card className="bg-card text-card-foreground border-border">
         <CardHeader>
           <CardTitle className="text-2xl text-center text-foreground">
-            {isRTL ? 'التحقق من الموقع' : 'Location Verification'}
+            {/* Honest claim: this step CAPTURES the device location; the
+                geofence verdict is computed server-side on submit. */}
+            {isRTL ? 'تحديد الموقع' : 'Location Capture'}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -130,7 +132,9 @@ export default function GeolocationVerified() {
           {gpsStatus === 'success' && coords && (
             <div className="rounded-md bg-success/10 border border-success/20 p-3 text-sm text-center">
               <p className="text-success font-medium">
-                {isRTL ? 'تم تحديد الموقع بنجاح' : 'Location acquired'}
+                {isRTL
+                  ? 'تم التقاط موقع الجهاز — يتحقق الخادم من النطاق عند الحفظ'
+                  : 'Device location captured — the server checks the geofence on submit'}
               </p>
               <p className="text-muted-foreground mt-1" dir="ltr">
                 {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}

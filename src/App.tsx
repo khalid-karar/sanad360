@@ -26,6 +26,7 @@ import ProfilePage from './pages/ProfilePage';
 import PickupSchedulePage from './components/schedule/PickupSchedulePage';
 import MySchedulePage from './components/schedule/MySchedulePage';
 import DriverDeliveriesPage from './pages/DriverDeliveriesPage';
+import ReviewQueuePage from './pages/ReviewQueuePage';
 import ApprovedTransportersPage from './components/company/ApprovedTransportersPage';
 import CompaniesPage from './pages/CompaniesPage';
 import AdminUsersPage from './pages/AdminUsersPage';
@@ -192,6 +193,14 @@ function App() {
           }
         />
         <Route
+          path="/company/review"
+          element={
+            user && ['owner', 'manager'].includes(user.role)
+              ? <ReviewQueuePage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
           path="/company/schedule"
           element={
             user && ['owner', 'manager', 'dispatcher'].includes(user.role)
@@ -295,7 +304,10 @@ function App() {
       <OfflineIndicator />
       <BackgroundSync />
       <SyncStatus />
-      {user && <ChatBubble />}
+      {/* QUARANTINED DEV MOCK: the chat is a session-local Zustand store with
+          no backend — messages are not delivered to anyone. Gated to dev
+          builds so it can never ship looking like a real feature. */}
+      {import.meta.env.DEV && user && <ChatBubble />}
     </Router>
   );
 }

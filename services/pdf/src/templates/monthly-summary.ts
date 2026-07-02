@@ -44,12 +44,16 @@ export function buildMonthlyHtml(opts: {
   month: string;          // "YYYY-MM"
   events: PickupEventRow[];
   expiryWarnings: ExpiryWarning[];
+  /** Event ids that have a disposal confirmation (chain of custody closed). */
+  custodyConfirmedIds?: string[];
   documentId: string;
   generatedAt: string;
 }): string {
   const { company, branch, events, expiryWarnings } = opts;
   const stats = computeStats(events);
   const genDateTime = arabicDateTime(opts.generatedAt);
+  const custodySet = new Set(opts.custodyConfirmedIds ?? []);
+  const custodyMissing = events.filter((e) => !custodySet.has(e.id));
 
   // Format month as Arabic locale date (first of month)
   const monthDate = new Date(`${opts.month}-01T00:00:00Z`);
@@ -77,6 +81,9 @@ export function buildMonthlyHtml(opts: {
         <td style="text-align:center">${e.risk_score}</td>
         <td style="text-align:center; color:${e.geofence_verified ? '#166534' : '#991b1b'}">
           ${e.geofence_verified ? '✓' : '✗'}
+        </td>
+        <td style="text-align:center; color:${custodySet.has(e.id) ? '#166534' : '#991b1b'}">
+          ${custodySet.has(e.id) ? '✓' : '✗'}
         </td>
         <td style="font-size:8pt; direction:ltr; text-align:left; color:#6b7280">
           ${esc(e.id.substring(0, 8))}...
@@ -159,6 +166,24 @@ export function buildMonthlyHtml(opts: {
     </div>
   </div>
 
+  <!-- ── Chain of Custody: disposal leg ─────────────────────── -->
+  <div class="section">
+    <div class="section-header">سلسلة العهدة — التسليم لمنشآت المعالجة</div>
+    <div class="section-body">
+      <div class="row">
+        <span class="label">عمليات مؤكدة التسليم</span>
+        <span class="value" style="color:#166534">${events.length - custodyMissing.length} من ${events.length}</span>
+      </div>
+      ${custodyMissing.length > 0 ? `
+      <p style="font-size:10.5pt; color:#991b1b; margin-top:6px;">
+        ⚠ ${custodyMissing.length} عملية بدون تأكيد تسليم لمنشأة معالجة — سلسلة العهدة غير مكتملة
+      </p>` : events.length > 0 ? `
+      <p style="font-size:10.5pt; color:#166534; margin-top:6px;">
+        ✓ سلسلة العهدة مكتملة لجميع عمليات هذا الشهر
+      </p>` : ''}
+    </div>
+  </div>
+
   ${expiryWarnings.length > 0 ? `
   <!-- ── Expiry Warnings ────────────────────────────────────── -->
   <div class="section">
@@ -183,6 +208,7 @@ export function buildMonthlyHtml(opts: {
             <th>حالة الامتثال</th>
             <th>درجة الخطورة</th>
             <th>التحقق الجغرافي</th>
+            <th>سلسلة العهدة</th>
             <th style="text-align:left">معرف العملية</th>
           </tr>
         </thead>

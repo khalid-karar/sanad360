@@ -33,6 +33,7 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: Building2Icon, label: isRTL ? 'الفروع' : 'Branches', path: '/company/branches' },
     { icon: TruckIcon, label: isRTL ? 'الناقلون المعتمدون' : 'Approved Transporters', path: '/company/transporters' },
     { icon: CalendarClockIcon, label: isRTL ? 'جدولة الالتقاطات' : 'Schedule Pickups', path: '/company/schedule' },
+    { icon: AlertTriangleIcon, label: isRTL ? 'قائمة المراجعة' : 'Review Queue', path: '/company/review' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/company/pickups' },
   ];
 

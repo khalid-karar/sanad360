@@ -1,0 +1,14 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Sanad 360 – Migration 014: missing SELECT grant on pickup_events_latest
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Same class of bug as 006/007 (grants checked BEFORE RLS), this time on a
+-- VIEW: 001 granted SELECT on the pickup_events TABLE to authenticated but
+-- never on the pickup_events_latest view — views carry their own privileges.
+-- Every authenticated read of the view (pickup log, driver deliveries, the
+-- review queue) failed with 42501. Caught by review-queue.test.ts, the first
+-- test to read the view as a real signed-in user.
+--
+-- The view is security_invoker = true, so granting SELECT here still runs the
+-- underlying query under the caller's role — base-table RLS fully applies.
+-- No policy, trigger, or append-only behaviour changes.
+GRANT SELECT ON public.pickup_events_latest TO authenticated;

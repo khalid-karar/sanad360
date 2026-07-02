@@ -1,3 +1,11 @@
+// ═════════════════════════════════════════════════════════════
+// ⚠ DEV MOCK — NOT A REAL FEATURE ⚠
+// This chat store is session-local Zustand state with NO backend: messages
+// are never persisted or delivered to another user. It exists only for UI
+// demos. Its entry point (ChatBubble in App.tsx) is gated behind
+// import.meta.env.DEV and is excluded from production builds. Do not wire
+// product features to it; replace wholesale when real messaging lands.
+// ═════════════════════════════════════════════════════════════
 import { create } from 'zustand';
 import { useAuthStore } from './authStore'; // To get current user and isRTL
 import { useNotificationStore } from './notificationStore'; // To send chat notifications
