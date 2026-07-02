@@ -32,7 +32,7 @@ jobs:
           # Pinned for reproducible CI (matches the version used in development)
           version: 2.109.0
 
-      # Applies migrations 001-008 and seed.sql against a fresh local stack.
+      # Applies migrations 001-015 and seed.sql against a fresh local stack.
       - name: Start Supabase
         run: supabase start
 
@@ -44,7 +44,7 @@ jobs:
             echo "VITE_SUPABASE_URL=$API_URL"
             echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY"
             echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
-            echo "VITE_PDF_SERVICE_URL=http://localhost:3001"
+            echo "VITE_PDF_SERVICE_URL=http://127.0.0.1:3001"
           } > .env
 
       - name: Typecheck (frontend)
@@ -72,17 +72,21 @@ jobs:
           node services/pdf/dist/index.js > pdf-service.log 2>&1 &
           for i in $(seq 1 60); do
             if curl -sf http://127.0.0.1:3001/health > /dev/null; then
-              echo "PDF service up after ${i}s"; exit 0
+              echo "PDF service up after ${i}s"
+              exit 0
             fi
             sleep 1
           done
-          LOGHEAD=$(head -c 700 pdf-service.log | tr '
-' ' ' || true)
+          LOGHEAD=$(head -c 700 pdf-service.log | tr -s '[:space:]' ' ' || true)
           echo "::error::PDF service failed to start. Log: ${LOGHEAD}"
-          echo "--- pdf-service.log ---"; cat pdf-service.log || true
-          echo "--- dist layout ---"; ls -la services/pdf/dist | head -20
-          echo "--- env presence (names only) ---"; grep -o '^[A-Z_]*' .env
-          echo "--- node ---"; node --version
+          echo "--- pdf-service.log ---"
+          cat pdf-service.log || true
+          echo "--- dist layout ---"
+          ls -la services/pdf/dist | head -20
+          echo "--- env var names present in .env ---"
+          grep -o "^[A-Z_]*" .env
+          echo "--- node ---"
+          node --version
           exit 1
 
       # Integration tests run as REAL authenticated users against local RLS;
