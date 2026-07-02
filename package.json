@@ -11,7 +11,12 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
-    "test:acceptance": "vitest run src/lib/__tests__/phase2-acceptance.test.ts"
+    "test:acceptance": "vitest run src/lib/__tests__/phase2-acceptance.test.ts",
+    "db:push:local": "node scripts/db-target.mjs push local",
+    "db:push:staging": "node scripts/db-target.mjs push staging",
+    "db:push:production": "node scripts/db-target.mjs push production",
+    "db:seed:local": "node scripts/db-target.mjs seed local",
+    "db:seed:staging": "node scripts/db-target.mjs seed staging"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "1.2.1",

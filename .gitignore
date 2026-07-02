@@ -15,6 +15,18 @@ dist-ssr
 # Test output — sample PDFs for manual visual inspection (gitignored, not committed)
 test-output/
 
+# Environment files — secrets NEVER live in the repo (see DEPLOYMENT.md).
+# Only the .env.example templates are tracked.
+.env
+.env.*
+!.env.example
+services/pdf/.env
+services/pdf/.env.*
+!services/pdf/.env.example
+
+# Supabase CLI local state
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

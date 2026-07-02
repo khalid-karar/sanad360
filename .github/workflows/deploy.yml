@@ -1,0 +1,178 @@
+# Sanad 360 — CD pipeline (see DEPLOYMENT.md)
+#
+# Environments are config-only deployment targets. This workflow runs for
+# pushes to main ONLY after ci.yml succeeds, deploys the SAME commit to
+# staging, and then to production behind the "production" GitHub Environment's
+# required-reviewers gate.
+#
+# Safety rails:
+#   • migrations are promoted with `supabase db push` (forward-only) via
+#     scripts/db-target.mjs — remote resets are impossible from this repo
+#   • staging is seeded with FAKE demo data; the production job has NO seed
+#     step and scripts/db-target.mjs hard-aborts any prod seed attempt
+#   • all secrets come from GitHub Environments, never from the repo
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: Deploy to staging
+    # Only when CI for this commit on main actually passed.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+      # TODO(host): set `url:` to the staging frontend URL once the host exists
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            services/pdf/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix services/pdf
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Push migrations to staging (forward-only, no reset)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_STAGING_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+          SUPABASE_STAGING_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+          SUPABASE_PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+        run: npm run db:push:staging
+
+      - name: Seed staging with FAKE demo data
+        env:
+          SUPABASE_STAGING_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
+          SUPABASE_PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+        run: npm run db:seed:staging
+
+      - name: Build frontend (staging config)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
+        run: npm run build
+
+      - name: Build PDF service
+        run: npm run build --prefix services/pdf
+
+      # ──────────────────────────────────────────────────────────────────
+      # TODO(host): frontend host not chosen yet. Replace with the real
+      # deploy step (e.g. Vercel/Netlify/Cloudflare Pages action or
+      # rsync to a VM) publishing ./dist
+      # ──────────────────────────────────────────────────────────────────
+      - name: Deploy frontend → staging [PLACEHOLDER]
+        run: echo "TODO(host):: publish ./dist to the staging frontend host"
+
+      # ──────────────────────────────────────────────────────────────────
+      # TODO(host): PDF-service host not chosen yet. Replace with the real
+      # deploy (container push / VM restart) shipping services/pdf/dist with
+      # SUPABASE_URL, SUPABASE_ANON_KEY, PDF_SERVICE_SUPABASE_SERVICE_ROLE_KEY
+      # and CORS_ORIGIN injected from this environment's secrets.
+      # ──────────────────────────────────────────────────────────────────
+      - name: Deploy PDF service → staging [PLACEHOLDER]
+        run: echo "TODO(host):: deploy services/pdf/dist to the staging PDF host"
+
+      - name: Smoke check
+        env:
+          VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
+        run: |
+          # TODO(host): once hosts exist, fail the deploy when unhealthy:
+          #   curl -sf "$VITE_PDF_SERVICE_URL/health"
+          #   curl -sf "<staging frontend URL>"
+          echo "TODO(host):: smoke-check staging frontend + PDF /health"
+
+  deploy-production:
+    name: Deploy to production (manual approval)
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The "production" GitHub Environment MUST be configured with Required
+    # Reviewers (see DEPLOYMENT.md) — that configuration is what blocks this
+    # job until a human approves. Same commit as staging; NEVER seeds.
+    environment:
+      name: production
+      # TODO(host): set `url:` to the production frontend URL once it exists
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            services/pdf/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix services/pdf
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Forward-only migrations. There is deliberately NO seed step in this
+      # job, no SUPABASE_*_DB_URL secret in this environment, and
+      # scripts/db-target.mjs aborts any `seed production` invocation.
+      - name: Push migrations to production (forward-only, no reset, no seed)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
+          SUPABASE_PROD_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+        run: npm run db:push:production
+
+      - name: Build frontend (production config)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
+        run: npm run build
+
+      - name: Build PDF service
+        run: npm run build --prefix services/pdf
+
+      # TODO(host): Dammam/CNTXT infra not provisioned yet — replace both
+      # placeholders when the production hosts exist (see DEPLOYMENT.md
+      # manual checklist steps 5-7).
+      - name: Deploy frontend → production [PLACEHOLDER]
+        run: echo "TODO(host):: publish ./dist to the production frontend host"
+
+      - name: Deploy PDF service → production [PLACEHOLDER]
+        run: echo "TODO(host):: deploy services/pdf/dist to the production PDF host"
+
+      - name: Smoke check
+        env:
+          VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
+        run: |
+          # TODO(host): curl -sf "$VITE_PDF_SERVICE_URL/health" && curl -sf "<prod frontend URL>"
+          echo "TODO(host):: smoke-check production frontend + PDF /health"
