@@ -165,7 +165,9 @@ export default function DigitalManifest() {
       <Card className="bg-card text-card-foreground border-border">
         <CardHeader>
           <CardTitle className="text-foreground">
-            {isRTL ? 'الأدلة (اختياري)' : 'Evidence (Optional)'}
+            {/* Honest framing: skipping evidence costs 25 risk points per item —
+                never present it as harmless "optional" (P1-1). */}
+            {isRTL ? 'الأدلة — تؤثر على درجة الامتثال' : 'Evidence — affects compliance score'}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -184,8 +186,8 @@ export default function DigitalManifest() {
             onClick={() => photoInputRef.current?.click()}
           >
             {manifestData.photoFile
-              ? <><CheckIcon className="w-4 h-4 mr-2" />{isRTL ? 'تم التقاط الصورة' : 'Photo captured'}</>
-              : <><CameraIcon className="w-4 h-4 mr-2" />{isRTL ? 'التقاط صورة' : 'Take Photo'}</>
+              ? <><CheckIcon className="w-4 h-4 me-2" />{isRTL ? 'تم التقاط الصورة' : 'Photo captured'}</>
+              : <><CameraIcon className="w-4 h-4 me-2" />{isRTL ? 'التقاط صورة' : 'Take Photo'}</>
             }
           </Button>
 
@@ -203,8 +205,8 @@ export default function DigitalManifest() {
             onClick={() => receiptInputRef.current?.click()}
           >
             {manifestData.receiptFile
-              ? <><CheckIcon className="w-4 h-4 mr-2" />{isRTL ? 'تم رفع الإيصال' : 'Receipt uploaded'}</>
-              : <><ReceiptIcon className="w-4 h-4 mr-2" />{isRTL ? 'رفع إيصال' : 'Upload Receipt'}</>
+              ? <><CheckIcon className="w-4 h-4 me-2" />{isRTL ? 'تم رفع الإيصال' : 'Receipt uploaded'}</>
+              : <><ReceiptIcon className="w-4 h-4 me-2" />{isRTL ? 'رفع إيصال' : 'Upload Receipt'}</>
             }
           </Button>
         </CardContent>

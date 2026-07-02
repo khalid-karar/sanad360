@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import {
   Loader2Icon, XIcon, CameraIcon, CheckIcon, MapPinIcon, FactoryIcon,
 } from 'lucide-react';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 
 /**
  * Disposal leg (chain of custody): after a pickup is collected, the driver
@@ -115,16 +116,20 @@ export default function DriverDeliveriesPage() {
           </p>
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <ErrorState message={error} retry={reload} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        )}
 
         {loading ? (
-          <div className="flex justify-center py-8">
-            <Loader2Icon className="w-6 h-6 animate-spin text-primary" />
-          </div>
-        ) : deliveries.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            {isRTL ? 'لا توجد التقاطات بانتظار تأكيد التسليم' : 'No pickups awaiting delivery confirmation'}
-          </p>
+          <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+        ) : deliveries.length === 0 && !error ? (
+          <EmptyState
+            icon={<FactoryIcon />}
+            title={isRTL ? 'سلسلة العهدة مكتملة ✓' : 'Chain of custody complete ✓'}
+            hint={isRTL
+              ? 'كل التقاطاتك مؤكدة التسليم. بعد كل التقاط جديد، عُد هنا لتأكيد التسليم في منشأة المعالجة'
+              : 'All your pickups are delivery-confirmed. After each new pickup, return here to confirm the hand-over at the facility'}
+          />
         ) : (
           <div className="space-y-3">
             {deliveries.map((d) => (
@@ -139,7 +144,7 @@ export default function DriverDeliveriesPage() {
                     </p>
                   </div>
                   <Button size="sm" onClick={() => openConfirm(d)}>
-                    <FactoryIcon className="w-4 h-4 mr-1" />
+                    <FactoryIcon className="w-4 h-4 me-1" />
                     {isRTL ? 'تأكيد التسليم' : 'Confirm Delivery'}
                   </Button>
                 </CardContent>
@@ -154,7 +159,7 @@ export default function DriverDeliveriesPage() {
           <Card className={`w-full max-w-md max-h-[90vh] overflow-y-auto bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{isRTL ? 'تأكيد التسليم' : 'Confirm Delivery'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setConfirming(null)}>
+              <Button variant="ghost" size="icon" onClick={() => setConfirming(null)} aria-label={isRTL ? 'إغلاق' : 'Close'}>
                 <XIcon className="w-5 h-5" />
               </Button>
             </CardHeader>
@@ -200,13 +205,13 @@ export default function DriverDeliveriesPage() {
                   onClick={() => ticketInputRef.current?.click()}
                 >
                   {ticketFile
-                    ? <><CheckIcon className="w-4 h-4 mr-2" />{isRTL ? 'تم التقاط إيصال الميزان' : 'Ticket captured'}</>
-                    : <><CameraIcon className="w-4 h-4 mr-2" />{isRTL ? 'صورة إيصال الميزان' : 'Weighbridge Ticket Photo'}</>}
+                    ? <><CheckIcon className="w-4 h-4 me-2" />{isRTL ? 'تم التقاط إيصال الميزان' : 'Ticket captured'}</>
+                    : <><CameraIcon className="w-4 h-4 me-2" />{isRTL ? 'صورة إيصال الميزان' : 'Weighbridge Ticket Photo'}</>}
                 </Button>
 
                 <div className="flex items-center gap-3">
                   <Button type="button" variant="outline" size="sm" onClick={captureGps}>
-                    <MapPinIcon className="w-4 h-4 mr-1" />
+                    <MapPinIcon className="w-4 h-4 me-1" />
                     {isRTL ? 'التقاط الموقع' : 'Capture GPS'}
                   </Button>
                   {gps && (

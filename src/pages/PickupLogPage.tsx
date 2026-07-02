@@ -85,9 +85,9 @@ export default function PickupLogPage() {
 
   function statusBadge(s: PickupEvent['compliance_status']) {
     const cfg = {
-      compliant: { label: isRTL ? 'متوافق' : 'Compliant', Icon: CheckCircle2Icon, variant: 'default' as const },
+      compliant: { label: isRTL ? 'ممتثل' : 'Compliant', Icon: CheckCircle2Icon, variant: 'default' as const },
       warning: { label: isRTL ? 'تحذير' : 'Warning', Icon: AlertTriangleIcon, variant: 'secondary' as const },
-      non_compliant: { label: isRTL ? 'غير متوافق' : 'Non-Compliant', Icon: XCircleIcon, variant: 'destructive' as const },
+      non_compliant: { label: isRTL ? 'غير ممتثل' : 'Non-Compliant', Icon: XCircleIcon, variant: 'destructive' as const },
     }[s];
     return (
       <Badge variant={cfg.variant} className="flex items-center gap-1">
@@ -109,7 +109,7 @@ export default function PickupLogPage() {
             </p>
           </div>
           <Button onClick={handleExport} className="bg-primary text-primary-foreground hover:bg-primary/90">
-            <DownloadIcon className="w-4 h-4 mr-2" />
+            <DownloadIcon className="w-4 h-4 me-2" />
             {isRTL ? 'تصدير CSV' : 'Export CSV'}
           </Button>
         </div>
@@ -151,9 +151,9 @@ export default function PickupLogPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{isRTL ? 'جميع الحالات' : 'All Statuses'}</SelectItem>
-                    <SelectItem value="compliant">{isRTL ? 'متوافق' : 'Compliant'}</SelectItem>
+                    <SelectItem value="compliant">{isRTL ? 'ممتثل' : 'Compliant'}</SelectItem>
                     <SelectItem value="warning">{isRTL ? 'تحذير' : 'Warning'}</SelectItem>
-                    <SelectItem value="non_compliant">{isRTL ? 'غير متوافق' : 'Non-Compliant'}</SelectItem>
+                    <SelectItem value="non_compliant">{isRTL ? 'غير ممتثل' : 'Non-Compliant'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -165,9 +165,9 @@ export default function PickupLogPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
             { labelAr: 'الإجمالي', labelEn: 'Total', value: counts.total, Icon: CalendarIcon, cls: 'text-foreground' },
-            { labelAr: 'متوافقة', labelEn: 'Compliant', value: counts.compliant, Icon: CheckCircle2Icon, cls: 'text-success' },
+            { labelAr: 'ممتثلة', labelEn: 'Compliant', value: counts.compliant, Icon: CheckCircle2Icon, cls: 'text-success' },
             { labelAr: 'تحذيرات', labelEn: 'Warnings', value: counts.warning, Icon: AlertTriangleIcon, cls: 'text-warning' },
-            { labelAr: 'غير متوافقة', labelEn: 'Non-Compliant', value: counts.nonCompliant, Icon: XCircleIcon, cls: 'text-destructive' },
+            { labelAr: 'غير ممتثلة', labelEn: 'Non-Compliant', value: counts.nonCompliant, Icon: XCircleIcon, cls: 'text-destructive' },
           ].map((c) => (
             <Card key={c.labelEn} className="bg-card text-card-foreground border-border">
               <CardContent className="pt-6 flex items-center justify-between">

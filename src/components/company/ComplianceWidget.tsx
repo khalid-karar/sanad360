@@ -58,9 +58,9 @@ export default function ComplianceWidget({ data }: ComplianceWidgetProps) {
   const getMainButtonIcon = () => {
     const level = getStatusLevel();
     if (level === 'green') {
-      return <CheckCircle2Icon className="w-5 h-5 ml-2" />;
+      return <CheckCircle2Icon className="w-5 h-5 me-2" />;
     } else {
-      return <SearchIcon className="w-5 h-5 ml-2" />;
+      return <SearchIcon className="w-5 h-5 me-2" />;
     }
   };
 
@@ -106,7 +106,9 @@ export default function ComplianceWidget({ data }: ComplianceWidgetProps) {
               onClick={handleMainAction}
               size="lg"
               className={getMainButtonClass()}
-              disabled={getStatusLevel() === 'red'}
+              // NEVER disable on red: a non-compliant day is exactly when the
+              // manager must be able to open the review (was disabled → the
+              // washed-out, unreachable CTA in the audit screenshot).
               hapticFeedback
               soundFeedback
             >
@@ -122,7 +124,7 @@ export default function ComplianceWidget({ data }: ComplianceWidgetProps) {
               size="lg"
               className="w-full bg-muted text-muted-foreground"
             >
-              <CheckCircle2Icon className="w-5 h-5 ml-2" />
+              <CheckCircle2Icon className="w-5 h-5 me-2" />
               {isRTL ? 'تم الإرسال بنجاح' : 'Successfully Submitted'}
             </Button>
           )}

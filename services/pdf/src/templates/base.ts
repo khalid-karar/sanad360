@@ -84,11 +84,24 @@ export const BASE_CSS = `
   .hashes td:first-child { width: 38%; color: #6b7280; font-size: 9pt; }
   .hash {
     font-family: 'Courier New', monospace;
-    font-size: 8pt;
+    font-size: 8.5pt;
+    line-height: 1.5;
     direction: ltr;
     text-align: left;
     unicode-bidi: plaintext;
     color: #111827;
+  }
+
+  /* Incomplete chain-of-custody: must read as a WARNING PANEL, not body text */
+  .custody-warning {
+    border: 1.5pt solid #991b1b;
+    background: #fef2f2;
+    color: #991b1b;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 10.5pt;
+    font-weight: 700;
+    margin-top: 6px;
   }
 
   /* ── Evidence thumbnails ───────────────────────────────────── */

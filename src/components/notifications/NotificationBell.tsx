@@ -59,6 +59,7 @@ export default function NotificationBell() {
           size="icon"
           onClick={() => setIsOpen(true)}
           className="relative text-foreground hover:text-foreground hover:bg-accent"
+          aria-label={isRTL ? 'الإشعارات' : 'Notifications'}
         >
           <BellIcon className="w-5 h-5" />
           {unread > 0 && (
@@ -91,6 +92,7 @@ export default function NotificationBell() {
                   size="icon"
                   onClick={() => setIsOpen(false)}
                   className="text-muted-foreground hover:text-foreground"
+                  aria-label={isRTL ? 'إغلاق' : 'Close'}
                 >
                   <XIcon className="w-5 h-5" />
                 </Button>

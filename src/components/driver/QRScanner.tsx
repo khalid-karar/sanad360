@@ -47,13 +47,29 @@ export default function QRScanner() {
 
     return () => {
       clearTimeout(timer);
-      scannerRef.current?.stop().catch(() => null);
+      try {
+        scannerRef.current?.stop().catch(() => null);
+      } catch {
+        /* scanner was never running */
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Html5Qrcode.stop() THROWS SYNCHRONOUSLY when the scanner never started
+  // (camera denied/absent — precisely the field case where manual entry is
+  // used). A bare .catch() only covers the async path, so the sync throw was
+  // killing the state transition and dead-ending the flow. Always advance.
+  const stopScannerSafely = () => {
+    try {
+      scannerRef.current?.stop().catch(() => null);
+    } catch {
+      /* scanner was never running — nothing to stop */
+    }
+  };
+
   const handleResult = (code: string) => {
-    scannerRef.current?.stop().catch(() => null);
+    stopScannerSafely();
     updateManifestData({ qr_code_value: code });
     setPickupState('geolocation-verified');
   };
@@ -64,7 +80,7 @@ export default function QRScanner() {
   };
 
   const handleSkip = () => {
-    scannerRef.current?.stop().catch(() => null);
+    stopScannerSafely();
     // qr_code_value stays undefined — allowed; geofence_verified will be false
     setPickupState('geolocation-verified');
   };
@@ -151,7 +167,7 @@ export default function QRScanner() {
             onClick={() => setShowManual(true)}
             className="flex-1 bg-background text-foreground border-border hover:bg-accent"
           >
-            <KeyboardIcon className="w-4 h-4 mr-2" />
+            <KeyboardIcon className="w-4 h-4 me-2" />
             {isRTL ? 'إدخال يدوي' : 'Manual Entry'}
           </Button>
         )}

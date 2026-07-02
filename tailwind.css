@@ -25,3 +25,17 @@
     --sidebar-ring: 217.2 91.2% 59.8%
   }
 }
+
+/* ── Accessibility: motion sensitivity (P1-5) ──────────────────────────────
+   Kill decorative motion (Framer Motion transitions, pulses, floats) for
+   users who ask for reduced motion. Functional opacity changes remain. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -88,7 +88,7 @@ export default function Sidebar({ role }: SidebarProps) {
                 setIsOpen(false);
               }}
             >
-              <link.icon className="w-5 h-5 ml-3" />
+              <link.icon className="w-5 h-5 me-3" />
               <span className="font-medium">{link.label}</span>
             </Button>
           ))}
@@ -103,7 +103,7 @@ export default function Sidebar({ role }: SidebarProps) {
             className="w-full justify-start bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground rounded-xl h-12 transition-all duration-200"
             onClick={() => { navigate('/profile'); setIsOpen(false); }}
           >
-            <SettingsIcon className="w-5 h-5 ml-3" />
+            <SettingsIcon className="w-5 h-5 me-3" />
             <span className="font-medium">{isRTL ? 'الإعدادات' : 'Settings'}</span>
           </Button>
         </nav>
@@ -120,7 +120,7 @@ export default function Sidebar({ role }: SidebarProps) {
           className="w-full bg-background text-foreground border-border hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200"
           onClick={handleLogout}
         >
-          <LogOutIcon className="w-4 h-4 ml-2" />
+          <LogOutIcon className="w-4 h-4 me-2" />
           <span className="font-medium">{isRTL ? 'تسجيل الخروج' : 'Logout'}</span>
         </Button>
       </div>
@@ -134,6 +134,7 @@ export default function Sidebar({ role }: SidebarProps) {
         size="icon"
         className="lg:hidden fixed top-4 right-4 z-50 bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isRTL ? 'القائمة' : 'Menu'}
       >
         {isOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
       </Button>

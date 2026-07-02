@@ -126,7 +126,7 @@ export default function ReviewQueuePage() {
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowReviewed((v) => !v)}>
-            <EyeIcon className="w-4 h-4 mr-2" />
+            <EyeIcon className="w-4 h-4 me-2" />
             {showReviewed
               ? (isRTL ? 'إخفاء المُراجَع' : 'Hide reviewed')
               : (isRTL ? 'إظهار المُراجَع' : 'Show reviewed')}
@@ -183,23 +183,23 @@ export default function ReviewQueuePage() {
                   <div className="flex gap-2 flex-wrap pt-1 border-t border-border">
                     {r.event.photo_path && (
                       <Button size="sm" variant="outline" onClick={() => openEvidence('pickup-photos', r.event.photo_path!)}>
-                        <ImageIcon className="w-4 h-4 mr-1" />{isRTL ? 'الصورة' : 'Photo'}
+                        <ImageIcon className="w-4 h-4 me-1" />{isRTL ? 'الصورة' : 'Photo'}
                       </Button>
                     )}
                     {r.event.signature_path && (
                       <Button size="sm" variant="outline" onClick={() => openEvidence('pickup-signatures', r.event.signature_path!)}>
-                        <PenLineIcon className="w-4 h-4 mr-1" />{isRTL ? 'التوقيع' : 'Signature'}
+                        <PenLineIcon className="w-4 h-4 me-1" />{isRTL ? 'التوقيع' : 'Signature'}
                       </Button>
                     )}
                     <Button size="sm" variant="outline" disabled={busyId !== null} onClick={() => openPdf(r.event.id)}>
                       {busyId === r.event.id
-                        ? <Loader2Icon className="w-4 h-4 animate-spin mr-1" />
-                        : <FileTextIcon className="w-4 h-4 mr-1" />}
+                        ? <Loader2Icon className="w-4 h-4 animate-spin me-1" />
+                        : <FileTextIcon className="w-4 h-4 me-1" />}
                       {isRTL ? 'ملف التفتيش' : 'Inspection PDF'}
                     </Button>
                     {!r.reviewed && (
                       <Button size="sm" disabled={busyId !== null} onClick={() => acknowledge(r)}>
-                        <CheckIcon className="w-4 h-4 mr-1" />{isRTL ? 'تمت المراجعة' : 'Mark Reviewed'}
+                        <CheckIcon className="w-4 h-4 me-1" />{isRTL ? 'تمت المراجعة' : 'Mark Reviewed'}
                       </Button>
                     )}
                   </div>

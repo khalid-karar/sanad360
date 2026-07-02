@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, XIcon } from 'lucide-react';
+import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, XIcon, Building2Icon } from 'lucide-react';
 import GeofenceMapPicker from '@/components/map/GeofenceMapPicker';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import QRCode from 'qrcode';
 
 const EMPTY = { name_ar: '', name_en: '', city: '', geofence_lat: '', geofence_lng: '', geofence_radius_m: '150' };
@@ -32,6 +33,8 @@ export default function BranchesPage() {
   const { isRTL, user } = useAuthStore();
   const { toast } = useToast();
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Branch | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
@@ -92,10 +95,15 @@ export default function BranchesPage() {
 
   async function load() {
     if (!user?.company_id) return;
+    setLoading(true);
+    setLoadError(null);
     try {
       setBranches(await listBranches(user.company_id));
-    } catch {
+    } catch (e) {
       setBranches([]);
+      setLoadError(describeError(e, isRTL));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -173,7 +181,7 @@ export default function BranchesPage() {
             <p className="text-muted-foreground">{isRTL ? 'إدارة الفروع والنطاقات الجغرافية' : 'Manage branches and geofences'}</p>
           </div>
           <Button onClick={openCreate} className="bg-primary text-primary-foreground hover:bg-primary/90">
-            <PlusIcon className="w-4 h-4 mr-2" />{isRTL ? 'إضافة فرع' : 'Add Branch'}
+            <PlusIcon className="w-4 h-4 me-2" />{isRTL ? 'إضافة فرع' : 'Add Branch'}
           </Button>
         </div>
 
@@ -229,6 +237,21 @@ export default function BranchesPage() {
           </Card>
         )}
 
+        {loading && <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />}
+        {!loading && loadError && (
+          <ErrorState message={loadError} retry={load} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        )}
+        {!loading && !loadError && branches.length === 0 && !showForm && (
+          <EmptyState
+            icon={<Building2Icon />}
+            title={isRTL ? 'لا توجد فروع بعد' : 'No branches yet'}
+            hint={isRTL
+              ? 'أضف أول فرع وحدّد نطاقه الجغرافي، ثم اطبع رمز QR وثبّته عند نقطة النفايات'
+              : 'Add your first branch with its geofence, then print its QR board and post it at the waste point'}
+            action={{ label: isRTL ? 'إضافة فرع' : 'Add Branch', onClick: openCreate }}
+          />
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {branches.map((b) => (
             <Card key={b.id} className={`border-2 ${b.status !== 'active' ? 'opacity-60 border-border' : 'border-border'}`}>
@@ -249,17 +272,16 @@ export default function BranchesPage() {
                 </div>
                 <div className="flex gap-2 mt-4">
                   <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(b)}>{isRTL ? 'تعديل' : 'Edit'}</Button>
-                  <Button size="sm" variant="outline" onClick={() => openQr(b)} title={isRTL ? 'رمز QR للفرع' : 'Branch QR board'}>
+                  <Button size="sm" variant="outline" onClick={() => openQr(b)} title={isRTL ? 'رمز QR للفرع' : 'Branch QR board'} aria-label={isRTL ? 'رمز QR للفرع' : 'Branch QR board'}>
                     <QrCodeIcon className="w-4 h-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="text-destructive" disabled={b.status !== 'active'} onClick={() => handleDeactivate(b)}>
+                  <Button size="sm" variant="outline" className="text-destructive" disabled={b.status !== 'active'} onClick={() => handleDeactivate(b)} aria-label={isRTL ? 'تعطيل الفرع' : 'Deactivate branch'}>
                     <PowerIcon className="w-4 h-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
-          {branches.length === 0 && <div className="text-center py-12 text-muted-foreground col-span-2">{isRTL ? 'لا توجد فروع' : 'No branches'}</div>}
         </div>
       </div>
 
@@ -272,7 +294,7 @@ export default function BranchesPage() {
                 <QrCodeIcon className="w-5 h-5 text-primary" />
                 {isRTL ? 'رمز نقطة النفايات' : 'Waste-Point QR Board'}
               </CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setQrBranch(null)}>
+              <Button variant="ghost" size="icon" onClick={() => setQrBranch(null)} aria-label={isRTL ? 'إغلاق' : 'Close'}>
                 <XIcon className="w-5 h-5" />
               </Button>
             </CardHeader>
@@ -286,7 +308,7 @@ export default function BranchesPage() {
                   : 'Print and post at the waste hand-over point — the driver scans it and the server verifies it'}
               </p>
               <Button onClick={printQr} className="w-full bg-primary text-primary-foreground">
-                <PrinterIcon className="w-4 h-4 mr-2" />{isRTL ? 'طباعة' : 'Print'}
+                <PrinterIcon className="w-4 h-4 me-2" />{isRTL ? 'طباعة' : 'Print'}
               </Button>
             </CardContent>
           </Card>

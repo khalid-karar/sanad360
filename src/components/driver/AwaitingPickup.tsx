@@ -3,8 +3,9 @@ import { useAuthStore } from '../../stores/authStore';
 import { useDriverStore } from '../../stores/driverStore';
 import type { AssignmentView } from '../../stores/driverStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPinIcon, ClockIcon, Loader2Icon } from 'lucide-react';
+import { MapPinIcon, ClockIcon, TruckIcon } from 'lucide-react';
 import { StatusBadge } from '../schedule/statusBadge';
+import { LoadingState, EmptyState } from '@/components/ui/states';
 import StaggeredList from '../animations/StaggeredList';
 import FadeInUp from '../animations/FadeInUp';
 import InteractiveButton from '../animations/InteractiveButton';
@@ -55,9 +56,7 @@ export default function AwaitingPickup() {
       )}
 
       {assignmentsLoading ? (
-        <div className="flex justify-center py-10">
-          <Loader2Icon className="w-6 h-6 animate-spin text-primary" />
-        </div>
+        <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
       ) : (
         <StaggeredList staggerDelay={0.1}>
           {assignments.map((view) => (
@@ -107,13 +106,13 @@ export default function AwaitingPickup() {
           ))}
 
           {assignments.length === 0 && !assignmentsError && (
-            <Card className="bg-card text-card-foreground border-border">
-              <CardContent className="pt-8 pb-8 text-center">
-                <p className="text-muted-foreground">
-                  {isRTL ? 'لا توجد مهام التقاط حالياً' : 'No pickup assignments right now'}
-                </p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={<TruckIcon />}
+              title={isRTL ? 'لا توجد مهام التقاط حالياً' : 'No pickup assignments right now'}
+              hint={isRTL
+                ? 'عندما يُسند إليك التقاط سيظهر هنا ويصلك إشعار — تحقق من صفحة "تأكيد التسليم" إن كانت لديك حمولات لم تُسلَّم بعد'
+                : 'New pickups appear here with a notification — check the Deliveries page if you still have loads to hand over'}
+            />
           )}
         </StaggeredList>
       )}

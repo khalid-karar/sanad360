@@ -36,6 +36,7 @@ export default function Topbar() {
             onClick={() => setShowThemeCustomizer(true)}
             className="bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200"
             title={isRTL ? 'تخصيص المظهر' : 'Customize Theme'}
+            aria-label={isRTL ? 'تخصيص المظهر' : 'Customize Theme'}
           >
             <PaletteIcon className="w-4 h-4" />
           </Button>

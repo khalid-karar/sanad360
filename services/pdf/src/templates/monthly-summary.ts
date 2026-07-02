@@ -175,9 +175,9 @@ export function buildMonthlyHtml(opts: {
         <span class="value" style="color:#166534">${events.length - custodyMissing.length} من ${events.length}</span>
       </div>
       ${custodyMissing.length > 0 ? `
-      <p style="font-size:10.5pt; color:#991b1b; margin-top:6px;">
+      <div class="custody-warning">
         ⚠ ${custodyMissing.length} عملية بدون تأكيد تسليم لمنشأة معالجة — سلسلة العهدة غير مكتملة
-      </p>` : events.length > 0 ? `
+      </div>` : events.length > 0 ? `
       <p style="font-size:10.5pt; color:#166534; margin-top:6px;">
         ✓ سلسلة العهدة مكتملة لجميع عمليات هذا الشهر
       </p>` : ''}

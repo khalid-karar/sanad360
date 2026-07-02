@@ -7,6 +7,7 @@ import GeolocationVerified from '../components/driver/GeolocationVerified';
 import DigitalManifest from '../components/driver/DigitalManifest';
 import SignaturePad from '../components/driver/SignaturePad';
 import PickupConfirmation from '../components/driver/PickupConfirmation';
+import FlowStepper from '../components/driver/FlowStepper';
 
 export default function DriverDashboard() {
   const { isRTL } = useAuthStore();
@@ -26,7 +27,11 @@ export default function DriverDashboard() {
 
   return (
     <AppShell role="driver">
-      <div className={isRTL ? 'rtl' : 'ltr'}>{renderContent()}</div>
+      <div className={isRTL ? 'rtl' : 'ltr'}>
+        {/* Field flow progress — glanceable "step N of 5" (P1-2) */}
+        <FlowStepper current={pickupState} />
+        {renderContent()}
+      </div>
     </AppShell>
   );
 }

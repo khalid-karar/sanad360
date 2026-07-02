@@ -216,7 +216,7 @@ export function buildSinglePickupHtml(opts: {
       </div>
       ${opts.disposal.notes ? `<div class="row"><span class="label">ملاحظات التسليم</span><span class="value">${esc(opts.disposal.notes)}</span></div>` : ''}
       ` : `
-      <p style="font-size:10.5pt; color:#991b1b;">⚠ لم يتم تأكيد التسليم لمنشأة معالجة بعد — سلسلة العهدة غير مكتملة</p>
+      <div class="custody-warning">⚠ لم يتم تأكيد التسليم لمنشأة معالجة بعد — سلسلة العهدة غير مكتملة</div>
       `}
     </div>
   </div>

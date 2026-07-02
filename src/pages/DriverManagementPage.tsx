@@ -128,7 +128,7 @@ export default function DriverManagementPage() {
               <p className="text-muted-foreground">{isRTL ? 'إدارة وتتبع السائقين ورخصهم' : 'Manage and track drivers and their licenses'}</p>
             </div>
             <Button onClick={() => setShowAddForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <PlusIcon className="w-4 h-4 mr-2" />{isRTL ? 'إضافة سائق' : 'Add Driver'}
+              <PlusIcon className="w-4 h-4 me-2" />{isRTL ? 'إضافة سائق' : 'Add Driver'}
             </Button>
           </div>
         </FadeInUp>
@@ -196,10 +196,10 @@ export default function DriverManagementPage() {
                           {badge(d.license_expiry)}
                           {!d.profile_id && d.status === 'active' && (
                             <Button size="sm" variant="outline" onClick={() => openInvite(d)} title={isRTL ? 'إنشاء حساب دخول' : 'Create login account'}>
-                              <KeyRoundIcon className="w-4 h-4 mr-1" />{isRTL ? 'دعوة' : 'Invite'}
+                              <KeyRoundIcon className="w-4 h-4 me-1" />{isRTL ? 'دعوة' : 'Invite'}
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" className="text-destructive" disabled={d.status !== 'active'} onClick={() => handleDeactivate(d.id)} title={isRTL ? 'تعطيل' : 'Deactivate'}>
+                          <Button size="sm" variant="outline" className="text-destructive" disabled={d.status !== 'active'} onClick={() => handleDeactivate(d.id)} title={isRTL ? 'تعطيل' : 'Deactivate'} aria-label={isRTL ? 'تعطيل السائق' : 'Deactivate driver'}>
                             <PowerIcon className="w-4 h-4" />
                           </Button>
                         </div>
@@ -234,7 +234,7 @@ export default function DriverManagementPage() {
                 <KeyRoundIcon className="w-5 h-5 text-primary" />
                 {isRTL ? `دعوة ${inviting.name_ar}` : `Invite ${inviting.name_ar}`}
               </CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setInviting(null)}>
+              <Button variant="ghost" size="icon" onClick={() => setInviting(null)} aria-label={isRTL ? 'إغلاق' : 'Close'}>
                 <XIcon className="w-5 h-5" />
               </Button>
             </CardHeader>
