@@ -4,6 +4,7 @@ import { useAuthStore } from './stores/authStore';
 import { useThemeStore } from './stores/themeStore';
 import { useNotificationStore } from './stores/notificationStore';
 import { initPickupQueueSync } from './lib/offline/pickupQueue';
+import { initDisposalQueueSync } from './lib/offline/disposalQueue';
 import { supabase } from './lib/supabase';
 import { Toaster } from './components/ui/toaster';
 import ToastNotification from './components/notifications/ToastNotification';
@@ -50,6 +51,24 @@ function App() {
   useEffect(() => {
     initializeTheme();
   }, [initializeTheme]);
+
+  // Offline disposal queue: replay pending custody confirmations (same
+  // triggers as the pickup queue below).
+  useEffect(() => {
+    return initDisposalQueueSync((r) => {
+      useNotificationStore.getState().addNotification({
+        type: 'success',
+        priority: 'medium',
+        title: 'تمت مزامنة تأكيدات التسليم',
+        titleEn: 'Queued Deliveries Synced',
+        message: `تم إرسال ${r.synced} تأكيد تسليم محفوظ محلياً`,
+        messageEn: `${r.synced} locally saved delivery confirmation(s) submitted`,
+        role: 'driver',
+        autoHide: true,
+        duration: 5000,
+      });
+    });
+  }, []);
 
   // Offline pickup queue: replay any pending submissions on app start and
   // whenever connectivity returns; notify the driver on success.

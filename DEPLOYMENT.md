@@ -38,6 +38,20 @@ the `STAGING`/`PROD` pair used by the promotion script):
 | `PDF_SERVICE_SUPABASE_SERVICE_ROLE_KEY` | PDF service deploy | goes into the PDF host's secret store, never the frontend |
 | `CORS_ORIGIN` | PDF service deploy | the environment's frontend URL |
 
+### Observability & gating (launch-critical additions)
+
+| Name | Kind | Purpose |
+|---|---|---|
+| `VITE_SENTRY_DSN` / `SENTRY_DSN` | Environment secret | error tracking, frontend / PDF service (no-op when unset) |
+| `SENTRY_ENV` | Environment secret | `staging` or `production` tag on events |
+| `DEPLOY_STAGING` | repo **variable** | set to `true` to activate the deploy pipeline (skipped-and-green until then) |
+| `STAGING_APP_URL`, `STAGING_PDF_HEALTH_URL`, `PROD_APP_URL`, `PROD_PDF_HEALTH_URL` | repo **variables** | targets for the 15-minute [uptime workflow](.github/workflows/uptime.yml) |
+
+The PDF service ships a production container: [services/pdf/Dockerfile](services/pdf/Dockerfile)
+(Playwright base image, /health HEALTHCHECK, graceful SIGTERM drain) +
+[docker-compose.yml](services/pdf/docker-compose.yml) (`restart: unless-stopped`
+is the supervisor). PDPL erasure runbook: [PDPL_ERASURE.md](PDPL_ERASURE.md).
+
 ## Manual checklist (a human must do these — an agent cannot)
 
 **Now (staging):**
@@ -45,7 +59,9 @@ the `STAGING`/`PROD` pair used by the promotion script):
    Frankfurt for latency). Note its Reference ID and DB password.
 2. Create a Supabase access token (Account → Access Tokens).
 3. In GitHub → repo → Settings → Environments: create **`staging`** and add
-   the secrets from the table above (staging values).
+   the secrets from the table above (staging values). Create a (free) Sentry
+   project and add its DSNs. Then set the repo variable `DEPLOY_STAGING=true`
+   and the `STAGING_*` uptime variables.
 4. Choose/provision the staging frontend host and PDF-service host, then
    replace the marked `TODO(host)` steps in
    [.github/workflows/deploy.yml](.github/workflows/deploy.yml).

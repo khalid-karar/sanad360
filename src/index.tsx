@@ -1,6 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import { initMonitoring } from './lib/monitoring';
+
+// Error tracking first, so even startup failures below are reported.
+// No-op without VITE_SENTRY_DSN (local dev / CI).
+initMonitoring();
 
 function renderError(message: string) {
   ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -1,6 +1,18 @@
 // Load .env into process.env BEFORE any module that reads Supabase config.
 import './lib/env.js';
+import * as Sentry from '@sentry/node';
 import express from 'express';
+
+// Error tracking (launch-critical): no-op without SENTRY_DSN (local/CI).
+// PDPL posture: no PII on events; request bodies are never attached.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.SENTRY_ENV ?? 'staging',
+    sendDefaultPii: false,
+    tracesSampleRate: 0.1,
+  });
+}
 import type { Request, Response } from 'express';
 import { authMiddleware } from './lib/auth.js';
 import { handleSinglePickup } from './routes/single.js';
@@ -20,6 +32,7 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response): void => {
     fn(req, res).catch((err: unknown) => {
       console.error('[pdf-service] handler error:', err);
+      if (process.env.SENTRY_DSN) Sentry.captureException(err);
       if (!res.headersSent) {
         res.status(500).json({
           error: err instanceof Error ? err.message : 'Internal error',
@@ -129,7 +142,27 @@ app.post(
   asyncHandler((req, res) => handleInviteDriver(req as AuthedRequest, res))
 );
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[pdf-service] Listening on http://localhost:${PORT}`);
   console.log(`[pdf-service] CORS origin: ${CORS_ORIGIN}`);
+});
+
+// ── Graceful shutdown (container/supervisor friendly) ───────────────────────
+// SIGTERM (docker stop / orchestrator) and SIGINT drain in-flight requests
+// before exit so a deploy never truncates a PDF mid-render.
+function shutdown(signal: string): void {
+  console.log(`[pdf-service] ${signal} received — draining...`);
+  server.close(() => {
+    console.log('[pdf-service] drained, exiting.');
+    process.exit(0);
+  });
+  // Hard stop if a hung render blocks the drain.
+  setTimeout(() => process.exit(1), 30_000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+process.on('unhandledRejection', (err) => {
+  console.error('[pdf-service] unhandledRejection:', err);
+  if (process.env.SENTRY_DSN) Sentry.captureException(err);
 });

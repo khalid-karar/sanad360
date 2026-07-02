@@ -29,7 +29,8 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned for reproducible CI (matches the version used in development)
+          version: 2.109.0
 
       # Applies migrations 001-008 and seed.sql against a fresh local stack.
       - name: Start Supabase
@@ -52,13 +53,24 @@ jobs:
       - name: Typecheck/build (PDF service)
         run: npm run build --prefix services/pdf
 
+      # Playwright's Chromium download is ~150MB — cache it keyed on the
+      # playwright version so warm runs skip the download entirely.
+      - name: Get Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('./services/pdf/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
       - name: Install Playwright Chromium (PDF renderer)
         run: npm run install-chromium --prefix services/pdf
 
       - name: Start PDF service
         run: |
           node services/pdf/dist/index.js &
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if curl -sf http://localhost:3001/health > /dev/null; then exit 0; fi
             sleep 1
           done

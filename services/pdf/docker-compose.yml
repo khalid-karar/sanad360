@@ -1,0 +1,24 @@
+# Sanad 360 PDF service — single-host deployment (VM / Railway / Render-style)
+#
+#   docker compose up -d --build
+#
+# `restart: unless-stopped` + the HEALTHCHECK in the Dockerfile ARE the
+# supervisor: Docker restarts the process on crash and flags it unhealthy for
+# orchestrators/monitors. Secrets come from the host environment or an
+# untracked .env next to this file — never baked into the image.
+services:
+  pdf:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENV: ${SENTRY_ENV:-staging}
+    mem_limit: 1g
+    # Chromium needs a bigger /dev/shm than Docker's 64MB default.
+    shm_size: 512m

@@ -1,0 +1,47 @@
+# Sanad 360 — uptime monitor (launch-critical item 1)
+#
+# Polls the deployed frontend and the PDF service /health every 15 minutes.
+# A failed run = a GitHub notification (and shows red on the Actions badge).
+#
+# Silent until you set the repository VARIABLES (Settings → Secrets and
+# variables → Actions → Variables):
+#   STAGING_APP_URL         e.g. https://staging.sanad360.com
+#   STAGING_PDF_HEALTH_URL  e.g. https://pdf-staging.sanad360.com/health
+#   PROD_APP_URL / PROD_PDF_HEALTH_URL (later)
+# Unset targets are skipped, not failed.
+
+name: Uptime
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe staging frontend
+        if: ${{ vars.STAGING_APP_URL != '' }}
+        run: curl -sSf --max-time 15 "${{ vars.STAGING_APP_URL }}" -o /dev/null
+
+      - name: Probe staging PDF service
+        if: ${{ vars.STAGING_PDF_HEALTH_URL != '' }}
+        run: |
+          body=$(curl -sSf --max-time 15 "${{ vars.STAGING_PDF_HEALTH_URL }}")
+          echo "$body" | grep -q '"status":"ok"'
+
+      - name: Probe production frontend
+        if: ${{ vars.PROD_APP_URL != '' }}
+        run: curl -sSf --max-time 15 "${{ vars.PROD_APP_URL }}" -o /dev/null
+
+      - name: Probe production PDF service
+        if: ${{ vars.PROD_PDF_HEALTH_URL != '' }}
+        run: |
+          body=$(curl -sSf --max-time 15 "${{ vars.PROD_PDF_HEALTH_URL }}")
+          echo "$body" | grep -q '"status":"ok"'
+
+      - name: No targets configured
+        if: ${{ vars.STAGING_APP_URL == '' && vars.PROD_APP_URL == '' }}
+        run: echo "No uptime targets set — configure repo variables (see header comment)."

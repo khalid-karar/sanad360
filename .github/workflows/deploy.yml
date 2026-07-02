@@ -27,8 +27,11 @@ concurrency:
 jobs:
   deploy-staging:
     name: Deploy to staging
-    # Only when CI for this commit on main actually passed.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only when CI passed AND deployment is switched on: set the repository
+    # VARIABLE `DEPLOY_STAGING=true` (Settings -> Secrets and variables ->
+    # Actions -> Variables) once the staging Supabase project + Environment
+    # secrets exist. Until then this job is skipped, keeping Actions green.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && vars.DEPLOY_STAGING == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:

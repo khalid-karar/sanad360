@@ -6,6 +6,9 @@ import {
   listPendingDeliveries,
   createDisposalConfirmation,
 } from '../lib/api/disposals';
+import { isNetworkError } from '../lib/offline/pickupQueue';
+import { enqueueDisposal } from '../lib/offline/disposalQueue';
+import { useNotificationStore } from '../stores/notificationStore';
 import type { PendingDelivery } from '../lib/api/disposals';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -97,6 +100,45 @@ export default function DriverDeliveriesPage() {
       setConfirming(null);
       await reload();
     } catch (err) {
+      // Facilities sit on the city edge — the WORST connectivity in the whole
+      // flow. Network failure → queue the confirmation (incl. the ticket Blob)
+      // and let the sync triggers replay it. Server rejections still surface.
+      if (isNetworkError(err)) {
+        try {
+          await enqueueDisposal({
+            eventId: confirming.event.id,
+            companyId: confirming.event.company_id,
+            branchId: confirming.event.branch_id,
+            facilityNameAr: facilityName.trim(),
+            facilityLicense: facilityLicense.trim() || undefined,
+            gpsLat: gps?.lat,
+            gpsLng: gps?.lng,
+            notes: notes.trim() || undefined,
+            ticketBlob: ticketFile,
+            ticketName: ticketFile?.name,
+            ticketType: ticketFile?.type,
+            queuedAt: Date.now(),
+            attempts: 0,
+          });
+          setConfirming(null);
+          // Optimistically clear from the pending list; replay is idempotent.
+          setDeliveries((prev) => prev.filter((x) => x.event.id !== confirming.event.id));
+          useNotificationStore.getState().addNotification({
+            type: 'info',
+            priority: 'medium',
+            title: 'تم الحفظ محلياً',
+            titleEn: 'Saved Offline',
+            message: 'سيُرسل تأكيد التسليم تلقائياً عند عودة الاتصال',
+            messageEn: 'The delivery confirmation will sync automatically when back online',
+            role: 'driver',
+            autoHide: true,
+            duration: 5000,
+          });
+          return;
+        } catch {
+          /* IndexedDB unavailable — fall through to the error path */
+        }
+      }
       setFormError(err instanceof Error ? err.message : 'Failed to confirm');
     } finally {
       setSubmitting(false);
