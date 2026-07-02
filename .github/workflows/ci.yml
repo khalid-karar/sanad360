@@ -76,7 +76,9 @@ jobs:
             fi
             sleep 1
           done
-          echo "::error::PDF service failed to start — diagnostics follow"
+          LOGHEAD=$(head -c 700 pdf-service.log | tr '
+' ' ' || true)
+          echo "::error::PDF service failed to start. Log: ${LOGHEAD}"
           echo "--- pdf-service.log ---"; cat pdf-service.log || true
           echo "--- dist layout ---"; ls -la services/pdf/dist | head -20
           echo "--- env presence (names only) ---"; grep -o '^[A-Z_]*' .env
