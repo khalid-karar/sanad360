@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useTransportStore } from '../stores/transportStore';
 import { licenseStatus } from '../lib/api/drivers';
+import { inviteDriver } from '../lib/api/invites';
+import type { Driver } from '../lib/database.types';
 import AppShell from '../components/AppShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTriangleIcon, PowerIcon } from 'lucide-react';
+import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTriangleIcon, PowerIcon, KeyRoundIcon, XIcon } from 'lucide-react';
 import FadeInUp from '../components/animations/FadeInUp';
 
 export default function DriverManagementPage() {
@@ -21,6 +23,13 @@ export default function DriverManagementPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name_ar: '', license_number: '', license_expiry: '', absher_verified: false });
+
+  // Invite flow: turn a fleet record into a sign-in-able driver account
+  const [inviting, setInviting] = useState<Driver | null>(null);
+  const [invitePhone, setInvitePhone] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.transport_company_id) loadDrivers(user.transport_company_id);
@@ -58,6 +67,38 @@ export default function DriverManagementPage() {
       toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openInvite(d: Driver) {
+    setInviting(d);
+    setInvitePhone('');
+    setInvitePassword('');
+    setInviteEmail(null);
+  }
+
+  async function handleInvite() {
+    if (!inviting) return;
+    if (!invitePhone.trim() || invitePassword.length < 10) {
+      toast({
+        title: isRTL ? 'خطأ' : 'Error',
+        description: isRTL
+          ? 'أدخل رقم الجوال وكلمة مرور مؤقتة (10 أحرف على الأقل)'
+          : 'Enter the phone number and a temp password (min 10 characters)',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setInviteBusy(true);
+    try {
+      const result = await inviteDriver(inviting.id, invitePhone.trim(), invitePassword);
+      setInviteEmail(result.email);
+      if (user?.transport_company_id) await loadDrivers(user.transport_company_id);
+      toast({ title: isRTL ? 'تم بنجاح' : 'Success', description: isRTL ? 'تم إنشاء حساب السائق' : 'Driver account created' });
+    } catch (e) {
+      toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
+    } finally {
+      setInviteBusy(false);
     }
   }
 
@@ -153,6 +194,11 @@ export default function DriverManagementPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {badge(d.license_expiry)}
+                          {!d.profile_id && d.status === 'active' && (
+                            <Button size="sm" variant="outline" onClick={() => openInvite(d)} title={isRTL ? 'إنشاء حساب دخول' : 'Create login account'}>
+                              <KeyRoundIcon className="w-4 h-4 mr-1" />{isRTL ? 'دعوة' : 'Invite'}
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" className="text-destructive" disabled={d.status !== 'active'} onClick={() => handleDeactivate(d.id)} title={isRTL ? 'تعطيل' : 'Deactivate'}>
                             <PowerIcon className="w-4 h-4" />
                           </Button>
@@ -178,6 +224,72 @@ export default function DriverManagementPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Invite modal: phone → synthetic login email + temp password */}
+      {inviting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
+          <Card className={`w-full max-w-md bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <KeyRoundIcon className="w-5 h-5 text-primary" />
+                {isRTL ? `دعوة ${inviting.name_ar}` : `Invite ${inviting.name_ar}`}
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setInviting(null)}>
+                <XIcon className="w-5 h-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {inviteEmail ? (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-md bg-success/10 border border-success/20 text-sm">
+                    <p className="text-success font-medium">
+                      {isRTL ? 'تم إنشاء الحساب — سلّم بيانات الدخول للسائق:' : 'Account created — hand these credentials to the driver:'}
+                    </p>
+                    <p className="mt-2 font-mono text-foreground" dir="ltr">{inviteEmail}</p>
+                    <p className="font-mono text-foreground" dir="ltr">{invitePassword}</p>
+                  </div>
+                  <Button className="w-full" onClick={() => setInviting(null)}>
+                    {isRTL ? 'إغلاق' : 'Close'}
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>{isRTL ? 'رقم جوال السائق' : 'Driver Mobile Number'}</Label>
+                    <Input
+                      value={invitePhone}
+                      onChange={(e) => setInvitePhone(e.target.value)}
+                      placeholder="05xxxxxxxx"
+                      dir="ltr"
+                      className="bg-background text-foreground border-input"
+                    />
+                    <p className="text-xs text-muted-foreground" dir="ltr">
+                      {isRTL ? 'الدخول عبر' : 'Login as'} {invitePhone.replace(/\D/g, '') || '05xxxxxxxx'}@driver.sanad360.com
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{isRTL ? 'كلمة مرور مؤقتة (10+ أحرف)' : 'Temp Password (10+ chars)'}</Label>
+                    <Input
+                      value={invitePassword}
+                      onChange={(e) => setInvitePassword(e.target.value)}
+                      dir="ltr"
+                      className="bg-background text-foreground border-input"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <Button onClick={handleInvite} disabled={inviteBusy} className="flex-1 bg-primary text-primary-foreground">
+                      {isRTL ? 'إنشاء الحساب' : 'Create Account'}
+                    </Button>
+                    <Button variant="outline" onClick={() => setInviting(null)} className="flex-1">
+                      {isRTL ? 'إلغاء' : 'Cancel'}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AppShell>
   );
 }

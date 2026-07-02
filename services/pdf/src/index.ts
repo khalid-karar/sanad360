@@ -6,6 +6,7 @@ import { authMiddleware } from './lib/auth.js';
 import { handleSinglePickup } from './routes/single.js';
 import { handleMonthly } from './routes/monthly.js';
 import { handleOnboardCompany } from './routes/onboard.js';
+import { handleInviteDriver } from './routes/invite-driver.js';
 import type { AuthedRequest } from './types.js';
 
 const app = express();
@@ -58,6 +59,14 @@ app.post(
 // Admin onboarding — does its own JWT + admin-membership check (NOT authMiddleware,
 // which only requires *any* membership). Never exposes the service-role key.
 app.post('/admin/onboard-company', asyncHandler((req, res) => handleOnboardCompany(req, res)));
+
+// Transport-side driver invitation (creates the driver's auth account +
+// membership; role-checked inside the handler on top of authMiddleware).
+app.post(
+  '/transport/invite-driver',
+  authMiddleware,
+  asyncHandler((req, res) => handleInviteDriver(req as AuthedRequest, res))
+);
 
 app.listen(PORT, () => {
   console.log(`[pdf-service] Listening on http://localhost:${PORT}`);
