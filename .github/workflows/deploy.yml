@@ -5,6 +5,11 @@
 # staging, and then to production behind the "production" GitHub Environment's
 # required-reviewers gate.
 #
+# Hosts: frontend on Netlify (CLI deploy of the already-built ./dist), PDF
+# service on Railway (CLI deploy of services/pdf, built there from its
+# Dockerfile). Both read their auth from the environment-scoped secrets
+# below — never from the repo.
+#
 # Safety rails:
 #   • migrations are promoted with `supabase db push` (forward-only) via
 #     scripts/db-target.mjs — remote resets are impossible from this repo
@@ -36,7 +41,7 @@ jobs:
     timeout-minutes: 30
     environment:
       name: staging
-      # TODO(host): set `url:` to the staging frontend URL once the host exists
+      url: ${{ vars.STAGING_APP_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +63,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.0
 
       - name: Push migrations to staging (forward-only, no reset)
         env:
@@ -79,36 +84,66 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ENV: staging
         run: npm run build
 
-      - name: Build PDF service
+      - name: Typecheck/build PDF service (pre-flight; Railway builds its own image)
         run: npm run build --prefix services/pdf
 
-      # ──────────────────────────────────────────────────────────────────
-      # TODO(host): frontend host not chosen yet. Replace with the real
-      # deploy step (e.g. Vercel/Netlify/Cloudflare Pages action or
-      # rsync to a VM) publishing ./dist
-      # ──────────────────────────────────────────────────────────────────
-      - name: "Deploy frontend → staging [PLACEHOLDER]"
-        run: 'echo "TODO(host):: publish ./dist to the staging frontend host"'
+      # Netlify CLI deploy of the already-built ./dist. NETLIFY_SITE_ID/
+      # NETLIFY_AUTH_TOKEN are this Environment's own values (staging site),
+      # so `--prod` here means "publish to this site's primary URL" — it does
+      # NOT touch the production site, which has its own separate secrets.
+      #
+      # NOTE: if this Netlify site also has GitHub-native auto-deploy enabled,
+      # that will ALSO build+deploy on push — redundant but harmless (same
+      # commit, same build). To make this workflow the single source of truth
+      # (recommended, since it keeps DB migrations + frontend + PDF service in
+      # lockstep), disable auto-publishing in Netlify: Site settings -> Build
+      # & deploy -> Stop builds.
+      - name: Deploy frontend to Netlify (staging)
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: npx --yes netlify-cli@17 deploy --dir=dist --prod --message "Sanad 360 staging @ ${{ github.event.workflow_run.head_sha }}"
 
-      # ──────────────────────────────────────────────────────────────────
-      # TODO(host): PDF-service host not chosen yet. Replace with the real
-      # deploy (container push / VM restart) shipping services/pdf/dist with
-      # SUPABASE_URL, SUPABASE_ANON_KEY, PDF_SERVICE_SUPABASE_SERVICE_ROLE_KEY
-      # and CORS_ORIGIN injected from this environment's secrets.
-      # ──────────────────────────────────────────────────────────────────
-      - name: "Deploy PDF service → staging [PLACEHOLDER]"
-        run: 'echo "TODO(host):: deploy services/pdf/dist to the staging PDF host"'
+      # Railway CLI deploy of services/pdf — Railway builds the image itself
+      # from services/pdf/Dockerfile on its own infrastructure (this job's
+      # local `npm run build` above is just a fast TypeScript pre-flight).
+      # RAILWAY_TOKEN is a Railway PROJECT token scoped to the staging
+      # project; RAILWAY_SERVICE_ID selects the PDF service within it.
+      # The service's own env vars (SUPABASE_URL, SUPABASE_ANON_KEY,
+      # SUPABASE_SERVICE_ROLE_KEY, CORS_ORIGIN, SENTRY_DSN — see
+      # services/pdf/.env.example) are configured ONCE in the Railway
+      # dashboard, not pushed by this workflow.
+      - name: Deploy PDF service to Railway (staging)
+        working-directory: services/pdf
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: npx --yes @railway/cli@latest up --service "${{ secrets.RAILWAY_SERVICE_ID }}" --detach
 
       - name: Smoke check
-        env:
-          VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
         run: |
-          # TODO(host): once hosts exist, fail the deploy when unhealthy:
-          #   curl -sf "$VITE_PDF_SERVICE_URL/health"
-          #   curl -sf "<staging frontend URL>"
-          echo "TODO(host):: smoke-check staging frontend + PDF /health"
+          set -e
+          if [ -n "${{ vars.STAGING_PDF_HEALTH_URL }}" ]; then
+            echo "Waiting for the PDF service to come up after deploy..."
+            for i in $(seq 1 30); do
+              if curl -sf "${{ vars.STAGING_PDF_HEALTH_URL }}" | grep -q '"status":"ok"'; then
+                echo "PDF service healthy after ${i}0s"; break
+              fi
+              if [ "$i" = "30" ]; then echo "::error::PDF service did not become healthy"; exit 1; fi
+              sleep 10
+            done
+          else
+            echo "::warning::STAGING_PDF_HEALTH_URL not set — skipping PDF health check"
+          fi
+          if [ -n "${{ vars.STAGING_APP_URL }}" ]; then
+            curl -sf "${{ vars.STAGING_APP_URL }}" -o /dev/null
+            echo "Frontend reachable at ${{ vars.STAGING_APP_URL }}"
+          else
+            echo "::warning::STAGING_APP_URL not set — skipping frontend check"
+          fi
 
   deploy-production:
     name: Deploy to production (manual approval)
@@ -120,7 +155,7 @@ jobs:
     # job until a human approves. Same commit as staging; NEVER seeds.
     environment:
       name: production
-      # TODO(host): set `url:` to the production frontend URL once it exists
+      url: ${{ vars.PROD_APP_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -142,7 +177,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.0
 
       # Forward-only migrations. There is deliberately NO seed step in this
       # job, no SUPABASE_*_DB_URL secret in this environment, and
@@ -159,23 +194,45 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SENTRY_ENV: production
         run: npm run build
 
-      - name: Build PDF service
+      - name: Typecheck/build PDF service (pre-flight; Railway builds its own image)
         run: npm run build --prefix services/pdf
 
-      # TODO(host): Dammam/CNTXT infra not provisioned yet — replace both
-      # placeholders when the production hosts exist (see DEPLOYMENT.md
-      # manual checklist steps 5-7).
-      - name: "Deploy frontend → production [PLACEHOLDER]"
-        run: 'echo "TODO(host):: publish ./dist to the production frontend host"'
+      # Same CLI-deploy pattern as staging, reading the production
+      # Environment's own Netlify site + Railway project secrets.
+      - name: Deploy frontend to Netlify (production)
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: npx --yes netlify-cli@17 deploy --dir=dist --prod --message "Sanad 360 production @ ${{ github.event.workflow_run.head_sha }}"
 
-      - name: "Deploy PDF service → production [PLACEHOLDER]"
-        run: 'echo "TODO(host):: deploy services/pdf/dist to the production PDF host"'
+      - name: Deploy PDF service to Railway (production)
+        working-directory: services/pdf
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: npx --yes @railway/cli@latest up --service "${{ secrets.RAILWAY_SERVICE_ID }}" --detach
 
       - name: Smoke check
-        env:
-          VITE_PDF_SERVICE_URL: ${{ secrets.VITE_PDF_SERVICE_URL }}
         run: |
-          # TODO(host): curl -sf "$VITE_PDF_SERVICE_URL/health" && curl -sf "<prod frontend URL>"
-          echo "TODO(host):: smoke-check production frontend + PDF /health"
+          set -e
+          if [ -n "${{ vars.PROD_PDF_HEALTH_URL }}" ]; then
+            echo "Waiting for the PDF service to come up after deploy..."
+            for i in $(seq 1 30); do
+              if curl -sf "${{ vars.PROD_PDF_HEALTH_URL }}" | grep -q '"status":"ok"'; then
+                echo "PDF service healthy after ${i}0s"; break
+              fi
+              if [ "$i" = "30" ]; then echo "::error::PDF service did not become healthy"; exit 1; fi
+              sleep 10
+            done
+          else
+            echo "::warning::PROD_PDF_HEALTH_URL not set — skipping PDF health check"
+          fi
+          if [ -n "${{ vars.PROD_APP_URL }}" ]; then
+            curl -sf "${{ vars.PROD_APP_URL }}" -o /dev/null
+            echo "Frontend reachable at ${{ vars.PROD_APP_URL }}"
+          else
+            echo "::warning::PROD_APP_URL not set — skipping frontend check"
+          fi

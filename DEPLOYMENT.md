@@ -37,6 +37,10 @@ the `STAGING`/`PROD` pair used by the promotion script):
 | `VITE_PDF_SERVICE_URL` | frontend build | the environment's PDF service URL |
 | `PDF_SERVICE_SUPABASE_SERVICE_ROLE_KEY` | PDF service deploy | goes into the PDF host's secret store, never the frontend |
 | `CORS_ORIGIN` | PDF service deploy | the environment's frontend URL |
+| `NETLIFY_AUTH_TOKEN` | Netlify CLI deploy | Netlify → User settings → Applications → New access token |
+| `NETLIFY_SITE_ID` | Netlify CLI deploy | this environment's Netlify **site** (staging and production are two separate sites, each with its own token/ID pair) |
+| `RAILWAY_TOKEN` | Railway CLI deploy | a Railway **project** token scoped to this environment's project (Railway → Project → Settings → Tokens) |
+| `RAILWAY_SERVICE_ID` | Railway CLI deploy | the PDF service's ID within that Railway project |
 
 ### Observability & gating (launch-critical additions)
 
@@ -47,10 +51,14 @@ the `STAGING`/`PROD` pair used by the promotion script):
 | `DEPLOY_STAGING` | repo **variable** | set to `true` to activate the deploy pipeline (skipped-and-green until then) |
 | `STAGING_APP_URL`, `STAGING_PDF_HEALTH_URL`, `PROD_APP_URL`, `PROD_PDF_HEALTH_URL` | repo **variables** | targets for the 15-minute [uptime workflow](.github/workflows/uptime.yml) |
 
-The PDF service ships a production container: [services/pdf/Dockerfile](services/pdf/Dockerfile)
-(Playwright base image, /health HEALTHCHECK, graceful SIGTERM drain) +
-[docker-compose.yml](services/pdf/docker-compose.yml) (`restart: unless-stopped`
-is the supervisor). PDPL erasure runbook: [PDPL_ERASURE.md](PDPL_ERASURE.md).
+The frontend deploys via the **Netlify CLI** (publishes the already-built
+`./dist` — see [netlify.toml](netlify.toml) for the SPA redirect + caching
+rules); the PDF service deploys via the **Railway CLI**, which builds
+[services/pdf/Dockerfile](services/pdf/Dockerfile) (Playwright base image,
+/health HEALTHCHECK, graceful SIGTERM drain) on Railway's own infrastructure —
+[docker-compose.yml](services/pdf/docker-compose.yml) remains the reference
+for running that same image on any other single-host Docker target.
+PDPL erasure runbook: [PDPL_ERASURE.md](PDPL_ERASURE.md).
 
 ## Manual checklist (a human must do these — an agent cannot)
 
@@ -58,20 +66,33 @@ is the supervisor). PDPL erasure runbook: [PDPL_ERASURE.md](PDPL_ERASURE.md).
 1. Create the staging Supabase project in the dashboard (any region; suggest
    Frankfurt for latency). Note its Reference ID and DB password.
 2. Create a Supabase access token (Account → Access Tokens).
-3. In GitHub → repo → Settings → Environments: create **`staging`** and add
-   the secrets from the table above (staging values). Create a (free) Sentry
-   project and add its DSNs. Then set the repo variable `DEPLOY_STAGING=true`
-   and the `STAGING_*` uptime variables.
-4. Choose/provision the staging frontend host and PDF-service host, then
-   replace the marked `TODO(host)` steps in
-   [.github/workflows/deploy.yml](.github/workflows/deploy.yml).
+3. Create the staging Netlify site and a personal access token; create the
+   staging Railway project + PDF service (set its **root directory** to
+   `services/pdf` so Railway builds from the Dockerfile there), and a project
+   token. In the Railway service's own Variables tab, set the vars from
+   [services/pdf/.env.example](services/pdf/.env.example) (`SUPABASE_URL`,
+   `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGIN` = the
+   Netlify site URL, optionally `SENTRY_DSN`/`SENTRY_ENV`) — these live on
+   Railway itself, the deploy workflow never pushes them.
+4. In GitHub → repo → Settings → Environments: create **`staging`** and add
+   the secrets from the table above (staging values, including the Netlify
+   and Railway ones from step 3). Create a (free) Sentry project and add its
+   DSNs. Then set the repo variable `DEPLOY_STAGING=true` and the
+   `STAGING_APP_URL` / `STAGING_PDF_HEALTH_URL` uptime variables (the Netlify
+   site URL and `<railway-service-url>/health`).
+5. If the Netlify site also has GitHub-native auto-deploy enabled, disable
+   auto-publishing (Site settings → Build & deploy → Stop builds) so this
+   workflow — which keeps DB migrations, frontend, and the PDF service in
+   lockstep — is the single deploy path. Leaving it on is harmless (same
+   commit gets built twice) but redundant.
 
 **Later (production):**
-5. Provision the Dammam Supabase project through **CNTXT** (KSA region).
-6. Create the **`production`** GitHub Environment, add the prod-valued
+6. Provision the Dammam Supabase project through **CNTXT** (KSA region).
+7. Create a separate production Netlify site and Railway project (never
+   reuse the staging ones) and their tokens.
+8. Create the **`production`** GitHub Environment, add the prod-valued
    secrets, and — critically — enable **Required reviewers** on it so every
    production deploy blocks on human approval.
-7. Replace the production `TODO(host)` steps in deploy.yml.
 
 ## Day-to-day commands
 
@@ -94,6 +115,10 @@ missing. Remote targets only ever receive `db push` — reset is local-only.
   Unchanged by the deployment setup.
 - **[deploy.yml](.github/workflows/deploy.yml)** — runs on `main` only after
   CI succeeds: `deploy-staging` (push migrations → seed demo data → build →
-  deploy → smoke check), then `deploy-production` (same commit; **blocks on
-  the `production` Environment's required reviewers**; push migrations →
-  deploy → smoke check; **no seed step exists in the job**).
+  deploy frontend to Netlify + PDF service to Railway → smoke check), then
+  `deploy-production` (same commit; **blocks on the `production`
+  Environment's required reviewers**; push migrations → deploy → smoke check;
+  **no seed step exists in the job**). Smoke checks poll the PDF service's
+  `/health` and the frontend URL from the `STAGING_*`/`PROD_*` repo variables;
+  if those variables aren't set yet, the checks warn and skip rather than
+  fail, so the pipeline stays usable while you're still wiring it up.
