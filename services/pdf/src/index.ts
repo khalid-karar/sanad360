@@ -17,6 +17,7 @@ import type { Request, Response } from 'express';
 import { authMiddleware } from './lib/auth.js';
 import { handleSinglePickup } from './routes/single.js';
 import { handleMonthly } from './routes/monthly.js';
+import { handleMonthlyCompany } from './routes/monthly-company.js';
 import { handleOnboardCompany } from './routes/onboard.js';
 import { handleInviteDriver } from './routes/invite-driver.js';
 import type { AuthedRequest } from './types.js';
@@ -121,6 +122,14 @@ app.post(
   requestTimeout,
   authMiddleware,
   asyncHandler((req, res) => handleMonthly(req as AuthedRequest, res))
+);
+
+app.post(
+  '/generate/monthly-company',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleMonthlyCompany(req as AuthedRequest, res))
 );
 
 // Admin onboarding — does its own JWT + admin-membership check (NOT authMiddleware,

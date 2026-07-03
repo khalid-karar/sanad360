@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useCompanyStore } from '../stores/companyStore';
-import { generateMonthlyPdf } from '../lib/api/inspection';
+import { generateMonthlyPdf, generateMonthlyCompanyPdf } from '../lib/api/inspection';
 import AppShell from '../components/AppShell';
 import ComplianceWidget from '../components/company/ComplianceWidget';
 import RecentPickups from '../components/company/RecentPickups';
@@ -31,6 +31,23 @@ export default function CompanyDashboard() {
     loadRecentPickups();
     if (user?.company_id) loadKpis(user.company_id);
   }, [loadRecentPickups, loadKpis, user?.company_id]);
+
+  const [generatingPack, setGeneratingPack] = useState(false);
+
+  // Company-wide pack: every active branch's month in ONE document — what a
+  // compliance manager pulls the morning of an inspector visit.
+  async function handleGeneratePack() {
+    setGeneratingPack(true);
+    setMonthlyError(null);
+    try {
+      const result = await generateMonthlyCompanyPdf(selectedMonth);
+      window.open(result.signed_url, '_blank', 'noopener');
+    } catch (err) {
+      setMonthlyError(err instanceof Error ? err.message : 'فشل إنشاء التقرير');
+    } finally {
+      setGeneratingPack(false);
+    }
+  }
 
   async function handleGenerateMonthly() {
     if (!user?.branch_id) {
@@ -120,6 +137,17 @@ export default function CompanyDashboard() {
                       ? <Loader2Icon className="w-4 h-4 animate-spin" />
                       : <FileTextIcon className="w-4 h-4" />}
                     {isRTL ? 'إنشاء التقرير الشهري' : 'Generate Monthly Report'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleGeneratePack}
+                    disabled={generatingPack}
+                    className="gap-2"
+                  >
+                    {generatingPack
+                      ? <Loader2Icon className="w-4 h-4 animate-spin" />
+                      : <FileTextIcon className="w-4 h-4" />}
+                    {isRTL ? 'تقرير جميع الفروع' : 'All-Branches Pack'}
                   </Button>
                 </div>
                 {monthlyError && (

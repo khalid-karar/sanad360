@@ -64,6 +64,8 @@ export interface Driver {
   transport_company_id: string;
   profile_id: string | null;
   name_ar: string;
+  /** For WhatsApp deep-links; captured at invite time. PII — PDPL-erased. */
+  phone: string | null;
   license_number: string;
   license_expiry: string;
   absher_verified: boolean;
@@ -102,9 +104,11 @@ export interface PickupEvent {
   qr_verified: boolean;
   qr_code_value: string | null;
   photo_path: string | null;
+  scale_photo_path: string | null;
   receipt_path: string | null;
   signature_path: string | null;
   photo_sha256: string | null;
+  scale_photo_sha256: string | null;
   receipt_sha256: string | null;
   signature_sha256: string | null;
   risk_score: number;
@@ -133,7 +137,7 @@ export interface InspectionPdf {
   company_id: string;
   branch_id: string | null;
   pickup_event_id: string | null;
-  report_type: 'single_pickup' | 'monthly_summary';
+  report_type: 'single_pickup' | 'monthly_summary' | 'monthly_company';
   period_month: string | null;
   pdf_path: string;
   sha256_hash: string;
@@ -158,9 +162,11 @@ export type CreatePickupEventInput = {
   gps_accuracy_m?: number;
   qr_code_value?: string;
   photo_path?: string;
+  scale_photo_path?: string;
   receipt_path?: string;
   signature_path?: string;
   photo_sha256?: string;
+  scale_photo_sha256?: string;
   receipt_sha256?: string;
   signature_sha256?: string;
   notes?: string;
@@ -181,6 +187,9 @@ export interface PickupAssignment {
   driver_id: string;
   vehicle_id: string;
   scheduled_at: string;
+  /** Recurrence series (migration 016): completing spawns the next occurrence. */
+  recurrence: 'none' | 'daily' | 'weekly';
+  recurrence_until: string | null;
   status: AssignmentStatus;
   pickup_event_id: string | null;
   notes: string | null;
@@ -195,6 +204,8 @@ export type CreateAssignmentInput = {
   driver_id: string;
   vehicle_id: string;
   scheduled_at: string;
+  recurrence?: 'none' | 'daily' | 'weekly';
+  recurrence_until?: string;
   notes?: string;
   created_by?: string;
 };

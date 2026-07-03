@@ -24,6 +24,7 @@ interface EvidenceDataUrls {
   photo: string | null;
   receipt: string | null;
   signature: string | null;
+  scale: string | null;
 }
 
 function evidenceImg(dataUrl: string | null, label: string): string {
@@ -169,6 +170,7 @@ export function buildSinglePickupHtml(opts: {
     <div class="section-body">
       <div class="evidence-grid">
         ${evidenceImg(evidence.photo,     'صورة الاستلام')}
+        ${evidenceImg(evidence.scale,     'شاشة الميزان')}
         ${evidenceImg(evidence.receipt,   'إيصال النقل')}
         ${evidenceImg(evidence.signature, 'التوقيع')}
       </div>
@@ -237,6 +239,7 @@ export function buildSinglePickupHtml(opts: {
         <tr><td>رقم التعريف / Reference</td><td class="hash">${esc(event.id)}</td></tr>
         <tr><td>تجزئة الصورة / Photo SHA-256</td><td class="hash">${esc(event.photo_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.photo)}</td></tr>
         <tr><td>تجزئة التوقيع / Signature SHA-256</td><td class="hash">${esc(event.signature_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.signature)}</td></tr>
+        <tr><td>تجزئة صورة الميزان / Scale SHA-256</td><td class="hash">${esc(event.scale_photo_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.scale)}</td></tr>
         <tr><td>تجزئة الإيصال / Receipt SHA-256</td><td class="hash">${esc(event.receipt_sha256 ?? 'N/A')}${hashVerdict(opts.hashChecks?.receipt)}</td></tr>
         <tr><td>تجزئة الملف / PDF SHA-256</td><td class="hash">${esc(opts.pdfSha256 ?? 'N/A')}</td></tr>
       </table>

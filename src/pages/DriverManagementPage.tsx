@@ -12,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTriangleIcon, PowerIcon, KeyRoundIcon, XIcon } from 'lucide-react';
+import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTriangleIcon, PowerIcon, KeyRoundIcon } from 'lucide-react';
 import FadeInUp from '../components/animations/FadeInUp';
+import { Modal } from '@/components/ui/modal';
 
 export default function DriverManagementPage() {
   const { isRTL, user } = useAuthStore();
@@ -54,6 +55,7 @@ export default function DriverManagementPage() {
       await addDriver({
         transport_company_id: user.transport_company_id,
         profile_id: null,
+        phone: null,
         name_ar: form.name_ar,
         license_number: form.license_number,
         license_expiry: form.license_expiry,
@@ -227,18 +229,18 @@ export default function DriverManagementPage() {
 
       {/* Invite modal: phone → synthetic login email + temp password */}
       {inviting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-md bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <KeyRoundIcon className="w-5 h-5 text-primary" />
-                {isRTL ? `دعوة ${inviting.name_ar}` : `Invite ${inviting.name_ar}`}
-              </CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setInviting(null)} aria-label={isRTL ? 'إغلاق' : 'Close'}>
-                <XIcon className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <Modal
+          open
+          onClose={() => setInviting(null)}
+          isRTL={isRTL}
+          title={
+            <span className="flex items-center gap-2">
+              <KeyRoundIcon className="w-5 h-5 text-primary" />
+              {isRTL ? `دعوة ${inviting.name_ar}` : `Invite ${inviting.name_ar}`}
+            </span>
+          }
+        >
+          <div className="space-y-4">
               {inviteEmail ? (
                 <div className="space-y-4">
                   <div className="p-3 rounded-md bg-success/10 border border-success/20 text-sm">
@@ -286,9 +288,8 @@ export default function DriverManagementPage() {
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
-        </div>
+          </div>
+        </Modal>
       )}
     </AppShell>
   );

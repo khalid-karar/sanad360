@@ -71,7 +71,7 @@ export async function recordAndSign(opts: {
   companyId: string;
   branchId: string | null;
   pickupEventId: string | null;
-  reportType: 'single_pickup' | 'monthly_summary';
+  reportType: 'single_pickup' | 'monthly_summary' | 'monthly_company';
   periodMonth: string | null; // ISO date "YYYY-MM-01" for monthly; null for single
   pdfPath: string;
   sha256Hash: string;

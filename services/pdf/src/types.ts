@@ -26,6 +26,7 @@ export interface EvidenceHashChecks {
   photo: HashCheck;
   receipt: HashCheck;
   signature: HashCheck;
+  scale: HashCheck;
 }
 
 // Express Request extended with JWT-validated fields (set by authMiddleware)
@@ -54,9 +55,11 @@ export interface PickupEventRow {
   qr_verified: boolean;
   qr_code_value: string | null;
   photo_path: string | null;
+  scale_photo_path: string | null;
   receipt_path: string | null;
   signature_path: string | null;
   photo_sha256: string | null;
+  scale_photo_sha256: string | null;
   receipt_sha256: string | null;
   signature_sha256: string | null;
   risk_score: number;

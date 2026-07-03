@@ -12,8 +12,10 @@ import { listBranches } from '../../lib/api/branches';
 import type { PickupAssignment, Branch, Driver, Vehicle } from '../../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2Icon, PlusIcon, XIcon, TruckIcon } from 'lucide-react';
+import { Loader2Icon, PlusIcon, XIcon, TruckIcon, MessageCircleIcon } from 'lucide-react';
 import { StatusBadge } from './statusBadge';
+import { DatePicker } from '@/components/ui/date-picker';
+import { formatDateTime } from '../../lib/format';
 
 export default function PickupSchedulePage() {
   const navigate = useNavigate();
@@ -35,6 +37,8 @@ export default function PickupSchedulePage() {
   const [driverId, setDriverId] = useState('');
   const [vehicleId, setVehicleId] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
+  const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly'>('none');
+  const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -80,6 +84,8 @@ export default function PickupSchedulePage() {
         driver_id: driverId,
         vehicle_id: vehicleId,
         scheduled_at: new Date(scheduledAt).toISOString(),
+        recurrence,
+        recurrence_until: recurrence !== 'none' && recurrenceUntil ? recurrenceUntil : undefined,
         notes: notes || undefined,
         created_by: user?.id,
       });
@@ -88,6 +94,8 @@ export default function PickupSchedulePage() {
       setDriverId('');
       setVehicleId('');
       setScheduledAt('');
+      setRecurrence('none');
+      setRecurrenceUntil('');
       setNotes('');
       await reload();
     } catch (err) {
@@ -104,6 +112,14 @@ export default function PickupSchedulePage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel');
     }
+  }
+
+  // wa.me needs country-format digits; normalize 05xxxxxxxx -> 9665xxxxxxxx.
+  function driverPhone(id: string): string | null {
+    const raw = drivers.find((d) => d.id === id)?.phone;
+    if (!raw) return null;
+    const digits = raw.replace(/\D/g, '');
+    return digits.startsWith('0') ? `966${digits.slice(1)}` : digits;
   }
 
   function driverName(id: string): string {
@@ -183,7 +199,32 @@ export default function PickupSchedulePage() {
                         <td className="p-3 text-sm text-foreground" dir="ltr">
                           {new Date(a.scheduled_at).toLocaleString(isRTL ? 'ar-SA' : 'en-GB')}
                         </td>
-                        <td className="p-3 text-sm text-foreground">{driverName(a.driver_id)}</td>
+                        <td className="p-3 text-sm text-foreground">
+                          <span className="inline-flex items-center gap-2">
+                            {driverName(a.driver_id)}
+                            {driverPhone(a.driver_id) && (
+                              <a
+                                href={`https://wa.me/${driverPhone(a.driver_id)}?text=${encodeURIComponent(
+                                  isRTL
+                                    ? `بخصوص التقاط ${formatDateTime(a.scheduled_at, true)} — سند 360`
+                                    : `Regarding the pickup on ${formatDateTime(a.scheduled_at, false)} — Sanad 360`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={isRTL ? 'مراسلة السائق عبر واتساب' : 'Message driver on WhatsApp'}
+                                aria-label={isRTL ? 'مراسلة السائق عبر واتساب' : 'Message driver on WhatsApp'}
+                                className="text-success hover:opacity-80"
+                              >
+                                <MessageCircleIcon className="w-4 h-4" />
+                              </a>
+                            )}
+                            {a.recurrence !== 'none' && (
+                              <span className="text-[10px] rounded-full border border-border px-1.5 py-0.5 text-muted-foreground">
+                                {a.recurrence === 'daily' ? (isRTL ? 'يومي' : 'daily') : (isRTL ? 'أسبوعي' : 'weekly')}
+                              </span>
+                            )}
+                          </span>
+                        </td>
                         <td className="p-3 text-sm">
                           <StatusBadge status={a.status} isRTL={isRTL} />
                         </td>
@@ -280,6 +321,33 @@ export default function PickupSchedulePage() {
                     dir="ltr"
                     className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">
+                      {isRTL ? 'التكرار' : 'Recurrence'}
+                    </label>
+                    <select
+                      value={recurrence}
+                      onChange={(e) => setRecurrence(e.target.value as 'none' | 'daily' | 'weekly')}
+                      className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                    >
+                      <option value="none">{isRTL ? 'بدون تكرار' : 'One-time'}</option>
+                      <option value="daily">{isRTL ? 'يومي' : 'Daily'}</option>
+                      <option value="weekly">{isRTL ? 'أسبوعي' : 'Weekly'}</option>
+                    </select>
+                  </div>
+                  {recurrence !== 'none' && (
+                    <div>
+                      <label className="text-sm font-medium text-foreground">
+                        {isRTL ? 'حتى تاريخ' : 'Repeat until'}
+                      </label>
+                      <div className="mt-1">
+                        <DatePicker value={recurrenceUntil} onChange={setRecurrenceUntil} isRTL={isRTL} />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

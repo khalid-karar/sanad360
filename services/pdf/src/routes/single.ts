@@ -65,16 +65,18 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
 
   // 4. Fetch evidence files (base64 data URLs for Playwright) and re-hash the
   //    downloaded bytes server-side against the hashes in the ledger.
-  const [photo, receipt, signature] = await Promise.all([
+  const [photo, receipt, signature, scale] = await Promise.all([
     fetchEvidence('pickup-photos',     event.photo_path),
     fetchEvidence('pickup-receipts',   event.receipt_path),
     fetchEvidence('pickup-signatures', event.signature_path),
+    fetchEvidence('pickup-photos',     event.scale_photo_path),
   ]);
 
   const hashChecks: EvidenceHashChecks = {
-    photo:     checkHash(event.photo_path,     event.photo_sha256,     photo),
-    receipt:   checkHash(event.receipt_path,   event.receipt_sha256,   receipt),
-    signature: checkHash(event.signature_path, event.signature_sha256, signature),
+    photo:     checkHash(event.photo_path,       event.photo_sha256,       photo),
+    receipt:   checkHash(event.receipt_path,     event.receipt_sha256,     receipt),
+    signature: checkHash(event.signature_path,   event.signature_sha256,   signature),
+    scale:     checkHash(event.scale_photo_path, event.scale_photo_sha256, scale),
   };
 
   // 4b. Chain of custody: the disposal confirmation for this event (or any
@@ -114,6 +116,7 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
       photo:     photo?.dataUrl ?? null,
       receipt:   receipt?.dataUrl ?? null,
       signature: signature?.dataUrl ?? null,
+      scale:     scale?.dataUrl ?? null,
     },
     hashChecks,
     disposal: disposal ?? null,

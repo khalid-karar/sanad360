@@ -15,7 +15,7 @@
 
 import { supabase } from '../supabase';
 import { createPickupEvent } from '../api/pickups';
-import { uploadSignature, uploadPhoto, uploadReceipt } from '../api/storage';
+import { uploadSignature, uploadPhoto, uploadReceipt, uploadScalePhoto } from '../api/storage';
 import { completeAssignment } from '../api/assignments';
 import type { EvidenceUploadResult } from '../api/storage';
 
@@ -47,6 +47,9 @@ export interface QueuedSubmission {
   receiptBlob?: Blob;
   receiptName?: string;
   receiptType?: string;
+  scaleBlob?: Blob;
+  scaleName?: string;
+  scaleType?: string;
   queuedAt: number;
   attempts: number;
 }
@@ -115,6 +118,7 @@ async function replay(sub: QueuedSubmission): Promise<void> {
   let signatureRes: EvidenceUploadResult | undefined;
   let photoRes: EvidenceUploadResult | undefined;
   let receiptRes: EvidenceUploadResult | undefined;
+  let scaleRes: EvidenceUploadResult | undefined;
 
   if (sub.signatureDataUrl) {
     try {
@@ -162,6 +166,22 @@ async function replay(sub: QueuedSubmission): Promise<void> {
       };
     }
   }
+  if (sub.scaleBlob) {
+    const file = new File([sub.scaleBlob], sub.scaleName ?? 'scale.jpg', {
+      type: sub.scaleType ?? 'image/jpeg',
+    });
+    try {
+      scaleRes = await uploadScalePhoto(sub.companyId, sub.branchId, sub.eventId, file);
+    } catch (err) {
+      if (!isAlreadyExists(err)) throw err;
+      const { computeSha256 } = await import('../api/storage');
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      scaleRes = {
+        path: `${sub.companyId}/${sub.branchId}/${sub.eventId}/scale.${ext}`,
+        sha256: await computeSha256(new Uint8Array(await file.arrayBuffer())),
+      };
+    }
+  }
 
   // Ledger append — duplicate logical_id means a prior attempt succeeded.
   let ledgerEventId: string;
@@ -180,9 +200,11 @@ async function replay(sub: QueuedSubmission): Promise<void> {
       gps_accuracy_m: sub.gpsAccuracyM,
       qr_code_value: sub.qrCodeValue,
       photo_path: photoRes?.path,
+      scale_photo_path: scaleRes?.path,
       receipt_path: receiptRes?.path,
       signature_path: signatureRes?.path,
       photo_sha256: photoRes?.sha256,
+      scale_photo_sha256: scaleRes?.sha256,
       receipt_sha256: receiptRes?.sha256,
       signature_sha256: signatureRes?.sha256,
     });

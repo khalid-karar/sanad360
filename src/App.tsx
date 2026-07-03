@@ -13,7 +13,6 @@ import PWAUpdatePrompt from './components/pwa/PWAUpdatePrompt';
 import OfflineIndicator from './components/pwa/OfflineIndicator';
 import BackgroundSync from './components/pwa/BackgroundSync';
 import SyncStatus from './components/pwa/SyncStatus';
-import ChatBubble from './components/chat/ChatBubble';
 import LoginPage from './pages/LoginPage';
 import DriverDashboard from './pages/DriverDashboard';
 import CompanyDashboard from './pages/CompanyDashboard';
@@ -334,10 +333,8 @@ function App() {
       <OfflineIndicator />
       <BackgroundSync />
       <SyncStatus />
-      {/* QUARANTINED DEV MOCK: the chat is a session-local Zustand store with
-          no backend — messages are not delivered to anyone. Gated to dev
-          builds so it can never ship looking like a real feature. */}
-      {import.meta.env.DEV && user && <ChatBubble />}
+      {/* Chat mock removed: real-world coordination happens over WhatsApp —
+          schedulers deep-link to drivers from the schedule page. */}
     </Router>
   );
 }

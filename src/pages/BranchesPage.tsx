@@ -11,9 +11,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, XIcon, Building2Icon } from 'lucide-react';
+import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, Building2Icon } from 'lucide-react';
 import GeofenceMapPicker from '@/components/map/GeofenceMapPicker';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
+import { Modal } from '@/components/ui/modal';
 import QRCode from 'qrcode';
 
 const EMPTY = { name_ar: '', name_en: '', city: '', geofence_lat: '', geofence_lng: '', geofence_radius_m: '150' };
@@ -285,20 +286,21 @@ export default function BranchesPage() {
         </div>
       </div>
 
-      {/* Branch QR board modal — preview + print */}
+      {/* Branch QR board modal — preview + print (Radix Dialog: focus trap + Esc) */}
       {qrBranch && qrDataUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-sm bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <QrCodeIcon className="w-5 h-5 text-primary" />
-                {isRTL ? 'رمز نقطة النفايات' : 'Waste-Point QR Board'}
-              </CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setQrBranch(null)} aria-label={isRTL ? 'إغلاق' : 'Close'}>
-                <XIcon className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 text-center">
+        <Modal
+          open
+          onClose={() => setQrBranch(null)}
+          isRTL={isRTL}
+          maxWidth="max-w-sm"
+          title={
+            <span className="flex items-center gap-2">
+              <QrCodeIcon className="w-5 h-5 text-primary" />
+              {isRTL ? 'رمز نقطة النفايات' : 'Waste-Point QR Board'}
+            </span>
+          }
+        >
+          <div className="space-y-4 text-center">
               <p className="font-semibold text-lg text-foreground">{qrBranch.name_ar}</p>
               {qrBranch.name_en && <p className="text-sm text-muted-foreground" dir="ltr">{qrBranch.name_en}</p>}
               <img src={qrDataUrl} alt="Branch QR" className="mx-auto w-56 h-56 rounded-md border border-border bg-white p-2" />
@@ -310,9 +312,8 @@ export default function BranchesPage() {
               <Button onClick={printQr} className="w-full bg-primary text-primary-foreground">
                 <PrinterIcon className="w-4 h-4 me-2" />{isRTL ? 'طباعة' : 'Print'}
               </Button>
-            </CardContent>
-          </Card>
-        </div>
+          </div>
+        </Modal>
       )}
     </AppShell>
   );

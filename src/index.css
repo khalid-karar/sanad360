@@ -42,7 +42,7 @@
     --success: 150 65% 26%; /* Using primary green for success */
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 35 92% 33%; /* AA: 4.95 as text on white AND white-on-it */
     --warning-foreground: 0 0% 100%;
 
     --border: 220 13% 91%;
@@ -81,7 +81,7 @@
     --accent: 217 32% 17%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 62% 30%;
+    --destructive: 0 72% 55%; /* AA: 4.56 as text on dark bg */
     --destructive-foreground: 0 0% 100%;
 
     --success: 150 65% 26%; /* Using primary green for success */

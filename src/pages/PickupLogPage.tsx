@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { StatusPill } from '@/components/ui/status-pill';
+import { DatePicker } from '@/components/ui/date-picker';
 import AppShell from '../components/AppShell';
 import { listPickupEvents, exportPickupsCsv } from '../lib/api/pickups';
 import { listDrivers } from '../lib/api/drivers';
@@ -9,7 +10,6 @@ import { listBranches } from '../lib/api/branches';
 import type { PickupEvent, Driver, Vehicle, Branch } from '../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -127,11 +127,11 @@ export default function PickupLogPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <Label className="text-foreground">{isRTL ? 'من تاريخ' : 'Date From'}</Label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="mt-2" dir="ltr" />
+                <div className="mt-2"><DatePicker value={dateFrom} onChange={setDateFrom} isRTL={isRTL} /></div>
               </div>
               <div>
                 <Label className="text-foreground">{isRTL ? 'إلى تاريخ' : 'Date To'}</Label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="mt-2" dir="ltr" />
+                <div className="mt-2"><DatePicker value={dateTo} onChange={setDateTo} isRTL={isRTL} /></div>
               </div>
               <div>
                 <Label className="text-foreground">{isRTL ? 'الفرع' : 'Branch'}</Label>

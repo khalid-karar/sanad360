@@ -58,6 +58,13 @@ export async function generateMonthlyPdf(
   });
 }
 
+/** Generate the company-wide monthly pack (all branches, one document). */
+export async function generateMonthlyCompanyPdf(
+  month: string // "YYYY-MM"
+): Promise<GenerateResult & { branches: number; pickups: number }> {
+  return callService('/generate/monthly-company', { month });
+}
+
 /** List previously generated inspection PDFs for the caller's company. */
 export async function listInspectionPdfs(opts: {
   branchId?: string;

@@ -41,6 +41,7 @@ const anon  = createClient(SUPABASE_URL, ANON_KEY,    { auth: { persistSession: 
 // ─── Seed IDs (must match supabase/seed.sql) ─────────────────────────────────
 const SEED = {
   companyId:       'a0000000-0000-0000-0000-000000000001',
+  transportCompanyId: 'c0000000-0000-0000-0000-000000000001',
   branchId:        'b0000000-0000-0000-0000-000000000001',
   managerEmail:    'manager@sanad360.dev',
   managerPassword: 'DevPass1234!',
@@ -67,17 +68,63 @@ async function sessionClient(email: string, password: string): Promise<SupabaseC
 describe('Storage tenant isolation (Migration 008)', () => {
   const evidenceBytes = new TextEncoder().encode(`isolation-photo-${RUN}`);
   const pdfBytes      = new TextEncoder().encode(`%PDF-1.4 isolation-${RUN}`);
-  const evidencePath  = `${SEED.companyId}/${SEED.branchId}/isolation-${RUN}/photo.bin`;
-  const pdfPath       = `${SEED.companyId}/${SEED.branchId}/isolation-${RUN}.pdf`;
+  // DEFLAKE: fixtures live under a DEDICATED company with its own manager and
+  // its own ACTIVE link to the seed transport company. The previous version
+  // used the shared seed company/link, which other suites mutate in parallel
+  // (the rare test-7 race). Paths are assigned once the company exists.
+  let evidencePath = '';
+  let pdfPath = '';
 
+  let fixtureCompanyId = '';
+  let fixtureLinkId = '';
+  let fixtureManagerId = '';
   let outsiderUserId = '';
   let outsiderCompanyId = '';
   let outsiderClient: SupabaseClient;
   let managerClient: SupabaseClient;
   let driverClient: SupabaseClient;
 
+  const FIXTURE_MANAGER_EMAIL = `iso-manager-${RUN}@sanad360.dev`;
+
   beforeAll(async () => {
-    // Fixture objects in company A's prefixes (service_role bypasses RLS).
+    // Dedicated fixture company + manager + active link to the seed TC.
+    const { data: cw, error: cwErr } = await admin
+      .from('companies')
+      .insert({ name_ar: `شركة العزل المخصصة ${RUN}`, commercial_registration: `CR-ISOF-${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    if (cwErr || !cw) throw new Error(`fixture company failed: ${cwErr?.message}`);
+    fixtureCompanyId = cw.id;
+
+    const { data: fm, error: fmErr } = await admin.auth.admin.createUser({
+      email: FIXTURE_MANAGER_EMAIL,
+      password: OUTSIDER_PASSWORD,
+      email_confirm: true,
+    });
+    if (fmErr || !fm.user) throw new Error(`fixture manager failed: ${fmErr?.message}`);
+    fixtureManagerId = fm.user.id;
+    await admin.from('memberships').insert({
+      user_id: fixtureManagerId,
+      role: 'manager',
+      company_id: fixtureCompanyId,
+    });
+
+    const { data: link, error: linkErr } = await admin
+      .from('company_transporters')
+      .insert({
+        company_id: fixtureCompanyId,
+        transport_company_id: SEED.transportCompanyId,
+        status: 'active',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    if (linkErr || !link) throw new Error(`fixture link failed: ${linkErr?.message}`);
+    fixtureLinkId = link.id;
+
+    evidencePath = `${fixtureCompanyId}/${SEED.branchId}/isolation-${RUN}/photo.bin`;
+    pdfPath = `${fixtureCompanyId}/${SEED.branchId}/isolation-${RUN}.pdf`;
+
+    // Fixture objects in the dedicated company's prefixes (service_role bypasses RLS).
     const { error: upErr } = await admin.storage
       .from(PHOTOS_BUCKET)
       .upload(evidencePath, evidenceBytes, { upsert: false, contentType: 'application/octet-stream' });
@@ -115,7 +162,7 @@ describe('Storage tenant isolation (Migration 008)', () => {
 
     [outsiderClient, managerClient, driverClient] = await Promise.all([
       sessionClient(OUTSIDER_EMAIL, OUTSIDER_PASSWORD),
-      sessionClient(SEED.managerEmail, SEED.managerPassword),
+      sessionClient(FIXTURE_MANAGER_EMAIL, OUTSIDER_PASSWORD),
       sessionClient(SEED.driverEmail, SEED.driverPassword),
     ]);
   });
@@ -131,6 +178,13 @@ describe('Storage tenant isolation (Migration 008)', () => {
     if (outsiderCompanyId) {
       await admin.from('companies').delete().eq('id', outsiderCompanyId);
     }
+    if (fixtureLinkId) await admin.from('company_transporters').delete().eq('id', fixtureLinkId);
+    if (fixtureManagerId) {
+      await admin.from('memberships').delete().eq('user_id', fixtureManagerId);
+      await admin.from('profiles').delete().eq('id', fixtureManagerId);
+      await admin.auth.admin.deleteUser(fixtureManagerId);
+    }
+    if (fixtureCompanyId) await admin.from('companies').delete().eq('id', fixtureCompanyId);
   });
 
   it("1. outsider CANNOT download another company's evidence", async () => {
@@ -144,7 +198,7 @@ describe('Storage tenant isolation (Migration 008)', () => {
   it("2. outsider CANNOT list another company's evidence prefix", async () => {
     const { data } = await outsiderClient.storage
       .from(PHOTOS_BUCKET)
-      .list(`${SEED.companyId}/${SEED.branchId}/isolation-${RUN}`);
+      .list(`${fixtureCompanyId}/${SEED.branchId}/isolation-${RUN}`);
     // Under RLS, list() of an invisible prefix returns an empty array.
     expect(data ?? []).toHaveLength(0);
   });
@@ -158,7 +212,7 @@ describe('Storage tenant isolation (Migration 008)', () => {
   });
 
   it("4. outsider CANNOT upload into another company's prefix", async () => {
-    const squatPath = `${SEED.companyId}/${SEED.branchId}/squat-${RUN}/photo.bin`;
+    const squatPath = `${fixtureCompanyId}/${SEED.branchId}/squat-${RUN}/photo.bin`;
     const { error } = await outsiderClient.storage
       .from(PHOTOS_BUCKET)
       .upload(squatPath, evidenceBytes, { upsert: false });
@@ -166,7 +220,7 @@ describe('Storage tenant isolation (Migration 008)', () => {
     // Belt-and-suspenders: confirm nothing landed.
     const { data } = await admin.storage
       .from(PHOTOS_BUCKET)
-      .list(`${SEED.companyId}/${SEED.branchId}/squat-${RUN}`);
+      .list(`${fixtureCompanyId}/${SEED.branchId}/squat-${RUN}`);
     expect(data ?? []).toHaveLength(0);
   });
 

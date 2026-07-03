@@ -133,7 +133,7 @@ export async function handleInviteDriver(req: AuthedRequest, res: Response): Pro
     // 4. Link the fleet record to the account.
     const { error: linkErr } = await admin
       .from('drivers')
-      .update({ profile_id: userId })
+      .update({ profile_id: userId, phone: phoneDigits })
       .eq('id', driver.id);
     if (linkErr) {
       res.status(400).json({ error: `drivers.update: ${linkErr.message}` });

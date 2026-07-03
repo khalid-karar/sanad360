@@ -10,14 +10,15 @@ import { isNetworkError } from '../lib/offline/pickupQueue';
 import { enqueueDisposal } from '../lib/offline/disposalQueue';
 import { useNotificationStore } from '../stores/notificationStore';
 import type { PendingDelivery } from '../lib/api/disposals';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Loader2Icon, XIcon, CameraIcon, CheckIcon, MapPinIcon, FactoryIcon,
+  Loader2Icon, CameraIcon, CheckIcon, MapPinIcon, FactoryIcon,
 } from 'lucide-react';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
+import { Modal } from '@/components/ui/modal';
 
 /**
  * Disposal leg (chain of custody): after a pickup is collected, the driver
@@ -198,15 +199,13 @@ export default function DriverDeliveriesPage() {
       </div>
 
       {confirming && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-md max-h-[90vh] overflow-y-auto bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{isRTL ? 'تأكيد التسليم' : 'Confirm Delivery'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setConfirming(null)} aria-label={isRTL ? 'إغلاق' : 'Close'}>
-                <XIcon className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent>
+        <Modal
+          open
+          onClose={() => setConfirming(null)}
+          isRTL={isRTL}
+          title={isRTL ? 'تأكيد التسليم' : 'Confirm Delivery'}
+        >
+          <div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-foreground">
@@ -285,9 +284,8 @@ export default function DriverDeliveriesPage() {
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        </div>
+          </div>
+        </Modal>
       )}
     </AppShell>
   );

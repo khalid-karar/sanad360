@@ -101,6 +101,18 @@ export async function uploadPhoto(
   return uploadEvidenceFile(BUCKETS.PHOTOS, path, file, file.type || 'image/jpeg');
 }
 
+/** Upload a photo of the scale/weighbridge display (weight evidence). */
+export async function uploadScalePhoto(
+  companyId: string,
+  branchId: string,
+  pickupEventId: string,
+  file: File
+): Promise<EvidenceUploadResult> {
+  const ext = file.name.split('.').pop() ?? 'jpg';
+  const path = buildPath(companyId, branchId, pickupEventId, 'scale', ext);
+  return uploadEvidenceFile(BUCKETS.PHOTOS, path, file, file.type || 'image/jpeg');
+}
+
 /** Upload a receipt File to Supabase Storage. Returns path + sha256. */
 export async function uploadReceipt(
   companyId: string,

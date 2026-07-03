@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { useNotificationStore } from './notificationStore';
 import { useAuthStore } from './authStore';
 import { createPickupEvent } from '../lib/api/pickups';
-import { uploadSignature, uploadPhoto, uploadReceipt } from '../lib/api/storage';
+import { uploadSignature, uploadPhoto, uploadReceipt, uploadScalePhoto } from '../lib/api/storage';
 import {
   listAssignments,
   updateAssignmentStatus,
@@ -41,6 +41,7 @@ export interface ManifestData {
   gps_accuracy_m?: number;
   qr_code_value?: string;
   photoFile?: File;
+  scalePhotoFile?: File;
   receiptFile?: File;
 }
 
@@ -203,7 +204,7 @@ export const useDriverStore = create<DriverState>((set, get) => ({
         // Upload evidence in parallel; each returns { path, sha256 } and both
         // are persisted on the pickup event (re-verified server-side by the
         // PDF service).
-        const [signatureRes, photoRes, receiptRes] = await Promise.all([
+        const [signatureRes, photoRes, receiptRes, scaleRes] = await Promise.all([
           state.signature
             ? uploadSignature(a.company_id, a.branch_id, newEventId, state.signature)
             : Promise.resolve(undefined),
@@ -212,6 +213,9 @@ export const useDriverStore = create<DriverState>((set, get) => ({
             : Promise.resolve(undefined),
           state.manifestData.receiptFile
             ? uploadReceipt(a.company_id, a.branch_id, newEventId, state.manifestData.receiptFile)
+            : Promise.resolve(undefined),
+          state.manifestData.scalePhotoFile
+            ? uploadScalePhoto(a.company_id, a.branch_id, newEventId, state.manifestData.scalePhotoFile)
             : Promise.resolve(undefined),
         ]);
 
@@ -229,9 +233,11 @@ export const useDriverStore = create<DriverState>((set, get) => ({
           gps_accuracy_m: state.manifestData.gps_accuracy_m,
           qr_code_value: state.manifestData.qr_code_value,
           photo_path: photoRes?.path,
+          scale_photo_path: scaleRes?.path,
           receipt_path: receiptRes?.path,
           signature_path: signatureRes?.path,
           photo_sha256: photoRes?.sha256,
+          scale_photo_sha256: scaleRes?.sha256,
           receipt_sha256: receiptRes?.sha256,
           signature_sha256: signatureRes?.sha256,
         });
@@ -286,6 +292,9 @@ export const useDriverStore = create<DriverState>((set, get) => ({
             receiptBlob: state.manifestData.receiptFile,
             receiptName: state.manifestData.receiptFile?.name,
             receiptType: state.manifestData.receiptFile?.type,
+            scaleBlob: state.manifestData.scalePhotoFile,
+            scaleName: state.manifestData.scalePhotoFile?.name,
+            scaleType: state.manifestData.scalePhotoFile?.type,
             queuedAt: Date.now(),
             attempts: 0,
           });

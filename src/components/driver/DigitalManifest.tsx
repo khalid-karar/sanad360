@@ -4,7 +4,7 @@ import { useDriverStore } from '../../stores/driverStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { CameraIcon, ReceiptIcon, CheckIcon } from 'lucide-react';
+import { CameraIcon, ReceiptIcon, CheckIcon, ScaleIcon } from 'lucide-react';
 
 const wasteTypes = [
   { id: 'industrial', labelAr: 'نفايات صناعية',   labelEn: 'Industrial Waste' },
@@ -22,6 +22,7 @@ export default function DigitalManifest() {
 
   const photoInputRef   = useRef<HTMLInputElement>(null);
   const receiptInputRef = useRef<HTMLInputElement>(null);
+  const scaleInputRef   = useRef<HTMLInputElement>(null);
 
   const toggleWasteType = (type: string) => {
     const current = manifestData.wasteType || [];
@@ -51,6 +52,11 @@ export default function DigitalManifest() {
   const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) updateManifestData({ receiptFile: file });
+  };
+
+  const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) updateManifestData({ scalePhotoFile: file });
   };
 
   const handleComplete = () => {
@@ -188,6 +194,26 @@ export default function DigitalManifest() {
             {manifestData.photoFile
               ? <><CheckIcon className="w-4 h-4 me-2" />{isRTL ? 'تم التقاط الصورة' : 'Photo captured'}</>
               : <><CameraIcon className="w-4 h-4 me-2" />{isRTL ? 'التقاط صورة' : 'Take Photo'}</>
+            }
+          </Button>
+
+          {/* Scale display: evidences the typed weight (migration 016) */}
+          <input
+            ref={scaleInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleScaleChange}
+          />
+          <Button
+            variant="outline"
+            className={`w-full ${manifestData.scalePhotoFile ? 'border-success text-success' : 'bg-background text-foreground border-border hover:bg-accent hover:text-accent-foreground'}`}
+            onClick={() => scaleInputRef.current?.click()}
+          >
+            {manifestData.scalePhotoFile
+              ? <><CheckIcon className="w-4 h-4 me-2" />{isRTL ? 'تم تصوير الميزان' : 'Scale photo captured'}</>
+              : <><ScaleIcon className="w-4 h-4 me-2" />{isRTL ? 'تصوير شاشة الميزان' : 'Photograph the Scale Display'}</>
             }
           </Button>
 
