@@ -40,8 +40,11 @@ export async function signOut(): Promise<void> {
   // Race signOut against a 3-second timeout so a hanging network call (e.g. an
   // unhealthy local Supabase or an already-invalid JWT) never blocks logout
   // navigation. Local auth state is cleared by the caller regardless.
+  // scope:'local' signs out THIS browser only. The default ('global')
+  // revokes the refresh-token family everywhere — which is why signing out
+  // on one device used to break every other logged-in browser at once.
   await Promise.race([
-    supabase.auth.signOut(),
+    supabase.auth.signOut({ scope: 'local' }),
     new Promise<void>((resolve) => setTimeout(resolve, 3000)),
   ]);
 }

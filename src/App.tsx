@@ -95,8 +95,17 @@ function App() {
     // This is the most reliable way to know whether a valid session exists on load,
     // and it replaces the old getSession() + separate subscription pattern that was
     // causing a race / double-logout loop in React 18 StrictMode.
+    // DEADLOCK GUARD: supabase-js runs this callback while holding its
+    // internal navigator lock. Calling ANY other auth method (getUser,
+    // signOut) synchronously inside it deadlocks the client — which froze
+    // every tab of the origin after sign-out on staging. All work is
+    // therefore deferred out of the callback with setTimeout(0), per the
+    // supabase-js documentation.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (cancelled) return;
+
+        setTimeout(() => {
         if (cancelled) return;
 
         if (event === 'INITIAL_SESSION') {
@@ -129,10 +138,12 @@ function App() {
           return;
         }
 
-        // Token expired or signed out from another tab
-        if (event === 'SIGNED_OUT') {
+        // Token expired or signed out from another tab. Guard on state so a
+        // logout we initiated ourselves doesn't recurse into logout again.
+        if (event === 'SIGNED_OUT' && useAuthStore.getState().user) {
           useAuthStore.getState().logout();
         }
+        }, 0);
       }
     );
 
