@@ -75,6 +75,11 @@ jobs:
 
       - name: Seed staging with FAKE demo data
         env:
+          # Preferred: script builds + percent-encodes the URL itself from
+          # these two (same secrets `push staging` already uses). SUPABASE_
+          # STAGING_DB_URL is only an explicit override if set.
+          SUPABASE_STAGING_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+          SUPABASE_STAGING_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
           SUPABASE_STAGING_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
           SUPABASE_PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
         run: npm run db:seed:staging

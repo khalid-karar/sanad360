@@ -50,12 +50,33 @@ if (action === 'seed') {
   }
 
   // staging: run seed.sql against the staging DB via direct Postgres URL.
-  const url = process.env.SUPABASE_STAGING_DB_URL;
-  if (!url) die('SUPABASE_STAGING_DB_URL is not set (see .env.example).');
+  //
+  // Prefer building the URL ourselves from SUPABASE_STAGING_PROJECT_REF +
+  // SUPABASE_STAGING_DB_PASSWORD (the same two secrets `push staging` already
+  // uses successfully) with the password percent-encoded. A hand-copied full
+  // SUPABASE_STAGING_DB_URL is a classic footgun: Supabase-generated DB
+  // passwords commonly contain $, @, !, # etc., and an unencoded special
+  // character in a pasted connection string breaks URI parsing or gets
+  // mangled by shell interpolation — it then fails with an opaque
+  // "process completed with exit code 1" that looks like an auth problem.
+  // SUPABASE_STAGING_DB_URL is kept as an explicit override/fallback for
+  // anyone who still wants to set the full string directly.
+  const stagingRef = process.env.SUPABASE_STAGING_PROJECT_REF;
+  const stagingPassword = process.env.SUPABASE_STAGING_DB_PASSWORD;
+  let url = process.env.SUPABASE_STAGING_DB_URL;
+
+  if (stagingRef && stagingPassword) {
+    url = `postgresql://postgres:${encodeURIComponent(stagingPassword)}@db.${stagingRef}.supabase.co:5432/postgres`;
+  } else if (!url) {
+    die(
+      'Set SUPABASE_STAGING_PROJECT_REF + SUPABASE_STAGING_DB_PASSWORD (preferred), ' +
+      'or SUPABASE_STAGING_DB_URL directly (see .env.example).'
+    );
+  }
 
   // ── SAFETY RAIL 2: the staging URL must not point at production ──
   if (PROD_REF && url.includes(PROD_REF)) {
-    die(`SUPABASE_STAGING_DB_URL contains the PRODUCTION project ref (${PROD_REF}).`);
+    die(`The resolved staging DB URL contains the PRODUCTION project ref (${PROD_REF}).`);
   }
   run(`psql "${url}" -v ON_ERROR_STOP=1 -f supabase/seed.sql`, {
     env: { ...process.env },

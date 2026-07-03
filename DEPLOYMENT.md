@@ -31,7 +31,7 @@ the `STAGING`/`PROD` pair used by the promotion script):
 | `SUPABASE_ACCESS_TOKEN` | `supabase link/db push` | CLI token from supabase.com → Account → Access Tokens |
 | `SUPABASE_STAGING_PROJECT_REF` / `SUPABASE_PROD_PROJECT_REF` | promotion script | Settings → General → Reference ID |
 | `SUPABASE_STAGING_DB_PASSWORD` / `SUPABASE_PROD_DB_PASSWORD` | `supabase db push` | Settings → Database |
-| `SUPABASE_STAGING_DB_URL` | **staging seeding only** | direct Postgres URL; there is deliberately no PROD equivalent |
+| `SUPABASE_STAGING_DB_URL` | staging seeding, **optional override** | the seed script builds this itself from `SUPABASE_STAGING_PROJECT_REF` + `SUPABASE_STAGING_DB_PASSWORD` (password percent-encoded, avoiding the classic special-character-in-a-pasted-URL bug); set this only to override that. Deliberately no PROD equivalent |
 | `VITE_SUPABASE_URL` | frontend build | the environment's Supabase URL |
 | `VITE_SUPABASE_ANON_KEY` | frontend build | the environment's anon/publishable key |
 | `VITE_PDF_SERVICE_URL` | frontend build | the environment's PDF service URL |
