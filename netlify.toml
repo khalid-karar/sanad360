@@ -1,0 +1,34 @@
+# Sanad 360 — Netlify configuration (frontend)
+#
+# Environment variables (Site settings → Environment variables):
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_PDF_SERVICE_URL
+#   (optional) VITE_SENTRY_DSN, VITE_SENTRY_ENV
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# SPA fallback: deep links (/company/review, /driver/schedule, …) must serve
+# the app shell — React Router handles the path client-side.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# The service worker must never be cached long-term: browsers fetch it to
+# discover updates, and a stale worker was the root of the sign-out freeze.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Hashed build assets are immutable.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

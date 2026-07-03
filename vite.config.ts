@@ -5,8 +5,12 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
-  publicDir: "./static",
-  base: "./",
+  // Scaffold bug fixed: publicDir pointed at a nonexistent ./static, so
+  // public/ (manifest.json, sw.js) NEVER shipped to dist — the production
+  // 404s. And base './' made asset URLs relative, which 404s on deep-link
+  // refresh (/company/review -> ./assets/...). Standard absolute setup:
+  publicDir: "public",
+  base: "/",
   css: {
     postcss: {
       plugins: [tailwind()],
