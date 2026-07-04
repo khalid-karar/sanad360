@@ -31,7 +31,7 @@ the `STAGING`/`PROD` pair used by the promotion script):
 | `SUPABASE_ACCESS_TOKEN` | `supabase link/db push` | CLI token from supabase.com → Account → Access Tokens |
 | `SUPABASE_STAGING_PROJECT_REF` / `SUPABASE_PROD_PROJECT_REF` | promotion script | Settings → General → Reference ID |
 | `SUPABASE_STAGING_DB_PASSWORD` / `SUPABASE_PROD_DB_PASSWORD` | `supabase db push` | Settings → Database |
-| `SUPABASE_STAGING_DB_URL` | staging seeding, **optional override** | the seed script builds this itself from `SUPABASE_STAGING_PROJECT_REF` + `SUPABASE_STAGING_DB_PASSWORD` (password percent-encoded, avoiding the classic special-character-in-a-pasted-URL bug); set this only to override that. Deliberately no PROD equivalent |
+| `SUPABASE_STAGING_DB_URL` | staging seeding — **set this to the Session pooler string** | GitHub Actions runners have no IPv6 egress; Supabase's direct host (`db.<ref>.supabase.co`) is IPv6-only without the paid IPv4 add-on, so seeding from CI needs the **Session pooler** connection string instead (Supabase dashboard → Project Settings → Database → Connection string → "Session pooler" tab, port 5432, host like `aws-0-<region>.pooler.supabase.com`). If unset, the script falls back to building the direct-host URL from `SUPABASE_STAGING_PROJECT_REF` + `SUPABASE_STAGING_DB_PASSWORD`, which works for local/manual use but not from CI. Deliberately no PROD equivalent |
 | `VITE_SUPABASE_URL` | frontend build | the environment's Supabase URL |
 | `VITE_SUPABASE_ANON_KEY` | frontend build | the environment's anon/publishable key |
 | `VITE_PDF_SERVICE_URL` | frontend build | the environment's PDF service URL |

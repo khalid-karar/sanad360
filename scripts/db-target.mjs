@@ -32,8 +32,20 @@ function die(msg) {
   process.exit(1);
 }
 
+// Masks both `-p <password>` (supabase link/db push) and a password embedded
+// in a postgres:// URI's userinfo (the psql seed command) before echoing —
+// this line is the ONLY thing that previously printed the raw seed command,
+// and a postgres://user:PASSWORD@host URL was NOT covered by the -p regex,
+// so every past `seed staging` run leaked the staging DB password verbatim
+// into the GitHub Actions log.
+function maskSecrets(cmd) {
+  return cmd
+    .replace(/(-p\s+)\S+/g, '$1***')
+    .replace(/(:\/\/[^:/\s]+:)([^@\s]+)(@)/g, '$1***$3');
+}
+
 function run(cmd, opts = {}) {
-  console.log(`\n$ ${cmd.replace(/(-p\s+)\S+/g, '$1***')}`);
+  console.log(`\n$ ${maskSecrets(cmd)}`);
   execSync(cmd, { stdio: 'inherit', ...opts });
 }
 
@@ -51,33 +63,48 @@ if (action === 'seed') {
 
   // staging: run seed.sql against the staging DB via direct Postgres URL.
   //
-  // Prefer building the URL ourselves from SUPABASE_STAGING_PROJECT_REF +
-  // SUPABASE_STAGING_DB_PASSWORD (the same two secrets `push staging` already
-  // uses successfully) with the password percent-encoded. A hand-copied full
-  // SUPABASE_STAGING_DB_URL is a classic footgun: Supabase-generated DB
-  // passwords commonly contain $, @, !, # etc., and an unencoded special
-  // character in a pasted connection string breaks URI parsing or gets
-  // mangled by shell interpolation — it then fails with an opaque
-  // "process completed with exit code 1" that looks like an auth problem.
-  // SUPABASE_STAGING_DB_URL is kept as an explicit override/fallback for
-  // anyone who still wants to set the full string directly.
-  const stagingRef = process.env.SUPABASE_STAGING_PROJECT_REF;
-  const stagingPassword = process.env.SUPABASE_STAGING_DB_PASSWORD;
+  // SUPABASE_STAGING_DB_URL, if set, is an EXPLICIT OVERRIDE and always wins —
+  // this matters because GitHub Actions runners have NO IPv6 egress, and
+  // Supabase's direct connection host (db.<ref>.supabase.co:5432) is
+  // IPv6-only unless the project has the paid IPv4 add-on. The fix in that
+  // case is to set SUPABASE_STAGING_DB_URL to the project's SESSION POOLER
+  // connection string instead (Supabase dashboard → Project Settings →
+  // Database → Connection string → "Session pooler" tab), which is
+  // IPv4-reachable — NOT the "URI"/direct tab.
+  //
+  // If no override is set, we build the direct-host URL from
+  // SUPABASE_STAGING_PROJECT_REF + SUPABASE_STAGING_DB_PASSWORD (the same
+  // two secrets `push staging` already uses) with the password
+  // percent-encoded — avoiding the OTHER classic footgun, where a hand-pasted
+  // URL contains an un-encoded special character ($, @, !, # are common in
+  // Supabase-generated passwords) and silently breaks URI parsing.
   let url = process.env.SUPABASE_STAGING_DB_URL;
-
-  if (stagingRef && stagingPassword) {
+  if (!url) {
+    const stagingRef = process.env.SUPABASE_STAGING_PROJECT_REF;
+    const stagingPassword = process.env.SUPABASE_STAGING_DB_PASSWORD;
+    if (!stagingRef || !stagingPassword) {
+      die(
+        'Set SUPABASE_STAGING_DB_URL (recommended: the Session pooler string), ' +
+        'or SUPABASE_STAGING_PROJECT_REF + SUPABASE_STAGING_DB_PASSWORD (see .env.example).'
+      );
+    }
     url = `postgresql://postgres:${encodeURIComponent(stagingPassword)}@db.${stagingRef}.supabase.co:5432/postgres`;
-  } else if (!url) {
-    die(
-      'Set SUPABASE_STAGING_PROJECT_REF + SUPABASE_STAGING_DB_PASSWORD (preferred), ' +
-      'or SUPABASE_STAGING_DB_URL directly (see .env.example).'
-    );
   }
 
   // ── SAFETY RAIL 2: the staging URL must not point at production ──
   if (PROD_REF && url.includes(PROD_REF)) {
     die(`The resolved staging DB URL contains the PRODUCTION project ref (${PROD_REF}).`);
   }
+
+  let psqlVersion;
+  try {
+    psqlVersion = execSync('psql --version').toString().trim();
+  } catch {
+    psqlVersion = 'NOT FOUND on PATH — install postgresql-client';
+  }
+  console.log(`\n$ psql <staging DB, host redacted> -v ON_ERROR_STOP=1 -f supabase/seed.sql`);
+  console.log(`  psql version: ${psqlVersion}`);
+  console.log(`  host: ${new URL(url).hostname}`); // hostname only, never the password
   run(`psql "${url}" -v ON_ERROR_STOP=1 -f supabase/seed.sql`, {
     env: { ...process.env },
   });
