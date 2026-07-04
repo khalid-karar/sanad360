@@ -304,7 +304,13 @@ function App() {
         <Route
           path="/transport/vehicles"
           element={
-            user && ['owner', 'manager'].includes(user.role) && user.transport_company_id
+            // dispatcher included: RLS already lets any transport member SELECT
+            // vehicles (only INSERT/UPDATE is owner/manager-only) — excluding
+            // dispatcher here left the sidebar link pointing at a page they'd
+            // instantly get redirected out of, which /login then bounced back
+            // to this role's home ('/transport'), looking like a dead click.
+            // VehicleManagementPage hides the write actions for dispatcher.
+            user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
               ? <VehicleManagementPage />
               : <Navigate to="/login" replace />
           }

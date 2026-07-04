@@ -131,10 +131,17 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
+    // z-[1200]: this form renders on AdminDashboard alongside <ComplianceMap/>
+    // (a Leaflet map). Leaflet's own panes/controls use z-index up to 1000,
+    // so the previous z-50 here rendered the form BEHIND the map.
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-gray-900/50 p-4">
       <Card className={`w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{isRTL ? 'إضافة منشأة جديدة' : 'Add New Company'}</CardTitle>
+          <CardTitle>
+            {tenantType === 'transport_company'
+              ? (isRTL ? 'إضافة شركة نقل جديدة' : 'Add New Transport Company')
+              : (isRTL ? 'إضافة منشأة جديدة' : 'Add New Company')}
+          </CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label={isRTL ? 'إغلاق' : 'Close'}>
             <XIcon className="w-5 h-5" />
           </Button>

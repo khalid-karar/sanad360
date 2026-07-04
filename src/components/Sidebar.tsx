@@ -45,8 +45,10 @@ export default function Sidebar({ role }: SidebarProps) {
   ];
 
   const transportLinks = [
+    // "Alerts" used to be a separate nav item pointing at the same '/transport'
+    // URL as Dashboard — RealAlertsPanel is embedded IN the dashboard, so it
+    // was never a distinct page; clicking it just looked like a dead click.
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/transport' },
-    { icon: AlertTriangleIcon, label: isRTL ? 'التنبيهات' : 'Alerts', path: '/transport' },
     { icon: UsersIcon, label: isRTL ? 'إدارة السائقين' : 'Driver Management', path: '/transport/drivers' },
     { icon: TruckIcon, label: isRTL ? 'إدارة المركبات' : 'Vehicle Management', path: '/transport/vehicles' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/transport/pickups' },

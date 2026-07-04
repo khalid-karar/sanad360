@@ -86,9 +86,13 @@ export default function CompaniesTable() {
         <CardTitle className="text-foreground">
           {isRTL ? 'المنشآت المسجلة' : 'Registered Companies'}
         </CardTitle>
+        {/* This one button onboards EITHER tenant type — the modal has a
+            "Tenant Type" radio (Company / Transport Company) at the top.
+            Renamed from "Add Company" because that hid the transport-company
+            path entirely. */}
         <Button onClick={() => setShowOnboard(true)} className="gap-2">
           <PlusIcon className="w-4 h-4" />
-          {isRTL ? 'إضافة منشأة' : 'Add Company'}
+          {isRTL ? 'إضافة منشأة / ناقل' : 'Add Company / Transporter'}
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">

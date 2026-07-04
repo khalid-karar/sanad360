@@ -27,10 +27,10 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-gray-900/50" />
+        <Dialog.Overlay className="fixed inset-0 z-[1200] bg-gray-900/50" />
         <Dialog.Content
           dir={isRTL ? 'rtl' : 'ltr'}
-          className={`fixed z-50 inset-x-0 bottom-0 sm:inset-auto sm:start-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 rtl:sm:translate-x-1/2
+          className={`fixed z-[1200] inset-x-0 bottom-0 sm:inset-auto sm:start-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 rtl:sm:translate-x-1/2
             w-full sm:w-auto sm:min-w-[24rem] ${maxWidth} max-h-[90vh] overflow-y-auto
             rounded-t-2xl sm:rounded-2xl border border-border bg-card text-card-foreground shadow-medium pb-safe`}
         >

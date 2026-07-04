@@ -100,7 +100,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
 
   return (
     <div
-      className="fixed inset-0 bg-gray-900/50 z-50 flex items-end sm:items-start justify-center sm:justify-end sm:p-4"
+      className="fixed inset-0 bg-gray-900/50 z-[1200] flex items-end sm:items-start justify-center sm:justify-end sm:p-4"
       onClick={onClose}
     >
       <Card

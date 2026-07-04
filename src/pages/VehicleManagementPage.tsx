@@ -32,6 +32,11 @@ const licenseTypes = [
 export default function VehicleManagementPage() {
   const { isRTL, user } = useAuthStore();
   const { vehicles, loadVehicles, addVehicle, removeVehicle } = useTransportStore();
+  // Route now also admits 'dispatcher' (read access matches RLS SELECT), but
+  // only owner/manager may add/deactivate vehicles — RLS enforces this at the
+  // DB layer too; hiding the actions here avoids a dispatcher hitting a
+  // confusing 42501 permission-denied error.
+  const canManage = ['owner', 'manager'].includes(user?.role ?? '');
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -105,9 +110,11 @@ export default function VehicleManagementPage() {
             <h1 className="text-3xl font-bold text-foreground mb-2">{isRTL ? 'إدارة المركبات' : 'Vehicle Management'}</h1>
             <p className="text-muted-foreground">{isRTL ? 'إدارة وتتبع المركبات وتراخيص NCWM' : 'Manage and track vehicles and NCWM licenses'}</p>
           </div>
-          <Button onClick={() => setShowAddForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-            <PlusIcon className="w-4 h-4 mr-2" />{isRTL ? 'إضافة مركبة' : 'Add Vehicle'}
-          </Button>
+          {canManage && (
+            <Button onClick={() => setShowAddForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <PlusIcon className="w-4 h-4 mr-2" />{isRTL ? 'إضافة مركبة' : 'Add Vehicle'}
+            </Button>
+          )}
         </div>
 
         <Card className="bg-card text-card-foreground border-border">
@@ -119,7 +126,7 @@ export default function VehicleManagementPage() {
           </CardContent>
         </Card>
 
-        {showAddForm && (
+        {canManage && showAddForm && (
           <Card className="bg-card text-card-foreground border-2 border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-3"><TruckIcon className="w-6 h-6 text-primary" />{isRTL ? 'إضافة مركبة جديدة' : 'Add New Vehicle'}</CardTitle>
@@ -175,9 +182,11 @@ export default function VehicleManagementPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {badge(v.ncwm_license_expiry)}
-                          <Button size="sm" variant="outline" className="text-destructive" disabled={v.status !== 'active'} onClick={() => handleDeactivate(v.id)} title={isRTL ? 'تعطيل' : 'Deactivate'}>
-                            <PowerIcon className="w-4 h-4" />
-                          </Button>
+                          {canManage && (
+                            <Button size="sm" variant="outline" className="text-destructive" disabled={v.status !== 'active'} onClick={() => handleDeactivate(v.id)} title={isRTL ? 'تعطيل' : 'Deactivate'}>
+                              <PowerIcon className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-border text-sm">
