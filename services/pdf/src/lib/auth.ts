@@ -20,6 +20,14 @@ export async function authMiddleware(
   // Validate the JWT and get the user
   const { data: { user }, error: authError } = await admin.auth.getUser(jwt);
   if (authError || !user) {
+    // Server-side only — never exposed in the response. The most common
+    // cause of EVERY caller hitting this: this service's SUPABASE_URL /
+    // SUPABASE_SERVICE_ROLE_KEY point at a DIFFERENT Supabase project than
+    // the one that issued the caller's JWT (e.g. this host's env vars still
+    // set to a stale/placeholder project while the frontend talks to the
+    // real one) — signature verification then fails for every single token,
+    // valid or not, even though this project is itself reachable.
+    console.error('[authMiddleware] JWT validation failed:', authError?.message ?? 'no user returned');
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }

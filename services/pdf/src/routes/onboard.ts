@@ -42,6 +42,14 @@ export async function handleOnboardCompany(req: Request, res: Response): Promise
   }
   const { data: userData, error: userErr } = await anon.auth.getUser(jwt);
   if (userErr || !userData.user) {
+    // Server-side only — never exposed in the response (no info leak to the
+    // caller). The most common cause: this service's SUPABASE_URL/
+    // SUPABASE_ANON_KEY point at a DIFFERENT Supabase project than the one
+    // that issued the caller's JWT (e.g. Railway env vars set to a stale or
+    // placeholder project while the frontend talks to the real one) — JWT
+    // signature verification then fails even though both projects are
+    // individually reachable.
+    console.error('[onboard-company] JWT validation failed:', userErr?.message ?? 'no user returned');
     res.status(403).json({ error: 'Forbidden' });
     return;
   }
@@ -51,7 +59,7 @@ export async function handleOnboardCompany(req: Request, res: Response): Promise
   // NOTE: memberships has NO status column (see migration 004's comment); the
   // previous .eq('status','active') filter errored on the unknown column and
   // made this endpoint return 403 for every caller, including real admins.
-  const { data: membership } = await admin
+  const { data: membership, error: memErr } = await admin
     .from('memberships')
     .select('role')
     .eq('user_id', callerId)
@@ -59,6 +67,15 @@ export async function handleOnboardCompany(req: Request, res: Response): Promise
     .maybeSingle<{ role: string }>();
 
   if (!membership) {
+    // Server-side only. If the JWT check above passed but this finds no row,
+    // either the caller genuinely isn't an admin, OR (same root cause as
+    // above) SUPABASE_SERVICE_ROLE_KEY on this service points at a different
+    // project's (empty-for-this-user) memberships table.
+    console.error(
+      '[onboard-company] no admin membership for user',
+      callerId,
+      memErr ? `(query error: ${memErr.message})` : '(no matching row)'
+    );
     res.status(403).json({ error: 'Forbidden' });
     return;
   }
