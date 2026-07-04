@@ -32,14 +32,14 @@ import CompaniesPage from './pages/CompaniesPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
 
-// Role → route mapping (keeps the existing URL scheme)
-const roleRoute: Record<string, string> = {
-  driver: '/driver',
-  owner: '/company',
-  manager: '/company',
-  dispatcher: '/transport',
-  admin: '/admin',
-};
+// owner/manager exist on both company and transport-company tenants, so the
+// destination depends on which tenant field the active membership actually
+// set — see the identical fix in LoginPage.tsx's post-login redirect.
+function homeRouteFor(user: { role: string; transport_company_id: string | null }): string {
+  if (user.role === 'admin') return '/admin';
+  if (user.role === 'driver') return '/driver';
+  return user.transport_company_id ? '/transport' : '/company';
+}
 
 function App() {
   const { user, hydrate } = useAuthStore();
@@ -169,7 +169,7 @@ function App() {
           path="/login"
           element={
             user
-              ? <Navigate to={roleRoute[user.role] ?? '/driver'} replace />
+              ? <Navigate to={homeRouteFor(user)} replace />
               : <LoginPage />
           }
         />
@@ -327,7 +327,7 @@ function App() {
           path="/"
           element={
             user
-              ? <Navigate to={roleRoute[user.role] ?? '/driver'} replace />
+              ? <Navigate to={homeRouteFor(user)} replace />
               : <Navigate to="/login" replace />
           }
         />

@@ -19,6 +19,10 @@ import { Modal } from '@/components/ui/modal';
 export default function DriverManagementPage() {
   const { isRTL, user } = useAuthStore();
   const { drivers, loadDrivers, addDriver, removeDriver } = useTransportStore();
+  // drivers_insert RLS allows owner/manager/dispatcher, but drivers_update
+  // (used by Deactivate) is owner/manager only — hiding it for dispatcher
+  // avoids a raw 42501 permission-denied error (mirrors VehicleManagementPage).
+  const canDeactivate = ['owner', 'manager'].includes(user?.role ?? '');
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -201,9 +205,11 @@ export default function DriverManagementPage() {
                               <KeyRoundIcon className="w-4 h-4 me-1" />{isRTL ? 'دعوة' : 'Invite'}
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" className="text-destructive" disabled={d.status !== 'active'} onClick={() => handleDeactivate(d.id)} title={isRTL ? 'تعطيل' : 'Deactivate'} aria-label={isRTL ? 'تعطيل السائق' : 'Deactivate driver'}>
-                            <PowerIcon className="w-4 h-4" />
-                          </Button>
+                          {canDeactivate && (
+                            <Button size="sm" variant="outline" className="text-destructive" disabled={d.status !== 'active'} onClick={() => handleDeactivate(d.id)} title={isRTL ? 'تعطيل' : 'Deactivate'} aria-label={isRTL ? 'تعطيل السائق' : 'Deactivate driver'}>
+                              <PowerIcon className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-border text-sm">

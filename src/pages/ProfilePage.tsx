@@ -11,10 +11,13 @@ import { UserIcon } from 'lucide-react';
 
 type AppRole = 'company' | 'transport' | 'driver' | 'admin';
 
-function shellRole(role: string | undefined): AppRole {
-  if (role === 'admin') return 'admin';
-  if (role === 'driver') return 'driver';
-  if (role === 'dispatcher') return 'transport';
+// owner/manager exist on both company and transport-company tenants, so role
+// alone can't pick the shell (dispatcher is transport-only, hence the
+// special case) — same tenant-field check as LoginPage.tsx/App.tsx.
+function shellRole(user: { role?: string; transport_company_id?: string | null } | null): AppRole {
+  if (user?.role === 'admin') return 'admin';
+  if (user?.role === 'driver') return 'driver';
+  if (user?.role === 'dispatcher' || user?.transport_company_id) return 'transport';
   return 'company';
 }
 
@@ -51,7 +54,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <AppShell role={shellRole(user?.role)}>
+    <AppShell role={shellRole(user)}>
       <div className={`max-w-2xl space-y-8 ${isRTL ? 'rtl' : 'ltr'}`}>
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">{isRTL ? 'الملف الشخصي والإعدادات' : 'Profile & Settings'}</h1>
