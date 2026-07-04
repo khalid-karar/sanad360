@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { FileTextIcon, DownloadIcon, RefreshCwIcon } from 'lucide-react';
 
 const REPORT_TYPE_LABELS: Record<string, { ar: string; en: string }> = {
-  single_pickup:   { ar: 'عملية واحدة', en: 'Single Pickup' },
-  monthly_summary: { ar: 'ملخص شهري',   en: 'Monthly Summary' },
+  single_pickup:   { ar: 'عملية واحدة',    en: 'Single Pickup' },
+  monthly_summary: { ar: 'ملخص شهري',      en: 'Monthly Summary' },
+  monthly_company: { ar: 'ملخص شهري للمنشأة', en: 'Monthly Company Summary' },
 };
 
 export default function InspectionPdfsList() {
@@ -67,7 +68,14 @@ export default function InspectionPdfsList() {
         ) : (
           <div className="space-y-2">
             {pdfs.map((pdf) => {
-              const typeLabel = REPORT_TYPE_LABELS[pdf.report_type];
+              // Falls back to the raw value for any report_type not in the
+              // lookup table above — an unconditional lookup here threw
+              // "Cannot read properties of undefined (reading 'ar')" whenever
+              // a PDF record had an unrecognized report_type.
+              const typeLabel = REPORT_TYPE_LABELS[pdf.report_type] ?? {
+                ar: pdf.report_type,
+                en: pdf.report_type,
+              };
               const dateStr = new Date(pdf.created_at).toLocaleDateString(
                 isRTL ? 'ar-SA' : 'en-GB',
                 { year: 'numeric', month: 'short', day: 'numeric' }
