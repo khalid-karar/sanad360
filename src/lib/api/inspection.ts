@@ -1,8 +1,6 @@
 import { supabase } from '../supabase';
 import type { InspectionPdf } from '../database.types';
-
-const PDF_SERVICE_URL = (import.meta.env.VITE_PDF_SERVICE_URL as string | undefined)
-  ?? 'http://localhost:3001';
+import { PDF_SERVICE_URL } from '../pdfServiceUrl';
 
 async function getJwt(): Promise<string> {
   const { data: { session }, error } = await supabase.auth.getSession();

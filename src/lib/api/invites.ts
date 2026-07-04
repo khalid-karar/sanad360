@@ -1,7 +1,5 @@
 import { supabase } from '../supabase';
-
-const PDF_SERVICE_URL = (import.meta.env.VITE_PDF_SERVICE_URL as string | undefined)
-  ?? 'http://localhost:3001';
+import { PDF_SERVICE_URL } from '../pdfServiceUrl';
 
 export interface InviteDriverResult {
   user_id: string;

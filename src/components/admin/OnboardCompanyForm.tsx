@@ -7,9 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { XIcon, Loader2Icon, CheckCircle2Icon } from 'lucide-react';
-
-const PDF_SERVICE_URL =
-  (import.meta.env.VITE_PDF_SERVICE_URL as string | undefined) ?? 'http://localhost:3001';
+import { PDF_SERVICE_URL } from '../../lib/pdfServiceUrl';
 
 type TenantType = 'company' | 'transport_company';
 

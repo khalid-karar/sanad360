@@ -19,7 +19,18 @@ import {
 } from 'lucide-react';
 
 export default function PickupLogPage() {
-  const { isRTL } = useAuthStore();
+  const { isRTL, user } = useAuthStore();
+  // This page is shared by /company/pickups and /transport/pickups.
+  // AppShell used to hardcode role="company" regardless of which route (or
+  // which tenant) rendered it: a transport user landing on /transport/pickups
+  // got the COMPANY sidebar (wrong nav links, wrong "منشأة" badge). Clicking
+  // that sidebar's "سجل الالتقاطات" then routed to /company/pickups, whose
+  // guard let a transport owner/manager through anyway (no company_id check)
+  // — or bounced a dispatcher through /login back to /transport — producing
+  // an infinite-feeling back-and-forth. Inferring the role from the actual
+  // signed-in user (transport_company_id set = transport tenant) fixes the
+  // sidebar for both routes with no route-specific logic needed.
+  const shellRole = user?.transport_company_id ? 'transport' : 'company';
 
   const [events, setEvents] = useState<PickupEvent[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -91,7 +102,7 @@ export default function PickupLogPage() {
   }
 
   return (
-    <AppShell role="company">
+    <AppShell role={shellRole}>
       <div className={`space-y-8 ${isRTL ? 'rtl' : 'ltr'}`}>
         <div className="flex items-center justify-between">
           <div>

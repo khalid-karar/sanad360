@@ -200,7 +200,7 @@ function App() {
         <Route
           path="/company"
           element={
-            user && ['owner', 'manager'].includes(user.role)
+            user && ['owner', 'manager'].includes(user.role) && user.company_id
               ? <CompanyDashboard />
               : <Navigate to="/login" replace />
           }
@@ -208,7 +208,7 @@ function App() {
         <Route
           path="/company/branches"
           element={
-            user && ['owner', 'manager'].includes(user.role)
+            user && ['owner', 'manager'].includes(user.role) && user.company_id
               ? <BranchesPage />
               : <Navigate to="/login" replace />
           }
@@ -216,7 +216,7 @@ function App() {
         <Route
           path="/company/pickups"
           element={
-            user && ['owner', 'manager'].includes(user.role)
+            user && ['owner', 'manager'].includes(user.role) && user.company_id
               ? <PickupLogPage />
               : <Navigate to="/login" replace />
           }
@@ -224,7 +224,7 @@ function App() {
         <Route
           path="/company/review"
           element={
-            user && ['owner', 'manager'].includes(user.role)
+            user && ['owner', 'manager'].includes(user.role) && user.company_id
               ? <ReviewQueuePage />
               : <Navigate to="/login" replace />
           }
@@ -232,7 +232,7 @@ function App() {
         <Route
           path="/company/schedule"
           element={
-            user && ['owner', 'manager', 'dispatcher'].includes(user.role)
+            user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.company_id
               ? <PickupSchedulePage />
               : <Navigate to="/login" replace />
           }
@@ -240,7 +240,7 @@ function App() {
         <Route
           path="/company/transporters"
           element={
-            user && ['owner', 'manager'].includes(user.role)
+            user && ['owner', 'manager'].includes(user.role) && user.company_id
               ? <ApprovedTransportersPage />
               : <Navigate to="/login" replace />
           }
