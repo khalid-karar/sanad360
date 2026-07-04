@@ -69,17 +69,17 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // authStore.hydrate populates user.role; navigate based on it
       const { user } = useAuthStore.getState();
       if (!user) return;
-      const roleRoutes: Record<string, string> = {
-        driver: '/driver',
-        manager: '/company',
-        owner: '/company',
-        dispatcher: '/transport',
-        admin: '/admin',
-      };
-      navigate(roleRoutes[user.role] ?? '/driver');
+      // owner/manager exist on BOTH company and transport-company tenants, so
+      // the destination can't be a static role→route map (that previously
+      // sent every owner/manager to /company, even a transport company's own
+      // owner/manager signing in from the Transport tab). Route by which
+      // tenant field the active membership actually set instead.
+      if (user.role === 'admin') navigate('/admin');
+      else if (user.role === 'driver') navigate('/driver');
+      else if (user.transport_company_id) navigate('/transport');
+      else navigate('/company');
     } catch {
       // error is already set in the store
     }
