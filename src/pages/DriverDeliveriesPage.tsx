@@ -1,53 +1,55 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { useAuthStore } from '../stores/authStore';
-import { formatDateTime } from '../lib/format';
 import AppShell from '../components/AppShell';
-import {
-  listPendingDeliveries,
-  createDisposalConfirmation,
-} from '../lib/api/disposals';
-import { isNetworkError } from '../lib/offline/pickupQueue';
-import { enqueueDisposal } from '../lib/offline/disposalQueue';
-import { useNotificationStore } from '../stores/notificationStore';
-import type { PendingDelivery } from '../lib/api/disposals';
+import { listDriverTrips, issueTripQrToken, updateTripStatus } from '../lib/api/trips';
+import { getDisposalConfirmation } from '../lib/api/disposals';
+import type { Trip, DisposalConfirmation } from '../lib/database.types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Loader2Icon, CameraIcon, CheckIcon, MapPinIcon, FactoryIcon,
-} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2Icon, QrCodeIcon, FactoryIcon } from 'lucide-react';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import { Modal } from '@/components/ui/modal';
 
+const STATUS_BADGE: Record<Trip['status'], { ar: string; en: string; className: string }> = {
+  planned:     { ar: 'مخطط',       en: 'Planned',     className: 'bg-muted text-muted-foreground' },
+  in_progress: { ar: 'قيد التنفيذ', en: 'In Progress', className: 'bg-primary/15 text-primary' },
+  dropped_off: { ar: 'بانتظار التأكيد', en: 'Awaiting Confirmation', className: 'bg-warning/15 text-warning' },
+  reconciled:  { ar: 'مكتمل',      en: 'Complete',     className: 'bg-success text-success-foreground' },
+  cancelled:   { ar: 'ملغى',       en: 'Cancelled',    className: 'bg-destructive/15 text-destructive' },
+};
+
 /**
- * Disposal leg (chain of custody): after a pickup is collected, the driver
- * confirms delivery at the receiving facility — facility identity, weighbridge
- * ticket photo (hashed), GPS. One confirmation per ledger event; append-only.
+ * Driver-side trip view (CP1): shows the driver's own trips, lets them
+ * advance status up to drop-off, and renders the HMAC-signed trip QR the
+ * receiving facility's scale scans to open the confirmation screen. Also
+ * reflects the recycler's own confirmed/rejected verdict once recorded.
  */
 export default function DriverDeliveriesPage() {
   const { isRTL } = useAuthStore();
 
-  const [deliveries, setDeliveries] = useState<PendingDelivery[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [confirmations, setConfirmations] = useState<Record<string, DisposalConfirmation | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Confirmation form state
-  const [confirming, setConfirming] = useState<PendingDelivery | null>(null);
-  const [facilityName, setFacilityName] = useState('');
-  const [facilityLicense, setFacilityLicense] = useState('');
-  const [ticketFile, setTicketFile] = useState<File | undefined>(undefined);
-  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const ticketInputRef = useRef<HTMLInputElement>(null);
+  const [qrTrip, setQrTrip] = useState<Trip | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setDeliveries(await listPendingDeliveries());
+      const rows = await listDriverTrips();
+      setTrips(rows);
+      const entries = await Promise.all(
+        rows.map(async (t) => [t.id, await getDisposalConfirmation(t.id).catch(() => null)] as const)
+      );
+      setConfirmations(Object.fromEntries(entries));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -55,94 +57,30 @@ export default function DriverDeliveriesPage() {
     }
   }, []);
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
+  useEffect(() => { reload(); }, [reload]);
 
-  function openConfirm(d: PendingDelivery) {
-    setConfirming(d);
-    setFacilityName('');
-    setFacilityLicense('');
-    setTicketFile(undefined);
-    setGps(null);
-    setNotes('');
-    setFormError(null);
-  }
-
-  function captureGps() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setFormError(isRTL ? 'تعذر تحديد الموقع' : 'Could not get location')
-    );
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!confirming) return;
-    if (!facilityName.trim()) {
-      setFormError(isRTL ? 'اسم المنشأة المستقبلة مطلوب' : 'Facility name is required');
-      return;
-    }
-    setSubmitting(true);
-    setFormError(null);
+  async function handleMarkDroppedOff(trip: Trip) {
     try {
-      await createDisposalConfirmation(
-        confirming.event,
-        {
-          facility_name_ar: facilityName.trim(),
-          facility_license_number: facilityLicense.trim() || undefined,
-          gps_lat: gps?.lat,
-          gps_lng: gps?.lng,
-          notes: notes.trim() || undefined,
-        },
-        ticketFile
-      );
-      setConfirming(null);
+      await updateTripStatus(trip.id, trip.status === 'planned' ? 'in_progress' : 'dropped_off');
       await reload();
     } catch (err) {
-      // Facilities sit on the city edge — the WORST connectivity in the whole
-      // flow. Network failure → queue the confirmation (incl. the ticket Blob)
-      // and let the sync triggers replay it. Server rejections still surface.
-      if (isNetworkError(err)) {
-        try {
-          await enqueueDisposal({
-            eventId: confirming.event.id,
-            companyId: confirming.event.company_id,
-            branchId: confirming.event.branch_id,
-            facilityNameAr: facilityName.trim(),
-            facilityLicense: facilityLicense.trim() || undefined,
-            gpsLat: gps?.lat,
-            gpsLng: gps?.lng,
-            notes: notes.trim() || undefined,
-            ticketBlob: ticketFile,
-            ticketName: ticketFile?.name,
-            ticketType: ticketFile?.type,
-            queuedAt: Date.now(),
-            attempts: 0,
-          });
-          setConfirming(null);
-          // Optimistically clear from the pending list; replay is idempotent.
-          setDeliveries((prev) => prev.filter((x) => x.event.id !== confirming.event.id));
-          useNotificationStore.getState().addNotification({
-            type: 'info',
-            priority: 'medium',
-            title: 'تم الحفظ محلياً',
-            titleEn: 'Saved Offline',
-            message: 'سيُرسل تأكيد التسليم تلقائياً عند عودة الاتصال',
-            messageEn: 'The delivery confirmation will sync automatically when back online',
-            role: 'driver',
-            autoHide: true,
-            duration: 5000,
-          });
-          return;
-        } catch {
-          /* IndexedDB unavailable — fall through to the error path */
-        }
-      }
-      setFormError(err instanceof Error ? err.message : 'Failed to confirm');
+      setError(err instanceof Error ? err.message : 'Failed to update trip');
+    }
+  }
+
+  async function openQr(trip: Trip) {
+    setQrTrip(trip);
+    setQrDataUrl(null);
+    setQrError(null);
+    setQrLoading(true);
+    try {
+      const { token, expires_at } = await issueTripQrToken(trip.id);
+      setQrDataUrl(await QRCode.toDataURL(token, { width: 280, margin: 1 }));
+      setQrExpiresAt(expires_at);
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : 'Failed to generate QR');
     } finally {
-      setSubmitting(false);
+      setQrLoading(false);
     }
   }
 
@@ -151,12 +89,12 @@ export default function DriverDeliveriesPage() {
       <div className={`space-y-6 ${isRTL ? 'rtl' : 'ltr'}`}>
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-1">
-            {isRTL ? 'تأكيد التسليم' : 'Deliveries'}
+            {isRTL ? 'رحلاتي' : 'My Trips'}
           </h1>
           <p className="text-muted-foreground">
             {isRTL
-              ? 'أكّد تسليم النفايات في منشأة المعالجة لإغلاق سلسلة العهدة'
-              : 'Confirm delivery at the treatment facility to close the chain of custody'}
+              ? 'اعرض رمز QR الخاص بالرحلة عند الوصول إلى منشأة المعالجة لتأكيد التسليم'
+              : 'Show the trip QR at the treatment facility to have your drop-off confirmed'}
           </p>
         </div>
 
@@ -166,124 +104,81 @@ export default function DriverDeliveriesPage() {
 
         {loading ? (
           <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
-        ) : deliveries.length === 0 && !error ? (
+        ) : trips.length === 0 && !error ? (
           <EmptyState
             icon={<FactoryIcon />}
-            title={isRTL ? 'سلسلة العهدة مكتملة ✓' : 'Chain of custody complete ✓'}
-            hint={isRTL
-              ? 'كل التقاطاتك مؤكدة التسليم. بعد كل التقاط جديد، عُد هنا لتأكيد التسليم في منشأة المعالجة'
-              : 'All your pickups are delivery-confirmed. After each new pickup, return here to confirm the hand-over at the facility'}
+            title={isRTL ? 'لا توجد رحلات مسندة إليك' : 'No trips assigned to you'}
           />
         ) : (
           <div className="space-y-3">
-            {deliveries.map((d) => (
-              <Card key={d.event.id} className="bg-card text-card-foreground border-border">
-                <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-foreground" dir="ltr">
-                      {formatDateTime(d.event.created_at, isRTL)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1" dir="ltr">
-                      {d.event.weight_kg} kg — {d.event.waste_types.join(', ')}
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={() => openConfirm(d)}>
-                    <FactoryIcon className="w-4 h-4 me-1" />
-                    {isRTL ? 'تأكيد التسليم' : 'Confirm Delivery'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+            {trips.map((trip) => {
+              const badge = STATUS_BADGE[trip.status];
+              const confirmation = confirmations[trip.id];
+              return (
+                <Card key={trip.id} className="bg-card text-card-foreground border-border">
+                  <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-foreground" dir="ltr">{trip.trip_date} — {trip.waste_stream}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge className={badge.className}>{isRTL ? badge.ar : badge.en}</Badge>
+                        {confirmation?.status === 'confirmed' && (
+                          <Badge className="bg-success text-success-foreground hover:bg-success">
+                            {isRTL ? 'تم التأكيد من المنشأة' : 'Facility Confirmed'}
+                          </Badge>
+                        )}
+                        {confirmation?.status === 'rejected' && (
+                          <Badge variant="destructive">
+                            {isRTL ? 'مرفوض من المنشأة' : 'Facility Rejected'}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(trip.status === 'planned' || trip.status === 'in_progress') && (
+                        <Button size="sm" variant="outline" onClick={() => handleMarkDroppedOff(trip)}>
+                          {trip.status === 'planned'
+                            ? (isRTL ? 'بدء الرحلة' : 'Start Trip')
+                            : (isRTL ? 'وصلت للمنشأة' : 'Arrived at Facility')}
+                        </Button>
+                      )}
+                      {trip.status !== 'reconciled' && trip.status !== 'cancelled' && (
+                        <Button size="sm" onClick={() => openQr(trip)}>
+                          <QrCodeIcon className="w-4 h-4 me-1" />
+                          {isRTL ? 'عرض QR' : 'Show QR'}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {confirming && (
-        <Modal
-          open
-          onClose={() => setConfirming(null)}
-          isRTL={isRTL}
-          title={isRTL ? 'تأكيد التسليم' : 'Confirm Delivery'}
-        >
-          <div>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-foreground">
-                    {isRTL ? 'اسم منشأة المعالجة' : 'Receiving Facility Name'} *
-                  </Label>
-                  <Input
-                    value={facilityName}
-                    onChange={(e) => setFacilityName(e.target.value)}
-                    required
-                    className="bg-background text-foreground border-input"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-foreground">
-                    {isRTL ? 'رقم ترخيص المنشأة (اختياري)' : 'Facility License (optional)'}
-                  </Label>
-                  <Input
-                    value={facilityLicense}
-                    onChange={(e) => setFacilityLicense(e.target.value)}
-                    dir="ltr"
-                    className="bg-background text-foreground border-input"
-                  />
-                </div>
-
-                {/* Weighbridge ticket photo */}
-                <input
-                  ref={ticketInputRef}
-                  type="file"
-                  accept="image/*,application/pdf"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => setTicketFile(e.target.files?.[0])}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={`w-full ${ticketFile ? 'border-success text-success' : 'bg-background text-foreground border-border'}`}
-                  onClick={() => ticketInputRef.current?.click()}
-                >
-                  {ticketFile
-                    ? <><CheckIcon className="w-4 h-4 me-2" />{isRTL ? 'تم التقاط إيصال الميزان' : 'Ticket captured'}</>
-                    : <><CameraIcon className="w-4 h-4 me-2" />{isRTL ? 'صورة إيصال الميزان' : 'Weighbridge Ticket Photo'}</>}
-                </Button>
-
-                <div className="flex items-center gap-3">
-                  <Button type="button" variant="outline" size="sm" onClick={captureGps}>
-                    <MapPinIcon className="w-4 h-4 me-1" />
-                    {isRTL ? 'التقاط الموقع' : 'Capture GPS'}
-                  </Button>
-                  {gps && (
-                    <span className="text-xs text-muted-foreground" dir="ltr">
-                      {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-foreground">{isRTL ? 'ملاحظات (اختياري)' : 'Notes (optional)'}</Label>
-                  <Input
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="bg-background text-foreground border-input"
-                  />
-                </div>
-
-                {formError && <p className="text-sm text-destructive">{formError}</p>}
-
-                <div className="flex gap-3">
-                  <Button type="submit" disabled={submitting} className="gap-2">
-                    {submitting && <Loader2Icon className="w-4 h-4 animate-spin" />}
-                    {isRTL ? 'تأكيد' : 'Confirm'}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => setConfirming(null)}>
-                    {isRTL ? 'إلغاء' : 'Cancel'}
-                  </Button>
-                </div>
-              </form>
+      {qrTrip && (
+        <Modal open onClose={() => setQrTrip(null)} isRTL={isRTL} title={isRTL ? 'رمز QR للرحلة' : 'Trip QR'}>
+          <div className="flex flex-col items-center gap-4">
+            {qrLoading && <Loader2Icon className="w-8 h-8 animate-spin text-primary" />}
+            {qrError && <p className="text-sm text-destructive">{qrError}</p>}
+            {qrDataUrl && (
+              <>
+                <img src={qrDataUrl} alt="Trip QR" className="rounded-lg border border-border" />
+                <p className="text-xs text-muted-foreground text-center">
+                  {isRTL
+                    ? 'صالح لفترة قصيرة فقط — إذا انتهت صلاحيته، أعد فتح هذه الشاشة لتوليد رمز جديد'
+                    : 'Short-lived — reopen this screen to generate a fresh code if it expires'}
+                </p>
+                {qrExpiresAt && (
+                  <p className="text-xs text-muted-foreground" dir="ltr">
+                    {isRTL ? 'ينتهي: ' : 'Expires: '}{new Date(qrExpiresAt).toLocaleTimeString(isRTL ? 'ar-SA' : 'en-US')}
+                  </p>
+                )}
+              </>
+            )}
+            <Button variant="outline" onClick={() => setQrTrip(null)} className="w-full">
+              {isRTL ? 'إغلاق' : 'Close'}
+            </Button>
           </div>
         </Modal>
       )}

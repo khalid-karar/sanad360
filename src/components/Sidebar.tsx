@@ -4,12 +4,12 @@ import { useAuthStore } from '../stores/authStore';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon } from 'lucide-react';
+import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon, FactoryIcon, ScaleIcon } from 'lucide-react';
 // TruckIcon reused for the company "Approved Transporters" link.
 import Logo from './Logo';
 
 interface SidebarProps {
-  role: 'driver' | 'company' | 'admin' | 'transport';
+  role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler';
 }
 
 export default function Sidebar({ role }: SidebarProps) {
@@ -52,9 +52,19 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: UsersIcon, label: isRTL ? 'إدارة السائقين' : 'Driver Management', path: '/transport/drivers' },
     { icon: TruckIcon, label: isRTL ? 'إدارة المركبات' : 'Vehicle Management', path: '/transport/vehicles' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/transport/pickups' },
+    { icon: FactoryIcon, label: isRTL ? 'الرحلات' : 'Trips', path: '/transport/trips' },
   ];
 
-  const links = role === 'driver' ? driverLinks : role === 'company' ? companyLinks : role === 'transport' ? transportLinks : adminLinks;
+  const recyclerLinks = [
+    { icon: ScaleIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/recycler' },
+  ];
+
+  const links =
+    role === 'driver' ? driverLinks
+    : role === 'company' ? companyLinks
+    : role === 'transport' ? transportLinks
+    : role === 'recycler' ? recyclerLinks
+    : adminLinks;
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-card border-l border-border shadow-soft">
@@ -71,6 +81,7 @@ export default function Sidebar({ role }: SidebarProps) {
               {role === 'driver' && (isRTL ? 'سائق' : 'Driver')}
               {role === 'company' && (isRTL ? 'منشأة' : 'Company')}
               {role === 'transport' && (isRTL ? 'شركة نقل' : 'Transport')}
+              {role === 'recycler' && (isRTL ? 'منشأة إعادة تدوير' : 'Recycler')}
               {role === 'admin' && (isRTL ? 'مسؤول' : 'Admin')}
             </p>
           </div>

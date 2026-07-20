@@ -20,6 +20,8 @@ import { handleMonthly } from './routes/monthly.js';
 import { handleMonthlyCompany } from './routes/monthly-company.js';
 import { handleOnboardCompany } from './routes/onboard.js';
 import { handleInviteDriver } from './routes/invite-driver.js';
+import { handleInviteRecycler, handleCreateFacility } from './routes/invite-recycler.js';
+import { handleIssueTripQr, handleValidateTripQr } from './routes/trip-qr.js';
 import type { AuthedRequest } from './types.js';
 
 const app = express();
@@ -149,6 +151,43 @@ app.post(
   requestTimeout,
   authMiddleware,
   asyncHandler((req, res) => handleInviteDriver(req as AuthedRequest, res))
+);
+
+// CP1: recycler onboarding. Role-checked inside the handler (admin, or a
+// facility's own recycler_manager inviting a scale_operator) on top of
+// authMiddleware.
+app.post(
+  '/admin/invite-recycler',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleInviteRecycler(req as AuthedRequest, res))
+);
+
+app.post(
+  '/admin/facilities',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleCreateFacility(req as AuthedRequest, res))
+);
+
+// CP1: HMAC short-TTL trip QR — issue (transport staff / assigned driver)
+// and validate (the receiving facility's own scale_operator/recycler_manager).
+app.post(
+  '/trips/:tripId/qr',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleIssueTripQr(req as AuthedRequest, res))
+);
+
+app.post(
+  '/recycler/validate-trip-qr',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleValidateTripQr(req as AuthedRequest, res))
 );
 
 const server = app.listen(PORT, () => {

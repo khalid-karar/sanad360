@@ -1,7 +1,10 @@
 // Auto-generated types matching supabase/migrations/001_initial_schema.sql
 // Regenerate with: npx supabase gen types typescript --local
 
-export type MemberRole = 'owner' | 'manager' | 'driver' | 'dispatcher' | 'admin';
+export type MemberRole =
+  | 'owner' | 'manager' | 'driver' | 'dispatcher' | 'admin'
+  // CP1 (migration 017): recycler-side roles, tenant-scoped to a facility.
+  | 'recycler_manager' | 'scale_operator';
 export type WasteType = 'industrial' | 'plastic' | 'chemical' | 'organic' | 'electronic' | 'medical';
 export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant';
 
@@ -55,8 +58,71 @@ export interface Membership {
   role: MemberRole;
   company_id: string | null;
   transport_company_id: string | null;
+  /** CP1 (migration 018): the third tenant type — recycling facility. */
+  facility_id: string | null;
   branch_id: string | null;
   created_at: string;
+}
+
+// ─── CP1: recycler facilities, trips, weight reconciliation ────────────────
+
+export interface Facility {
+  id: string;
+  name_ar: string;
+  name_en: string | null;
+  license_number: string | null;
+  license_expiry: string | null;
+  city: string | null;
+  geofence_lat: number | null;
+  geofence_lng: number | null;
+  geofence_radius_m: number;
+  status: 'active' | 'inactive';
+  created_at: string;
+}
+
+export interface FacilityTransporter {
+  id: string;
+  facility_id: string;
+  transport_company_id: string;
+  status: 'active' | 'inactive';
+  created_at: string;
+}
+
+export type TripStatus = 'planned' | 'in_progress' | 'dropped_off' | 'reconciled' | 'cancelled';
+export type WeightReconciliationStatus = 'pending' | 'within_tolerance' | 'flagged';
+
+export interface Trip {
+  id: string;
+  transport_company_id: string;
+  driver_id: string;
+  vehicle_id: string;
+  planned_facility_id: string;
+  /** v1 scope: a single waste stream per trip. */
+  waste_stream: string;
+  trip_date: string;
+  status: TripStatus;
+  /** Server-computed only — see trips_before_update trigger (migration 018). */
+  weight_reconciliation_status: WeightReconciliationStatus;
+  reconciled_net_weight_kg: number | null;
+  reconciled_pickup_weight_kg: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CreateTripInput = {
+  transport_company_id: string;
+  driver_id: string;
+  vehicle_id: string;
+  planned_facility_id: string;
+  waste_stream: string;
+  trip_date?: string;
+};
+
+export interface WasteStreamTolerance {
+  waste_stream: string;
+  tolerance_pct: number;
+  updated_at: string;
 }
 
 export interface Driver {
@@ -95,6 +161,8 @@ export interface PickupEvent {
   transport_company_id: string;
   driver_id: string;
   vehicle_id: string;
+  /** CP1 (migration 018): optional link grouping curb pickups into a haul. */
+  trip_id: string | null;
   waste_types: string[];
   weight_kg: number;
   gps_lat: number | null;
@@ -155,6 +223,7 @@ export type CreatePickupEventInput = {
   transport_company_id: string;
   driver_id: string;
   vehicle_id: string;
+  trip_id?: string;
   waste_types: string[];
   weight_kg: number;
   gps_lat?: number;
@@ -247,32 +316,35 @@ export interface UserActiveTenant {
   updated_at: string;
 }
 
-// Append-only chain-of-custody record: one per pickup event, written by the
-// driver at the receiving facility (migration 010). company/branch/transport
-// fields and created_by are server-set by triggers.
+// Append-only chain-of-custody record (migration 018 rework): the RECYCLER's
+// own, independent confirmation of a trip's drop-off — one row per trip.
+// facility_id/transport_company_id/confirmed_by/confirmed_at are server-set
+// by triggers from the referenced trip; the client never supplies them.
 export interface DisposalConfirmation {
   id: string;
-  pickup_event_id: string;
-  company_id: string;
-  branch_id: string;
+  trip_id: string;
+  facility_id: string;
   transport_company_id: string;
-  facility_name_ar: string;
-  facility_license_number: string | null;
-  ticket_path: string | null;
-  ticket_sha256: string | null;
+  status: 'confirmed' | 'rejected';
+  reject_reason: string | null;
+  net_weight_kg: number | null;
+  weighbridge_photo_path: string | null;
+  weighbridge_photo_sha256: string | null;
   gps_lat: number | null;
   gps_lng: number | null;
   notes: string | null;
-  created_by: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
   created_at: string;
 }
 
 export type CreateDisposalConfirmationInput = {
-  pickup_event_id: string;
-  facility_name_ar: string;
-  facility_license_number?: string;
-  ticket_path?: string;
-  ticket_sha256?: string;
+  trip_id: string;
+  status: 'confirmed' | 'rejected';
+  reject_reason?: string;
+  net_weight_kg?: number;
+  weighbridge_photo_path?: string;
+  weighbridge_photo_sha256?: string;
   gps_lat?: number;
   gps_lng?: number;
   notes?: string;
@@ -317,6 +389,10 @@ export interface Database {
       company_transporters: TableShape<CompanyTransporter>;
       disposal_confirmations: TableShape<DisposalConfirmation>;
       user_active_tenant: TableShape<UserActiveTenant>;
+      facilities: TableShape<Facility>;
+      facility_transporters: TableShape<FacilityTransporter>;
+      trips: TableShape<Trip>;
+      waste_stream_tolerances: TableShape<WasteStreamTolerance>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };

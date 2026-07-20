@@ -5,8 +5,14 @@ import {
 import type {
   PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow,
-  HashCheck, EvidenceHashChecks, DisposalRow,
+  HashCheck, EvidenceHashChecks, DisposalRow, FacilityRow, TripRow,
 } from '../types.js';
+
+const RECONCILIATION_LABELS: Record<TripRow['weight_reconciliation_status'], string> = {
+  pending: 'قيد المطابقة',
+  within_tolerance: '✓ ضمن الحد المسموح',
+  flagged: '⚠ فرق يتجاوز الحد المسموح — يتطلب مراجعة',
+};
 
 // Render the server-side verification verdict next to an evidence hash.
 function hashVerdict(check: HashCheck | undefined): string {
@@ -55,8 +61,10 @@ export function buildSinglePickupHtml(opts: {
   vehicle: VehicleRow;
   evidence: EvidenceDataUrls;
   hashChecks?: EvidenceHashChecks; // server-side re-hash verdicts (threaded from the route)
-  disposal?: DisposalRow | null;   // chain-of-custody confirmation (migration 010)
-  disposalTicketCheck?: HashCheck; // server-side re-hash verdict for the ticket
+  disposal?: DisposalRow | null;   // recycler's own confirmation of the trip (migration 018)
+  disposalFacility?: FacilityRow | null; // the confirming facility's identity
+  disposalPhotoCheck?: HashCheck;  // server-side re-hash verdict for the weighbridge photo
+  trip?: TripRow | null;           // the trip this pickup was grouped into, for reconciliation result
   documentId: string; // short ID for the footer
   generatedAt: string; // ISO timestamp
   pdfSha256?: string;  // SHA-256 of the rendered PDF bytes (threaded from the route)
@@ -201,24 +209,29 @@ export function buildSinglePickupHtml(opts: {
     </div>
   </div>
 
-  <!-- ── Chain of Custody: disposal leg ─────────────────────── -->
+  <!-- ── Chain of Custody: recycler-confirmed disposal leg (migration 018) ── -->
   <div class="section">
-    <div class="section-header">سلسلة العهدة — التسليم لمنشأة المعالجة</div>
+    <div class="section-header">سلسلة العهدة — تأكيد منشأة إعادة التدوير</div>
     <div class="section-body">
-      ${opts.disposal ? `
-      <div class="row"><span class="label">منشأة المعالجة</span><span class="value">${esc(opts.disposal.facility_name_ar)}</span></div>
-      ${opts.disposal.facility_license_number ? `<div class="row"><span class="label">رقم ترخيص المنشأة</span><span class="value">${esc(opts.disposal.facility_license_number)}</span></div>` : ''}
-      <div class="row"><span class="label">تاريخ التسليم</span><span class="value">${esc(arabicDateTime(opts.disposal.created_at))}</span></div>
+      ${opts.disposal && opts.disposal.status === 'confirmed' ? `
+      <div class="row"><span class="label">حالة التأكيد</span><span class="value" style="color:#166534">✓ مؤكَّد من المنشأة</span></div>
+      ${opts.disposalFacility ? `<div class="row"><span class="label">منشأة المعالجة</span><span class="value">${esc(opts.disposalFacility.name_ar)}</span></div>` : ''}
+      ${opts.disposalFacility?.license_number ? `<div class="row"><span class="label">رقم ترخيص المنشأة</span><span class="value">${esc(opts.disposalFacility.license_number)}</span></div>` : ''}
+      <div class="row"><span class="label">تاريخ التأكيد</span><span class="value">${esc(arabicDateTime(opts.disposal.confirmed_at ?? opts.disposal.created_at))}</span></div>
+      <div class="row"><span class="label">الوزن الصافي</span><span class="value">${opts.disposal.net_weight_kg != null ? `${opts.disposal.net_weight_kg} كجم` : 'N/A'}</span></div>
+      ${opts.trip ? `<div class="row"><span class="label">نتيجة مطابقة الوزن</span><span class="value">${esc(RECONCILIATION_LABELS[opts.trip.weight_reconciliation_status])}</span></div>` : ''}
       ${opts.disposal.gps_lat && opts.disposal.gps_lng
-        ? `<div class="row"><span class="label">إحداثيات التسليم</span><span class="value">${opts.disposal.gps_lat.toFixed(5)}, ${opts.disposal.gps_lng.toFixed(5)}</span></div>`
+        ? `<div class="row"><span class="label">إحداثيات التأكيد</span><span class="value">${opts.disposal.gps_lat.toFixed(5)}, ${opts.disposal.gps_lng.toFixed(5)}</span></div>`
         : ''}
       <div class="row">
-        <span class="label">إيصال الميزان SHA-256</span>
-        <span class="value hash">${esc(opts.disposal.ticket_sha256 ?? 'N/A')}${hashVerdict(opts.disposalTicketCheck)}</span>
+        <span class="label">صورة الميزان SHA-256</span>
+        <span class="value hash">${esc(opts.disposal.weighbridge_photo_sha256 ?? 'N/A')}${hashVerdict(opts.disposalPhotoCheck)}</span>
       </div>
-      ${opts.disposal.notes ? `<div class="row"><span class="label">ملاحظات التسليم</span><span class="value">${esc(opts.disposal.notes)}</span></div>` : ''}
+      ${opts.disposal.notes ? `<div class="row"><span class="label">ملاحظات</span><span class="value">${esc(opts.disposal.notes)}</span></div>` : ''}
+      ` : opts.disposal && opts.disposal.status === 'rejected' ? `
+      <div class="custody-warning">⚠ رفضت المنشأة استلام هذه الشحنة — السبب: ${esc(opts.disposal.reject_reason ?? 'غير محدد')}</div>
       ` : `
-      <div class="custody-warning">⚠ لم يتم تأكيد التسليم لمنشأة معالجة بعد — سلسلة العهدة غير مكتملة</div>
+      <div class="custody-warning">⚠ لم تؤكد أي منشأة استلام هذا الالتقاط بعد — سلسلة العهدة غير مكتملة</div>
       `}
     </div>
   </div>

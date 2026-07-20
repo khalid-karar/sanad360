@@ -4,10 +4,12 @@
 --          1 vehicle, 4 auth users, 4 memberships.
 --
 -- Credentials (local dev only — never use in production):
---   Company manager: manager@sanad360.dev / DevPass1234!
---   Driver:          0501234567@driver.sanad360.com / DevPass1234!
---   Dispatcher:      dispatcher@sanad360.dev / DevPass1234!
---   Admin:           admin@sanad360.dev / DevPass1234!
+--   Company manager:   manager@sanad360.dev / DevPass1234!
+--   Driver:            0501234567@driver.sanad360.com / DevPass1234!
+--   Dispatcher:        dispatcher@sanad360.dev / DevPass1234!
+--   Admin:             admin@sanad360.dev / DevPass1234!
+--   Recycler manager:  recycler.manager@sanad360.dev / DevPass1234!  (CP1)
+--   Scale operator:    scale.operator@sanad360.dev / DevPass1234!   (CP1)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Fixed UUIDs make this seed idempotent and test-referenceable.
@@ -68,6 +70,29 @@ INSERT INTO auth.users (
   '{"provider":"email","providers":["email"]}',
   '{"name_ar":"مدير النظام"}',
   now(), now(), '', '', '', ''
+),
+-- CP1: recycler-side users (facility tenant)
+(
+  '00000000-0000-0000-0000-000000000000',
+  'f0000000-0000-0000-0000-000000000005',
+  'authenticated', 'authenticated',
+  'recycler.manager@sanad360.dev',
+  crypt('DevPass1234!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name_ar":"مدير منشأة إعادة التدوير"}',
+  now(), now(), '', '', '', ''
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  'f0000000-0000-0000-0000-000000000006',
+  'authenticated', 'authenticated',
+  'scale.operator@sanad360.dev',
+  crypt('DevPass1234!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name_ar":"مشغّل الميزان"}',
+  now(), now(), '', '', '', ''
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -103,6 +128,20 @@ INSERT INTO auth.identities (
   'admin@sanad360.dev',
   '{"sub":"f0000000-0000-0000-0000-000000000004","email":"admin@sanad360.dev"}'::jsonb,
   'email', now(), now(), now()
+),
+(
+  'f0000000-0000-0000-0000-000000000005',
+  'f0000000-0000-0000-0000-000000000005',
+  'recycler.manager@sanad360.dev',
+  '{"sub":"f0000000-0000-0000-0000-000000000005","email":"recycler.manager@sanad360.dev"}'::jsonb,
+  'email', now(), now(), now()
+),
+(
+  'f0000000-0000-0000-0000-000000000006',
+  'f0000000-0000-0000-0000-000000000006',
+  'scale.operator@sanad360.dev',
+  '{"sub":"f0000000-0000-0000-0000-000000000006","email":"scale.operator@sanad360.dev"}'::jsonb,
+  'email', now(), now(), now()
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -127,6 +166,14 @@ VALUES
 (
   'f0000000-0000-0000-0000-000000000004',
   'مدير النظام', 'System Admin', NULL
+),
+(
+  'f0000000-0000-0000-0000-000000000005',
+  'مدير منشأة إعادة التدوير', 'Recycler Manager', NULL
+),
+(
+  'f0000000-0000-0000-0000-000000000006',
+  'مشغّل الميزان', 'Scale Operator', NULL
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -253,11 +300,41 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────
+-- FACILITY  (CP1: recycling plant — Riyadh industrial zone)
+-- ─────────────────────────────────────────────────────────────
+INSERT INTO public.facilities (
+  id, name_ar, name_en, license_number, license_expiry, city,
+  geofence_lat, geofence_lng, geofence_radius_m
+)
+VALUES (
+  '90000000-0000-0000-0000-000000000001',
+  'منشأة الرياض لإعادة التدوير',
+  'Riyadh Recycling Facility',
+  'MWAN-90001',
+  '2027-12-31',
+  'Riyadh',
+  24.6408,   -- Second Industrial City, Riyadh (approx.)
+  46.7728,
+  200
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Link the seeded facility to the seeded transport company (gates trip creation).
+INSERT INTO public.facility_transporters (id, facility_id, transport_company_id, status)
+VALUES (
+  'f2000000-0000-0000-0000-000000000001',
+  '90000000-0000-0000-0000-000000000001',
+  'c0000000-0000-0000-0000-000000000001',
+  'active'
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- ─────────────────────────────────────────────────────────────
 -- MEMBERSHIPS
 -- ─────────────────────────────────────────────────────────────
 INSERT INTO public.memberships (
   id, user_id, role,
-  company_id, transport_company_id, branch_id
+  company_id, transport_company_id, branch_id, facility_id
 )
 VALUES
 (
@@ -266,7 +343,8 @@ VALUES
   'manager',
   'a0000000-0000-0000-0000-000000000001',  -- company
   NULL,
-  'b0000000-0000-0000-0000-000000000001'   -- pinned to branch
+  'b0000000-0000-0000-0000-000000000001',  -- pinned to branch
+  NULL
 ),
 (
   '10000000-0000-0000-0000-000000000002',
@@ -274,7 +352,8 @@ VALUES
   'driver',
   NULL,
   'c0000000-0000-0000-0000-000000000001',  -- transport company
-  'b0000000-0000-0000-0000-000000000001'   -- default branch to serve
+  'b0000000-0000-0000-0000-000000000001',  -- default branch to serve
+  NULL
 ),
 (
   '10000000-0000-0000-0000-000000000003',
@@ -282,6 +361,7 @@ VALUES
   'dispatcher',
   NULL,
   'c0000000-0000-0000-0000-000000000001',  -- transport company
+  NULL,
   NULL
 ),
 (
@@ -290,7 +370,26 @@ VALUES
   'admin',
   NULL,   -- no tenant — admin sees all
   NULL,
+  NULL,
   NULL
+),
+(
+  '10000000-0000-0000-0000-000000000005',
+  'f0000000-0000-0000-0000-000000000005',  -- recycler manager auth user
+  'recycler_manager',
+  NULL,
+  NULL,
+  NULL,
+  '90000000-0000-0000-0000-000000000001'   -- facility
+),
+(
+  '10000000-0000-0000-0000-000000000006',
+  'f0000000-0000-0000-0000-000000000006',  -- scale operator auth user
+  'scale_operator',
+  NULL,
+  NULL,
+  NULL,
+  '90000000-0000-0000-0000-000000000001'   -- facility
 )
 ON CONFLICT (id) DO NOTHING;
 

@@ -1,15 +1,17 @@
 /**
- * Offline-first disposal confirmations (launch-critical item 2).
+ * Offline-first disposal confirmations (CP1 rework).
  *
- * The disposal leg happens at treatment facilities on the city edge — WORSE
- * connectivity than the pickup. Mirrors pickupQueue: on NETWORK failure the
- * full confirmation (fields + weighbridge-ticket Blob) persists to IndexedDB
- * and replays when connectivity returns.
+ * The disposal leg happens at the receiving facility's weighbridge — the
+ * scale_operator's confirmation, not the driver's. Facilities sit on the
+ * city edge (worse connectivity than the curb pickup), so this mirrors
+ * pickupQueue: on NETWORK failure the full confirmation (fields + the
+ * weighbridge photo Blob) persists to IndexedDB and replays when
+ * connectivity returns.
  *
  * Idempotent replay:
- *   • ticket upload uses upsert:false — "already exists" on retry = the
- *     previous attempt landed; recompute the hash locally and continue
- *   • the row insert hits UNIQUE(pickup_event_id) if a prior attempt
+ *   • weighbridge photo upload uses upsert:false — "already exists" on retry
+ *     = the previous attempt landed; continue to the row insert
+ *   • the row insert hits UNIQUE(trip_id) if a prior attempt already
  *     succeeded — 23505 is treated as success
  */
 
@@ -21,18 +23,18 @@ const DB_VERSION = 1;
 const STORE = 'confirmations';
 
 export interface QueuedDisposal {
-  /** pickup event id — natural key; UNIQUE server-side gives idempotency. */
-  eventId: string;
-  companyId: string;
-  branchId: string;
-  facilityNameAr: string;
-  facilityLicense?: string;
+  /** trip id — natural key; UNIQUE(trip_id) server-side gives idempotency. */
+  tripId: string;
+  facilityId: string;
+  status: 'confirmed' | 'rejected';
+  rejectReason?: string;
+  netWeightKg?: number;
   gpsLat?: number;
   gpsLng?: number;
   notes?: string;
-  ticketBlob?: Blob;
-  ticketName?: string;
-  ticketType?: string;
+  photoBlob?: Blob;
+  photoName?: string;
+  photoType?: string;
   queuedAt: number;
   attempts: number;
 }
@@ -42,7 +44,7 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       if (!req.result.objectStoreNames.contains(STORE)) {
-        req.result.createObjectStore(STORE, { keyPath: 'eventId' });
+        req.result.createObjectStore(STORE, { keyPath: 'tripId' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -71,8 +73,8 @@ export function listQueuedDisposals(): Promise<QueuedDisposal[]> {
   return tx('readonly', (s) => s.getAll() as IDBRequest<QueuedDisposal[]>);
 }
 
-export function removeQueuedDisposal(eventId: string): Promise<undefined> {
-  return tx('readwrite', (s) => s.delete(eventId) as IDBRequest<undefined>);
+export function removeQueuedDisposal(tripId: string): Promise<undefined> {
+  return tx('readwrite', (s) => s.delete(tripId) as IDBRequest<undefined>);
 }
 
 export function queuedDisposalCount(): Promise<number> {
@@ -87,20 +89,21 @@ function isDuplicate(err: unknown): boolean {
 }
 
 async function replay(d: QueuedDisposal): Promise<void> {
-  const ticketFile = d.ticketBlob
-    ? new File([d.ticketBlob], d.ticketName ?? 'ticket.jpg', { type: d.ticketType ?? 'image/jpeg' })
+  const photoFile = d.photoBlob
+    ? new File([d.photoBlob], d.photoName ?? 'weighbridge.jpg', { type: d.photoType ?? 'image/jpeg' })
     : undefined;
   try {
     await createDisposalConfirmation(
-      { id: d.eventId, company_id: d.companyId, branch_id: d.branchId },
+      { id: d.tripId, planned_facility_id: d.facilityId },
       {
-        facility_name_ar: d.facilityNameAr,
-        facility_license_number: d.facilityLicense,
+        status: d.status,
+        reject_reason: d.rejectReason,
+        net_weight_kg: d.netWeightKg,
         gps_lat: d.gpsLat,
         gps_lng: d.gpsLng,
         notes: d.notes,
       },
-      ticketFile
+      photoFile
     );
   } catch (err) {
     if (!isDuplicate(err)) throw err;
@@ -124,7 +127,7 @@ export async function drainDisposalQueue(): Promise<DisposalDrainResult> {
     for (const item of items) {
       try {
         await replay(item);
-        await removeQueuedDisposal(item.eventId);
+        await removeQueuedDisposal(item.tripId);
         result.synced++;
       } catch (err) {
         result.failed++;

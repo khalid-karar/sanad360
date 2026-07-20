@@ -34,6 +34,8 @@ export interface AuthedRequest extends Request {
   userId: string;
   companyId: string | null;
   transportCompanyId: string | null;
+  /** CP1 (migration 018): set when the active membership is facility-scoped. */
+  facilityId: string | null;
   memberRole: string;
 }
 
@@ -47,6 +49,7 @@ export interface PickupEventRow {
   transport_company_id: string;
   driver_id: string;
   vehicle_id: string;
+  trip_id: string | null;
   waste_types: string[];
   weight_kg: number;
   gps_lat: number | null;
@@ -69,18 +72,50 @@ export interface PickupEventRow {
   created_at: string;
 }
 
-// Chain-of-custody row (migration 010) — one per pickup event, append-only.
+// Chain-of-custody row (migration 018 rework) — one per trip, append-only,
+// written independently by the RECEIVING facility's scale_operator.
 export interface DisposalRow {
   id: string;
-  pickup_event_id: string;
-  facility_name_ar: string;
-  facility_license_number: string | null;
-  ticket_path: string | null;
-  ticket_sha256: string | null;
+  trip_id: string;
+  facility_id: string;
+  transport_company_id: string;
+  status: 'confirmed' | 'rejected';
+  reject_reason: string | null;
+  net_weight_kg: number | null;
+  weighbridge_photo_path: string | null;
+  weighbridge_photo_sha256: string | null;
   gps_lat: number | null;
   gps_lng: number | null;
   notes: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
   created_at: string;
+}
+
+// Consignment/haul row (migration 018) — MUTABLE, audit-logged.
+export interface TripRow {
+  id: string;
+  transport_company_id: string;
+  driver_id: string;
+  vehicle_id: string;
+  planned_facility_id: string;
+  waste_stream: string;
+  trip_date: string;
+  status: 'planned' | 'in_progress' | 'dropped_off' | 'reconciled' | 'cancelled';
+  weight_reconciliation_status: 'pending' | 'within_tolerance' | 'flagged';
+  reconciled_net_weight_kg: number | null;
+  reconciled_pickup_weight_kg: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FacilityRow {
+  id: string;
+  name_ar: string;
+  name_en: string | null;
+  license_number: string | null;
+  city: string | null;
 }
 
 export interface CompanyRow {

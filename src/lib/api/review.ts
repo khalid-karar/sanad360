@@ -32,8 +32,12 @@ const REVIEW_KEY_PREFIX = 'pickup_review:';
 
 /**
  * List records needing review: latest revision per pickup, flagged by the risk
- * engine or missing their disposal confirmation. Acknowledged records are
- * included with reviewed=true so the UI can filter without losing history.
+ * engine or missing custody-complete confirmation. Custody-complete (CP1) is
+ * trip-based: a pickup event is closed only when it's grouped into a trip
+ * (trip_id) AND that trip has a status='confirmed' disposal_confirmations row
+ * from the RECEIVING FACILITY — a pickup with no trip yet is always open.
+ * Acknowledged records are included with reviewed=true so the UI can filter
+ * without losing history.
  */
 export async function listFlaggedPickups(limit = 200): Promise<FlaggedRecord[]> {
   const { data: events, error } = await supabase
@@ -47,9 +51,13 @@ export async function listFlaggedPickups(limit = 200): Promise<FlaggedRecord[]> 
   if (rows.length === 0) return [];
 
   const ids = rows.map((e) => e.id);
+  const tripIds = [...new Set(rows.map((e) => e.trip_id).filter((id): id is string => id !== null))];
+
   const [{ data: confirmations, error: confErr }, { data: acks, error: ackErr }] =
     await Promise.all([
-      supabase.from('disposal_confirmations').select('pickup_event_id').in('pickup_event_id', ids),
+      tripIds.length > 0
+        ? supabase.from('disposal_confirmations').select('trip_id').eq('status', 'confirmed').in('trip_id', tripIds)
+        : Promise.resolve({ data: [] as { trip_id: string }[], error: null }),
       supabase
         .from('alert_acknowledgements')
         .select('alert_key')
@@ -58,8 +66,8 @@ export async function listFlaggedPickups(limit = 200): Promise<FlaggedRecord[]> 
   if (confErr) throw confErr;
   if (ackErr) throw ackErr;
 
-  const confirmed = new Set(
-    ((confirmations as { pickup_event_id: string }[]) ?? []).map((c) => c.pickup_event_id)
+  const confirmedTripIds = new Set(
+    ((confirmations as { trip_id: string }[]) ?? []).map((c) => c.trip_id)
   );
   const acked = new Set(
     ((acks as { alert_key: string }[]) ?? []).map((a) => a.alert_key.slice(REVIEW_KEY_PREFIX.length))
@@ -68,7 +76,7 @@ export async function listFlaggedPickups(limit = 200): Promise<FlaggedRecord[]> 
   return rows
     .map((event) => {
       const reasons = [...event.risk_flags] as ReviewReason[];
-      const custodyConfirmed = confirmed.has(event.id);
+      const custodyConfirmed = event.trip_id !== null && confirmedTripIds.has(event.trip_id);
       if (!custodyConfirmed) reasons.push('custody_missing');
       return { event, reasons, custodyConfirmed, reviewed: acked.has(event.id) };
     })

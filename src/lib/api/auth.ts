@@ -13,6 +13,8 @@ export interface AuthUser {
   // Tenant context (from the ACTIVE membership — see migration 012)
   company_id: string | null;
   transport_company_id: string | null;
+  /** CP1 (migration 018): set for recycler_manager / scale_operator. */
+  facility_id: string | null;
   branch_id: string | null;
   // For drivers: their drivers table row id
   driver_record_id: string | null;
@@ -109,6 +111,7 @@ export async function fetchMyProfile(userId: string): Promise<AuthUser> {
     phone: profile.phone,
     company_id: membership.company_id,
     transport_company_id: membership.transport_company_id,
+    facility_id: membership.facility_id,
     branch_id: membership.branch_id,
     driver_record_id: driverRecordId,
     memberships,

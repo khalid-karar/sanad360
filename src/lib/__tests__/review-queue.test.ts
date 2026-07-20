@@ -66,6 +66,9 @@ describe('Review queue data contract', () => {
   let confirmationId = '';
   let ackId = '';
   let branchQrToken = '';
+  let facilityId = '';
+  let facilityLinkId = '';
+  let tripId = '';
 
   beforeAll(async () => {
     manager = await sessionClient(SEED.managerEmail);
@@ -102,6 +105,35 @@ describe('Review queue data contract', () => {
       .eq('id', SEED.branchId)
       .single<{ qr_token: string }>();
     branchQrToken = branch!.qr_token;
+
+    // CP1: custody-complete is trip-based — set up a facility + trip so the
+    // "compliant" event below can be grouped into a confirmed trip.
+    const { data: facility } = await admin
+      .from('facilities')
+      .insert({ name_ar: `منشأة مراجعة ${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    facilityId = facility!.id;
+
+    const { data: link } = await admin
+      .from('facility_transporters')
+      .insert({ facility_id: facilityId, transport_company_id: SEED.transportCompanyId, status: 'active' })
+      .select('id')
+      .single<{ id: string }>();
+    facilityLinkId = link!.id;
+
+    const { data: trip } = await admin
+      .from('trips')
+      .insert({
+        transport_company_id: SEED.transportCompanyId,
+        driver_id: cleanDriverId,
+        vehicle_id: cleanVehicleId,
+        planned_facility_id: facilityId,
+        waste_stream: 'organic',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    tripId = trip!.id;
 
     // Flagged: no photo, no confirmation.
     const { data: fe } = await admin
@@ -144,6 +176,7 @@ describe('Review queue data contract', () => {
         qr_code_value: branchQrToken,
         photo_path: 'rq/photo.jpg',
         signature_path: 'rq/sig.png',
+        trip_id: tripId,
       })
       .select('id')
       .single<{ id: string }>();
@@ -151,7 +184,7 @@ describe('Review queue data contract', () => {
 
     const { data: conf } = await admin
       .from('disposal_confirmations')
-      .insert({ pickup_event_id: compliantEventId, facility_name_ar: 'منشأة مراجعة' })
+      .insert({ trip_id: tripId, status: 'confirmed', net_weight_kg: 20 })
       .select('id')
       .single<{ id: string }>();
     confirmationId = conf!.id;
@@ -162,6 +195,9 @@ describe('Review queue data contract', () => {
     if (confirmationId) await admin.from('disposal_confirmations').delete().eq('id', confirmationId);
     if (flaggedEventId) await admin.from('pickup_events').delete().eq('id', flaggedEventId);
     if (compliantEventId) await admin.from('pickup_events').delete().eq('id', compliantEventId);
+    if (tripId) await admin.from('trips').delete().eq('id', tripId);
+    if (facilityLinkId) await admin.from('facility_transporters').delete().eq('id', facilityLinkId);
+    if (facilityId) await admin.from('facilities').delete().eq('id', facilityId);
     if (cleanDriverId) await admin.from('drivers').delete().eq('id', cleanDriverId);
     if (cleanVehicleId) await admin.from('vehicles').delete().eq('id', cleanVehicleId);
   });
@@ -169,17 +205,12 @@ describe('Review queue data contract', () => {
   it('1. flagged event surfaces with risk flag + open custody chain', async () => {
     const { data: event, error } = await manager
       .from('pickup_events_latest')
-      .select('id, risk_flags')
+      .select('id, risk_flags, trip_id')
       .eq('id', flaggedEventId)
-      .single<{ id: string; risk_flags: string[] }>();
+      .single<{ id: string; risk_flags: string[]; trip_id: string | null }>();
     expect(error).toBeNull();
     expect(event!.risk_flags).toContain('missing_photo');
-
-    const { data: confs } = await manager
-      .from('disposal_confirmations')
-      .select('pickup_event_id')
-      .eq('pickup_event_id', flaggedEventId);
-    expect(confs ?? []).toHaveLength(0); // custody chain open → needs review
+    expect(event!.trip_id).toBeNull(); // never grouped into a trip → custody chain open
   });
 
   it('2. compliant + custody-closed event carries no review reasons', async () => {
@@ -194,8 +225,9 @@ describe('Review queue data contract', () => {
 
     const { data: confs } = await manager
       .from('disposal_confirmations')
-      .select('pickup_event_id')
-      .eq('pickup_event_id', compliantEventId);
+      .select('trip_id, status')
+      .eq('trip_id', tripId)
+      .eq('status', 'confirmed');
     expect(confs).toHaveLength(1); // custody chain closed
   });
 

@@ -67,16 +67,23 @@ export async function handleMonthlyCompany(req: AuthedRequest, res: Response): P
   }
   const allEvents = (events ?? []) as PickupEventRow[];
 
-  const eventIds = allEvents.map((e) => e.id);
-  let confirmedIds: string[] = [];
-  if (eventIds.length > 0) {
+  // Chain of custody (migration 018, trip-based) — see monthly.ts for the
+  // identical logic: an event is custody-complete only when its trip has a
+  // status='confirmed' disposal_confirmations row from the receiving facility.
+  const tripIds = [...new Set(allEvents.map((e) => e.trip_id).filter((id): id is string => id !== null))];
+  let confirmedTripIds: string[] = [];
+  if (tripIds.length > 0) {
     const { data: confs } = await admin
       .from('disposal_confirmations')
-      .select('pickup_event_id')
-      .in('pickup_event_id', eventIds);
-    confirmedIds = ((confs ?? []) as { pickup_event_id: string }[]).map((c) => c.pickup_event_id);
+      .select('trip_id')
+      .eq('status', 'confirmed')
+      .in('trip_id', tripIds);
+    confirmedTripIds = ((confs ?? []) as { trip_id: string }[]).map((c) => c.trip_id);
   }
-  const confirmedSet = new Set(confirmedIds);
+  const confirmedTripSet = new Set(confirmedTripIds);
+  const confirmedSet = new Set(
+    allEvents.filter((e) => e.trip_id !== null && confirmedTripSet.has(e.trip_id)).map((e) => e.id)
+  );
 
   const sections: BranchSection[] = branchRows.map((branch) => {
     const branchEvents = allEvents.filter((e) => e.branch_id === branch.id);

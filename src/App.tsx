@@ -31,6 +31,10 @@ import ApprovedTransportersPage from './components/company/ApprovedTransportersP
 import CompaniesPage from './pages/CompaniesPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
+import RecyclerDashboard from './pages/RecyclerDashboard';
+import TransportTripsPage from './pages/TransportTripsPage';
+
+const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
 
 // owner/manager exist on both company and transport-company tenants, so the
 // destination depends on which tenant field the active membership actually
@@ -38,6 +42,7 @@ import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
 function homeRouteFor(user: { role: string; transport_company_id: string | null }): string {
   if (user.role === 'admin') return '/admin';
   if (user.role === 'driver') return '/driver';
+  if (RECYCLER_ROLES.includes(user.role)) return '/recycler';
   return user.transport_company_id ? '/transport' : '/company';
 }
 
@@ -320,6 +325,22 @@ function App() {
           element={
             user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
               ? <PickupLogPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/transport/trips"
+          element={
+            user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
+              ? <TransportTripsPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/recycler"
+          element={
+            user && RECYCLER_ROLES.includes(user.role) && user.facility_id
+              ? <RecyclerDashboard />
               : <Navigate to="/login" replace />
           }
         />

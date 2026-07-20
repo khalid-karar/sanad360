@@ -8,7 +8,7 @@ import { assertCompanyAccess } from '../lib/auth.js';
 import type {
   AuthedRequest, PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow, HashCheck, EvidenceHashChecks,
-  DisposalRow,
+  DisposalRow, FacilityRow, TripRow,
 } from '../types.js';
 
 // Server-side integrity check: compare the SHA-256 recorded in the append-only
@@ -79,26 +79,30 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     scale:     checkHash(event.scale_photo_path, event.scale_photo_sha256, scale),
   };
 
-  // 4b. Chain of custody: the disposal confirmation for this event (or any
-  //     revision of the same logical pickup), with its ticket re-hashed.
-  const { data: revisionRows } = await admin
-    .from('pickup_events')
-    .select('id')
-    .eq('logical_id', event.logical_id);
-  const revisionIds = ((revisionRows ?? []) as { id: string }[]).map((r) => r.id);
+  // 4b. Chain of custody (migration 018, trip-based): the RECEIVING
+  //     FACILITY's own confirmation of the trip this event was grouped
+  //     into — never the transporter's own attestation. No trip yet ⇒ no
+  //     confirmation possible ⇒ the red incomplete-chain warning applies.
+  const { data: disposal } = event.trip_id
+    ? await admin
+        .from('disposal_confirmations')
+        .select('*')
+        .eq('trip_id', event.trip_id)
+        .maybeSingle<DisposalRow>()
+    : { data: null };
 
-  const { data: disposal } = await admin
-    .from('disposal_confirmations')
-    .select('*')
-    .in('pickup_event_id', revisionIds.length > 0 ? revisionIds : [event.id])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle<DisposalRow>();
+  const { data: facility } = disposal
+    ? await admin.from('facilities').select('id, name_ar, name_en, license_number, city').eq('id', disposal.facility_id).maybeSingle<FacilityRow>()
+    : { data: null };
 
-  let disposalTicketCheck: HashCheck = 'unavailable';
+  const { data: trip } = event.trip_id
+    ? await admin.from('trips').select('*').eq('id', event.trip_id).maybeSingle<TripRow>()
+    : { data: null };
+
+  let disposalPhotoCheck: HashCheck = 'unavailable';
   if (disposal) {
-    const ticket = await fetchEvidence('disposal-tickets', disposal.ticket_path);
-    disposalTicketCheck = checkHash(disposal.ticket_path, disposal.ticket_sha256, ticket);
+    const photo = await fetchEvidence('weighbridge-photos', disposal.weighbridge_photo_path);
+    disposalPhotoCheck = checkHash(disposal.weighbridge_photo_path, disposal.weighbridge_photo_sha256, photo);
   }
 
   // 5. Render HTML → PDF
@@ -120,7 +124,9 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     },
     hashChecks,
     disposal: disposal ?? null,
-    disposalTicketCheck,
+    disposalFacility: facility ?? null,
+    disposalPhotoCheck,
+    trip: trip ?? null,
     documentId,
     generatedAt,
   };
