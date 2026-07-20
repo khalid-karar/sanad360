@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2Icon, PlusIcon, XIcon, TruckIcon, MessageCircleIcon } from 'lucide-react';
 import { StatusBadge } from './statusBadge';
-import { DatePicker } from '@/components/ui/date-picker';
+import { DatePicker, DateTimePicker } from '@/components/ui/date-picker';
 import { formatDateTime } from '../../lib/format';
 
 export default function PickupSchedulePage() {
@@ -75,6 +75,10 @@ export default function PickupSchedulePage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!companyId) return;
+    if (!scheduledAt) {
+      setError(isRTL ? 'التاريخ والوقت مطلوبان' : 'Date & time are required');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -313,14 +317,9 @@ export default function PickupSchedulePage() {
                   <label className="text-sm font-medium text-foreground">
                     {isRTL ? 'التاريخ والوقت' : 'Date & Time'} *
                   </label>
-                  <input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    required
-                    dir="ltr"
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
-                  />
+                  <div className="mt-1">
+                    <DateTimePicker value={scheduledAt} onChange={setScheduledAt} isRTL={isRTL} />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
