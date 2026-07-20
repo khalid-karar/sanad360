@@ -163,11 +163,20 @@ export default function BranchesPage() {
     }
   }
 
-  async function handleDeactivate(b: Branch) {
+  async function handleToggleStatus(b: Branch) {
     try {
-      await deleteBranch(b.id);
+      if (b.status === 'active') {
+        await deleteBranch(b.id);
+      } else {
+        await updateBranch(b.id, { status: 'active' });
+      }
       await load();
-      toast({ title: isRTL ? 'تم' : 'Done', description: isRTL ? 'تم تعطيل الفرع' : 'Branch deactivated' });
+      toast({
+        title: isRTL ? 'تم' : 'Done',
+        description: b.status === 'active'
+          ? (isRTL ? 'تم تعطيل الفرع' : 'Branch deactivated')
+          : (isRTL ? 'تم إعادة تفعيل الفرع' : 'Branch reactivated'),
+      });
     } catch (e) {
       toast({ title: isRTL ? 'خطأ' : 'Error', description: describeError(e, isRTL), variant: 'destructive' });
     }
@@ -276,7 +285,14 @@ export default function BranchesPage() {
                   <Button size="sm" variant="outline" onClick={() => openQr(b)} title={isRTL ? 'رمز QR للفرع' : 'Branch QR board'} aria-label={isRTL ? 'رمز QR للفرع' : 'Branch QR board'}>
                     <QrCodeIcon className="w-4 h-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="text-destructive" disabled={b.status !== 'active'} onClick={() => handleDeactivate(b)} aria-label={isRTL ? 'تعطيل الفرع' : 'Deactivate branch'}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={b.status === 'active' ? 'text-destructive' : 'text-success'}
+                    onClick={() => handleToggleStatus(b)}
+                    title={b.status === 'active' ? (isRTL ? 'تعطيل الفرع' : 'Deactivate branch') : (isRTL ? 'إعادة تفعيل الفرع' : 'Reactivate branch')}
+                    aria-label={b.status === 'active' ? (isRTL ? 'تعطيل الفرع' : 'Deactivate branch') : (isRTL ? 'إعادة تفعيل الفرع' : 'Reactivate branch')}
+                  >
                     <PowerIcon className="w-4 h-4" />
                   </Button>
                 </div>
