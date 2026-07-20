@@ -31,7 +31,7 @@ const licenseTypes = [
 
 export default function VehicleManagementPage() {
   const { isRTL, user } = useAuthStore();
-  const { vehicles, loadVehicles, addVehicle, removeVehicle } = useTransportStore();
+  const { vehicles, loadVehicles, addVehicle, editVehicle } = useTransportStore();
   // Route now also admits 'dispatcher' (read access matches RLS SELECT), but
   // only owner/manager may add/deactivate vehicles — RLS enforces this at the
   // DB layer too; hiding the actions here avoids a dispatcher hitting a
@@ -83,10 +83,16 @@ export default function VehicleManagementPage() {
     }
   }
 
-  async function handleDeactivate(id: string) {
+  async function handleToggleStatus(v: Vehicle) {
+    const wasActive = v.status === 'active';
     try {
-      await removeVehicle(id);
-      toast({ title: isRTL ? 'تم' : 'Done', description: isRTL ? 'تم تعطيل المركبة' : 'Vehicle deactivated' });
+      await editVehicle(v.id, { status: wasActive ? 'inactive' : 'active' });
+      toast({
+        title: isRTL ? 'تم' : 'Done',
+        description: wasActive
+          ? (isRTL ? 'تم تعطيل المركبة' : 'Vehicle deactivated')
+          : (isRTL ? 'تم إعادة تفعيل المركبة' : 'Vehicle reactivated'),
+      });
     } catch (e) {
       toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
     }
@@ -183,7 +189,14 @@ export default function VehicleManagementPage() {
                         <div className="flex items-center gap-3">
                           {badge(v.ncwm_license_expiry)}
                           {canManage && (
-                            <Button size="sm" variant="outline" className="text-destructive" disabled={v.status !== 'active'} onClick={() => handleDeactivate(v.id)} title={isRTL ? 'تعطيل' : 'Deactivate'}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={v.status === 'active' ? 'text-destructive' : 'text-success'}
+                              onClick={() => handleToggleStatus(v)}
+                              title={v.status === 'active' ? (isRTL ? 'تعطيل' : 'Deactivate') : (isRTL ? 'إعادة تفعيل' : 'Reactivate')}
+                              aria-label={v.status === 'active' ? (isRTL ? 'تعطيل المركبة' : 'Deactivate vehicle') : (isRTL ? 'إعادة تفعيل المركبة' : 'Reactivate vehicle')}
+                            >
                               <PowerIcon className="w-4 h-4" />
                             </Button>
                           )}

@@ -21,11 +21,6 @@ export async function createVehicle(input: CreateVehicleInput): Promise<Vehicle>
   return data;
 }
 
-/** Deactivate a vehicle (soft) — sets status='inactive'. */
-export async function deactivateVehicle(id: string): Promise<Vehicle> {
-  return updateVehicle(id, { status: 'inactive' });
-}
-
 export async function updateVehicle(
   id: string,
   input: Partial<Omit<Vehicle, 'id' | 'created_at' | 'transport_company_id'>>

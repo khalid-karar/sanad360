@@ -19,11 +19,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  Loader2Icon, CameraIcon, CheckIcon, MapPinIcon, ScaleIcon, QrCodeIcon,
+  Loader2Icon, MapPinIcon, ScaleIcon, QrCodeIcon,
   KeyboardIcon, XIcon, CheckCircle2Icon, XCircleIcon,
 } from 'lucide-react';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import { Modal } from '@/components/ui/modal';
+import CameraCapture from '../components/camera/CameraCapture';
 
 const QR_ELEMENT_ID = 'recycler-qr-reader';
 
@@ -292,7 +293,6 @@ function ConfirmTripModal({
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   function captureGps() {
     if (!navigator.geolocation) return;
@@ -408,24 +408,14 @@ function ConfirmTripModal({
               />
             </div>
 
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => setPhotoFile(e.target.files?.[0])}
+            <CameraCapture
+              isRTL={isRTL}
+              label={isRTL ? 'صورة الميزان' : 'Weighbridge Photo'}
+              capturedLabel={isRTL ? 'تم التقاط صورة الميزان' : 'Weighbridge photo captured'}
+              capturedFile={photoFile}
+              onCapture={setPhotoFile}
+              fileNameBase="weighbridge-photo"
             />
-            <Button
-              type="button"
-              variant="outline"
-              className={`w-full ${photoFile ? 'border-success text-success' : 'bg-background text-foreground border-border'}`}
-              onClick={() => photoInputRef.current?.click()}
-            >
-              {photoFile
-                ? <><CheckIcon className="w-4 h-4 me-2" />{isRTL ? 'تم التقاط صورة الميزان' : 'Weighbridge photo captured'}</>
-                : <><CameraIcon className="w-4 h-4 me-2" />{isRTL ? 'صورة الميزان' : 'Weighbridge Photo'}</>}
-            </Button>
           </>
         ) : (
           <div className="space-y-2">

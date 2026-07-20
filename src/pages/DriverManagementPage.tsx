@@ -18,10 +18,13 @@ import { Modal } from '@/components/ui/modal';
 
 export default function DriverManagementPage() {
   const { isRTL, user } = useAuthStore();
-  const { drivers, loadDrivers, addDriver, removeDriver } = useTransportStore();
-  // drivers_insert RLS allows owner/manager/dispatcher, but drivers_update
-  // (used by Deactivate) is owner/manager only — hiding it for dispatcher
-  // avoids a raw 42501 permission-denied error (mirrors VehicleManagementPage).
+  const { drivers, loadDrivers, addDriver, editDriver } = useTransportStore();
+  // drivers_insert RLS allows owner/manager/dispatcher — mirror it explicitly
+  // (was previously ungated, which happened to match today's route roles but
+  // wasn't self-documenting, unlike VehicleManagementPage's canManage).
+  const canAdd = ['owner', 'manager', 'dispatcher'].includes(user?.role ?? '');
+  // drivers_update (used by Deactivate) is owner/manager only — hiding it for
+  // dispatcher avoids a raw 42501 permission-denied error (mirrors VehicleManagementPage).
   const canDeactivate = ['owner', 'manager'].includes(user?.role ?? '');
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,10 +111,16 @@ export default function DriverManagementPage() {
     }
   }
 
-  async function handleDeactivate(id: string) {
+  async function handleToggleStatus(d: Driver) {
+    const wasActive = d.status === 'active';
     try {
-      await removeDriver(id);
-      toast({ title: isRTL ? 'تم' : 'Done', description: isRTL ? 'تم تعطيل السائق' : 'Driver deactivated' });
+      await editDriver(d.id, { status: wasActive ? 'inactive' : 'active' });
+      toast({
+        title: isRTL ? 'تم' : 'Done',
+        description: wasActive
+          ? (isRTL ? 'تم تعطيل السائق' : 'Driver deactivated')
+          : (isRTL ? 'تم إعادة تفعيل السائق' : 'Driver reactivated'),
+      });
     } catch (e) {
       toast({ title: isRTL ? 'خطأ' : 'Error', description: e instanceof Error ? e.message : 'Failed', variant: 'destructive' });
     }
@@ -133,9 +142,11 @@ export default function DriverManagementPage() {
               <h1 className="text-3xl font-bold text-foreground mb-2">{isRTL ? 'إدارة السائقين' : 'Driver Management'}</h1>
               <p className="text-muted-foreground">{isRTL ? 'إدارة وتتبع السائقين ورخصهم' : 'Manage and track drivers and their licenses'}</p>
             </div>
-            <Button onClick={() => setShowAddForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <PlusIcon className="w-4 h-4 me-2" />{isRTL ? 'إضافة سائق' : 'Add Driver'}
-            </Button>
+            {canAdd && (
+              <Button onClick={() => setShowAddForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                <PlusIcon className="w-4 h-4 me-2" />{isRTL ? 'إضافة سائق' : 'Add Driver'}
+              </Button>
+            )}
           </div>
         </FadeInUp>
 
@@ -148,7 +159,7 @@ export default function DriverManagementPage() {
           </CardContent>
         </Card>
 
-        {showAddForm && (
+        {canAdd && showAddForm && (
           <Card className="bg-card text-card-foreground border-2 border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-3"><UserIcon className="w-6 h-6 text-primary" />{isRTL ? 'إضافة سائق جديد' : 'Add New Driver'}</CardTitle>
@@ -206,7 +217,14 @@ export default function DriverManagementPage() {
                             </Button>
                           )}
                           {canDeactivate && (
-                            <Button size="sm" variant="outline" className="text-destructive" disabled={d.status !== 'active'} onClick={() => handleDeactivate(d.id)} title={isRTL ? 'تعطيل' : 'Deactivate'} aria-label={isRTL ? 'تعطيل السائق' : 'Deactivate driver'}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={d.status === 'active' ? 'text-destructive' : 'text-success'}
+                              onClick={() => handleToggleStatus(d)}
+                              title={d.status === 'active' ? (isRTL ? 'تعطيل' : 'Deactivate') : (isRTL ? 'إعادة تفعيل' : 'Reactivate')}
+                              aria-label={d.status === 'active' ? (isRTL ? 'تعطيل السائق' : 'Deactivate driver') : (isRTL ? 'إعادة تفعيل السائق' : 'Reactivate driver')}
+                            >
                               <PowerIcon className="w-4 h-4" />
                             </Button>
                           )}

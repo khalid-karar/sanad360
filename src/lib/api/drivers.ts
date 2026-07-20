@@ -48,11 +48,6 @@ export async function createDriver(input: CreateDriverInput): Promise<Driver> {
   return data;
 }
 
-/** Deactivate a driver (soft) — sets status='inactive'. */
-export async function deactivateDriver(id: string): Promise<Driver> {
-  return updateDriver(id, { status: 'inactive' });
-}
-
 export async function updateDriver(
   id: string,
   input: Partial<Omit<Driver, 'id' | 'created_at' | 'transport_company_id'>>

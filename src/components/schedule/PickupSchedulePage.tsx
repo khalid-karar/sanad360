@@ -145,7 +145,10 @@ export default function PickupSchedulePage() {
           {hasTransporter && (
             <Button onClick={() => setShowForm(true)} className="gap-2">
               <PlusIcon className="w-4 h-4" />
-              {isRTL ? 'جدولة التقاط' : 'Schedule Pickup'}
+              {/* The company/generator side REQUESTS a pickup — it does not create
+                  a "trip" (that's the transport company's own planning concept,
+                  see TransportTripsPage.tsx; trips_insert RLS is transport-only). */}
+              {isRTL ? 'طلب التقاط' : 'Request Pickup'}
             </Button>
           )}
         </div>
@@ -255,7 +258,7 @@ export default function PickupSchedulePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
           <Card className={`w-full max-w-md bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{isRTL ? 'جدولة التقاط' : 'Schedule Pickup'}</CardTitle>
+              <CardTitle>{isRTL ? 'طلب التقاط' : 'Request Pickup'}</CardTitle>
               <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
                 <XIcon className="w-5 h-5" />
               </Button>

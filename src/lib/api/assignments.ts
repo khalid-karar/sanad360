@@ -108,6 +108,71 @@ export async function completeAssignment(
   return updateAssignmentStatus(assignmentId, 'completed', pickupEventId);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TRIP GROUPING (migration 019) — dispatcher-side only.
+//
+// pickup_assignments.trip_id groups a company's pending pickup REQUEST into a
+// transport-planned trip. Settable only by the trip's own transport company
+// (or admin) — enforced by pickup_assignments_trip_link_guard, not just by
+// hiding the UI. When the driver later completes a linked assignment, the app
+// carries trip_id onto the pickup_event it creates (see driverStore.ts) —
+// pickup_events is append-only, so this is the ONLY point trip_id can be set
+// on the ledger; nothing here ever UPDATEs a pickup_event.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * This transport company's own pending/accepted requests not yet grouped
+ * into any trip — the pool a dispatcher picks from when planning a trip.
+ * RLS (013's transport-staff SELECT arm) already scopes this to the fleet's
+ * own drivers; the extra filters just narrow it to what's actually linkable.
+ */
+export async function listUnlinkedAssignmentsForTransport(): Promise<PickupAssignment[]> {
+  const { data, error } = await supabase
+    .from('pickup_assignments')
+    .select('*')
+    .is('trip_id', null)
+    .in('status', ['pending', 'accepted'])
+    .order('scheduled_at', { ascending: true });
+  if (error) throw error;
+  return (data as PickupAssignment[]) ?? [];
+}
+
+/** Assignments already grouped into a given trip. */
+export async function listAssignmentsForTrip(tripId: string): Promise<PickupAssignment[]> {
+  const { data, error } = await supabase
+    .from('pickup_assignments')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('scheduled_at', { ascending: true });
+  if (error) throw error;
+  return (data as PickupAssignment[]) ?? [];
+}
+
+export async function linkAssignmentToTrip(
+  assignmentId: string,
+  tripId: string
+): Promise<PickupAssignment> {
+  const { data, error } = await supabase
+    .from('pickup_assignments')
+    .update({ trip_id: tripId })
+    .eq('id', assignmentId)
+    .select()
+    .single<PickupAssignment>();
+  if (error) throw error;
+  return data;
+}
+
+export async function unlinkAssignmentFromTrip(assignmentId: string): Promise<PickupAssignment> {
+  const { data, error } = await supabase
+    .from('pickup_assignments')
+    .update({ trip_id: null })
+    .eq('id', assignmentId)
+    .select()
+    .single<PickupAssignment>();
+  if (error) throw error;
+  return data;
+}
+
 // NOTE: getTransportCompanyForCompany() (the most-recent-pickup-event hack) was
 // removed in phase3c. Schedule screens now resolve eligible drivers/vehicles via
 // the explicit company_transporters link — see

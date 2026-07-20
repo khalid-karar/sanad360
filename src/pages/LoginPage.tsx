@@ -199,7 +199,17 @@ export default function LoginPage() {
                     <Separator className="my-6" />
                     <InteractiveButton
                       disabled
-                      className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80 opacity-60 cursor-not-allowed"
+                      // Solid muted colors, not opacity-dimmed: buttonVariants' own
+                      // `disabled:opacity-50` already wins the CSS-specificity fight
+                      // against any manually-added `opacity-*` class here (both target
+                      // `opacity`, but `:disabled` gives the base rule higher
+                      // specificity), so blending bg-secondary/text-secondary-foreground
+                      // toward the card via opacity collapsed contrast to ~2.6:1 (light)
+                      // / ~3.8:1 (dark) — both fail WCAG AA (4.5:1 for this text size).
+                      // bg-muted/text-foreground at FULL opacity measures 13.9:1 (light)
+                      // / 14.1:1 (dark); disabled:opacity-100 explicitly cancels the
+                      // base dimming so it can't erode this pair either.
+                      className="w-full bg-muted text-foreground hover:bg-muted disabled:opacity-100 cursor-not-allowed"
                       hapticFeedback={false}
                     >
                       <FingerprintIcon className="w-4 h-4 mr-2" />
@@ -250,7 +260,17 @@ export default function LoginPage() {
                     <Separator className="my-6" />
                     <InteractiveButton
                       disabled
-                      className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80 opacity-60 cursor-not-allowed"
+                      // Solid muted colors, not opacity-dimmed: buttonVariants' own
+                      // `disabled:opacity-50` already wins the CSS-specificity fight
+                      // against any manually-added `opacity-*` class here (both target
+                      // `opacity`, but `:disabled` gives the base rule higher
+                      // specificity), so blending bg-secondary/text-secondary-foreground
+                      // toward the card via opacity collapsed contrast to ~2.6:1 (light)
+                      // / ~3.8:1 (dark) — both fail WCAG AA (4.5:1 for this text size).
+                      // bg-muted/text-foreground at FULL opacity measures 13.9:1 (light)
+                      // / 14.1:1 (dark); disabled:opacity-100 explicitly cancels the
+                      // base dimming so it can't erode this pair either.
+                      className="w-full bg-muted text-foreground hover:bg-muted disabled:opacity-100 cursor-not-allowed"
                       hapticFeedback={false}
                     >
                       <FingerprintIcon className="w-4 h-4 mr-2" />

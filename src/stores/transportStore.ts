@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { useNotificationStore } from './notificationStore';
-import { listDrivers, createDriver, updateDriver, deactivateDriver } from '../lib/api/drivers';
-import { listVehicles, createVehicle, updateVehicle, deactivateVehicle } from '../lib/api/vehicles';
+import { listDrivers, createDriver, updateDriver } from '../lib/api/drivers';
+import { listVehicles, createVehicle, updateVehicle } from '../lib/api/vehicles';
 import type { Driver, Vehicle, CreateDriverInput, CreateVehicleInput } from '../lib/database.types';
 
 export type AlertType = 'warning' | 'critical';
@@ -50,8 +50,6 @@ interface TransportState {
   addVehicle: (vehicle: CreateVehicleInput) => Promise<void>;
   editDriver: (id: string, fields: Partial<Driver>) => Promise<void>;
   editVehicle: (id: string, fields: Partial<Vehicle>) => Promise<void>;
-  removeDriver: (id: string) => Promise<void>;
-  removeVehicle: (id: string) => Promise<void>;
 
   // Alert actions (alerts remain local for Phase 1 — wired to real data in Phase 3)
   uploadDocument: (alertId: string, document: File) => void;
@@ -127,16 +125,6 @@ export const useTransportStore = create<TransportState>((set, get) => ({
 
   editVehicle: async (id, fields) => {
     const updated = await updateVehicle(id, fields);
-    set((s) => ({ vehicles: s.vehicles.map((v) => (v.id === id ? updated : v)) }));
-  },
-
-  removeDriver: async (id) => {
-    const updated = await deactivateDriver(id);
-    set((s) => ({ drivers: s.drivers.map((d) => (d.id === id ? updated : d)) }));
-  },
-
-  removeVehicle: async (id) => {
-    const updated = await deactivateVehicle(id);
     set((s) => ({ vehicles: s.vehicles.map((v) => (v.id === id ? updated : v)) }));
   },
 

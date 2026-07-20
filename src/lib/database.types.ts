@@ -261,6 +261,10 @@ export interface PickupAssignment {
   recurrence_until: string | null;
   status: AssignmentStatus;
   pickup_event_id: string | null;
+  /** CP1 follow-up (migration 019): the transport-planned trip this pickup
+   *  request has been grouped into. Settable ONLY by the trip's own
+   *  transport company (or admin) — see pickup_assignments_trip_link_guard. */
+  trip_id: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: string;

@@ -226,6 +226,10 @@ export const useDriverStore = create<DriverState>((set, get) => ({
           transport_company_id: authUser.transport_company_id,
           driver_id: driverId,
           vehicle_id: a.vehicle_id,
+          // Carries the dispatcher's trip grouping (migration 019) onto the
+          // ledger row at the ONLY point it can be set — pickup_events is
+          // append-only, so trip_id is never UPDATEd after the fact.
+          trip_id: a.trip_id ?? undefined,
           waste_types: state.manifestData.wasteType,
           weight_kg: parseFloat(state.manifestData.weight),
           gps_lat: state.manifestData.gps_lat,

@@ -5,13 +5,19 @@ import { listTransportTrips, createTrip, updateTripStatus } from '../lib/api/tri
 import { listActiveFacilitiesForTransport } from '../lib/api/facilities';
 import { listDrivers } from '../lib/api/drivers';
 import { listVehicles } from '../lib/api/vehicles';
-import type { Trip, Facility, Driver, Vehicle, WasteType } from '../lib/database.types';
+import {
+  listAssignmentsForTrip, listUnlinkedAssignmentsForTransport,
+  linkAssignmentToTrip, unlinkAssignmentFromTrip,
+} from '../lib/api/assignments';
+import type { Trip, Facility, Driver, Vehicle, WasteType, PickupAssignment } from '../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2Icon, PlusIcon, FactoryIcon, XIcon } from 'lucide-react';
+import { Loader2Icon, PlusIcon, FactoryIcon, XIcon, LinkIcon, Link2OffIcon, ListChecksIcon } from 'lucide-react';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
+import { Modal } from '@/components/ui/modal';
+import { formatDateTime } from '../lib/format';
 
 const WASTE_STREAMS: WasteType[] = ['plastic', 'industrial', 'electronic', 'medical', 'chemical', 'organic'];
 
@@ -43,6 +49,13 @@ export default function TransportTripsPage() {
   const [tripDate, setTripDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Group existing pickup requests into a trip
+  const [managingTrip, setManagingTrip] = useState<Trip | null>(null);
+  const [linkedAssignments, setLinkedAssignments] = useState<PickupAssignment[]>([]);
+  const [unlinkedAssignments, setUnlinkedAssignments] = useState<PickupAssignment[]>([]);
+  const [manageLoading, setManageLoading] = useState(false);
+  const [manageBusyId, setManageBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +130,70 @@ export default function TransportTripsPage() {
     }
   }
 
+  async function openManage(trip: Trip) {
+    setManagingTrip(trip);
+    setManageLoading(true);
+    try {
+      const [linked, unlinked] = await Promise.all([
+        listAssignmentsForTrip(trip.id),
+        listUnlinkedAssignmentsForTransport(),
+      ]);
+      setLinkedAssignments(linked);
+      setUnlinkedAssignments(unlinked);
+    } catch (err) {
+      toast({
+        title: isRTL ? 'فشل التحميل' : 'Failed to load',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setManageLoading(false);
+    }
+  }
+
+  async function reloadManage(trip: Trip) {
+    const [linked, unlinked] = await Promise.all([
+      listAssignmentsForTrip(trip.id),
+      listUnlinkedAssignmentsForTransport(),
+    ]);
+    setLinkedAssignments(linked);
+    setUnlinkedAssignments(unlinked);
+  }
+
+  async function handleLink(assignmentId: string) {
+    if (!managingTrip) return;
+    setManageBusyId(assignmentId);
+    try {
+      await linkAssignmentToTrip(assignmentId, managingTrip.id);
+      await reloadManage(managingTrip);
+    } catch (err) {
+      toast({
+        title: isRTL ? 'فشل الربط' : 'Failed to link',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setManageBusyId(null);
+    }
+  }
+
+  async function handleUnlink(assignmentId: string) {
+    if (!managingTrip) return;
+    setManageBusyId(assignmentId);
+    try {
+      await unlinkAssignmentFromTrip(assignmentId);
+      await reloadManage(managingTrip);
+    } catch (err) {
+      toast({
+        title: isRTL ? 'فشل الإلغاء' : 'Failed to unlink',
+        description: err instanceof Error ? err.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setManageBusyId(null);
+    }
+  }
+
   async function handleCancel(trip: Trip) {
     try {
       await updateTripStatus(trip.id, 'cancelled');
@@ -176,6 +253,12 @@ export default function TransportTripsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={badge.className}>{isRTL ? badge.ar : badge.en}</Badge>
+                      {(trip.status === 'planned' || trip.status === 'in_progress') && (
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => openManage(trip)}>
+                          <ListChecksIcon className="w-4 h-4" />
+                          {isRTL ? 'طلبات الالتقاط' : 'Pickup Requests'}
+                        </Button>
+                      )}
                       {(trip.status === 'planned' || trip.status === 'in_progress') && (
                         <Button size="sm" variant="outline" onClick={() => handleAdvance(trip)}>
                           {trip.status === 'planned'
@@ -285,6 +368,80 @@ export default function TransportTripsPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {managingTrip && (
+        <Modal
+          open
+          onClose={() => setManagingTrip(null)}
+          isRTL={isRTL}
+          title={isRTL ? 'طلبات الالتقاط ضمن الرحلة' : 'Pickup Requests in this Trip'}
+        >
+          <div className="space-y-6">
+            {manageLoading ? (
+              <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+            ) : (
+              <>
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">
+                    {isRTL ? 'مضمّنة في هذه الرحلة' : 'Included in this trip'} ({linkedAssignments.length})
+                  </h4>
+                  {linkedAssignments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {isRTL ? 'لم تُضَف أي طلبات بعد' : 'No requests added yet'}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {linkedAssignments.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between gap-3 p-2 rounded-md border border-border">
+                          <span className="text-sm text-foreground" dir="ltr">{formatDateTime(a.scheduled_at, isRTL)}</span>
+                          <Button
+                            size="sm" variant="ghost" className="text-destructive gap-1"
+                            disabled={manageBusyId === a.id}
+                            onClick={() => handleUnlink(a.id)}
+                          >
+                            <Link2OffIcon className="w-4 h-4" />
+                            {isRTL ? 'إزالة' : 'Remove'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">
+                    {isRTL ? 'طلبات التقاط غير مضمّنة بعد' : 'Unlinked pickup requests'} ({unlinkedAssignments.length})
+                  </h4>
+                  {unlinkedAssignments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {isRTL ? 'لا توجد طلبات التقاط بانتظار التجميع' : 'No pending requests to group'}
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {unlinkedAssignments.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between gap-3 p-2 rounded-md border border-border">
+                          <span className="text-sm text-foreground" dir="ltr">{formatDateTime(a.scheduled_at, isRTL)}</span>
+                          <Button
+                            size="sm" variant="outline" className="gap-1"
+                            disabled={manageBusyId === a.id}
+                            onClick={() => handleLink(a.id)}
+                          >
+                            <LinkIcon className="w-4 h-4" />
+                            {isRTL ? 'إضافة' : 'Add'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            <Button variant="outline" onClick={() => setManagingTrip(null)} className="w-full">
+              {isRTL ? 'إغلاق' : 'Close'}
+            </Button>
+          </div>
+        </Modal>
       )}
     </AppShell>
   );

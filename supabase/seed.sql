@@ -10,6 +10,10 @@
 --   Admin:             admin@sanad360.dev / DevPass1234!
 --   Recycler manager:  recycler.manager@sanad360.dev / DevPass1234!  (CP1)
 --   Scale operator:    scale.operator@sanad360.dev / DevPass1234!   (CP1)
+--   Transport manager: transport.manager@sanad360.dev / DevPass1234!
+--     (no transport-side 'owner'/'manager' was previously seeded — only
+--      'driver' and 'dispatcher' — so the owner/manager-gated Add Vehicle /
+--      Deactivate actions could never be exercised against seed data)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Fixed UUIDs make this seed idempotent and test-referenceable.
@@ -93,6 +97,17 @@ INSERT INTO auth.users (
   '{"provider":"email","providers":["email"]}',
   '{"name_ar":"مشغّل الميزان"}',
   now(), now(), '', '', '', ''
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  'f0000000-0000-0000-0000-000000000007',
+  'authenticated', 'authenticated',
+  'transport.manager@sanad360.dev',
+  crypt('DevPass1234!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name_ar":"مدير شركة النقل"}',
+  now(), now(), '', '', '', ''
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -142,6 +157,13 @@ INSERT INTO auth.identities (
   'scale.operator@sanad360.dev',
   '{"sub":"f0000000-0000-0000-0000-000000000006","email":"scale.operator@sanad360.dev"}'::jsonb,
   'email', now(), now(), now()
+),
+(
+  'f0000000-0000-0000-0000-000000000007',
+  'f0000000-0000-0000-0000-000000000007',
+  'transport.manager@sanad360.dev',
+  '{"sub":"f0000000-0000-0000-0000-000000000007","email":"transport.manager@sanad360.dev"}'::jsonb,
+  'email', now(), now(), now()
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -174,6 +196,10 @@ VALUES
 (
   'f0000000-0000-0000-0000-000000000006',
   'مشغّل الميزان', 'Scale Operator', NULL
+),
+(
+  'f0000000-0000-0000-0000-000000000007',
+  'مدير شركة النقل', 'Transport Manager', NULL
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -390,6 +416,15 @@ VALUES
   NULL,
   NULL,
   '90000000-0000-0000-0000-000000000001'   -- facility
+),
+(
+  '10000000-0000-0000-0000-000000000007',
+  'f0000000-0000-0000-0000-000000000007',  -- transport manager auth user
+  'manager',
+  NULL,
+  'c0000000-0000-0000-0000-000000000001',  -- transport company
+  NULL,
+  NULL
 )
 ON CONFLICT (id) DO NOTHING;
 

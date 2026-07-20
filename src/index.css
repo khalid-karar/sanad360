@@ -24,6 +24,11 @@
     --secondary: 225 70% 40%; /* #1E40AF - Saudi Blue */
     --secondary-foreground: 0 0% 100%;
 
+    /* .text-gradient-primary stops — same as primary/secondary in light mode
+       (verified 6.32:1 / 8.57:1 on white --card, both AA). */
+    --gradient-primary-start: 150 65% 26%;
+    --gradient-primary-end: 225 70% 40%;
+
     --tertiary: 210 90% 56%;
     --tertiary-foreground: 0 0% 100%;
 
@@ -69,6 +74,16 @@
     --secondary: 225 70% 40%; /* #1E40AF - Saudi Blue */
     --secondary-foreground: 0 0% 100%;
 
+    /* .text-gradient-primary stops, dark-mode override: the light-mode
+       primary/secondary hues at their normal lightness (26%/40%) drop to
+       3.16:1 / 2.33:1 as TEXT on the near-black --card (fails AA) — raised
+       lightness only for this decorative gradient (primary/secondary
+       themselves are untouched — they're fine as button fills either way).
+       Computed via WCAG relative-luminance formula: 5.40:1 / 4.76:1 on
+       --card (222 84% 4.9%). */
+    --gradient-primary-start: 150 65% 36%;
+    --gradient-primary-end: 225 70% 60%;
+
     --tertiary: 210 90% 56%;
     --tertiary-foreground: 0 0% 100%;
 
@@ -101,6 +116,10 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 210 80% 48%;
     --ring: 210 90% 56%;
+    /* Verified 3.32:1 / 4.30:1 on white --card — passes the 3:1 large-text
+       threshold .text-gradient-primary is used at (text-3xl font-bold). */
+    --gradient-primary-start: var(--primary);
+    --gradient-primary-end: var(--secondary);
   }
 
   /* Blue Theme - Dark (Custom Blue) */
@@ -109,6 +128,9 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 210 80% 48%;
     --ring: 210 90% 56%;
+    /* Verified 6.02:1 / 4.65:1 on the dark --card — passes AA outright. */
+    --gradient-primary-start: var(--primary);
+    --gradient-primary-end: var(--secondary);
   }
 
   /* Purple Theme - Light */
@@ -117,6 +139,9 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 262 83% 50%;
     --ring: 262 83% 58%;
+    /* Verified 5.67:1 / 7.43:1 on white --card. */
+    --gradient-primary-start: var(--primary);
+    --gradient-primary-end: var(--secondary);
   }
 
   /* Purple Theme - Dark */
@@ -125,6 +150,12 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 262 83% 50%;
     --ring: 262 83% 58%;
+    /* var(--primary)/var(--secondary) measured 3.53:1 / 2.69:1 on the dark
+       --card — the secondary stop fails even the 3:1 large-text floor.
+       Raised lightness only for the gradient (primary/secondary themselves
+       are untouched — still fine as opaque button fills): 4.55:1 / 5.45:1. */
+    --gradient-primary-start: 262 83% 64%;
+    --gradient-primary-end: 262 83% 68%;
   }
 
   /* Orange Theme - Light */
@@ -133,6 +164,11 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 24 95% 45%;
     --ring: 24 95% 53%;
+    /* var(--primary) measured 2.85:1 on white --card — fails even the 3:1
+       large-text floor. Darkened only for the gradient's start stop: 4.92:1.
+       --secondary already passes at 3.67:1, left as-is. */
+    --gradient-primary-start: 24 95% 38%;
+    --gradient-primary-end: var(--secondary);
   }
 
   /* Orange Theme - Dark */
@@ -141,6 +177,9 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 24 95% 45%;
     --ring: 24 95% 53%;
+    /* Verified 7.02:1 / 5.46:1 on the dark --card. */
+    --gradient-primary-start: var(--primary);
+    --gradient-primary-end: var(--secondary);
   }
 
   * {
@@ -288,8 +327,16 @@
   }
 
   /* Text gradients */
+  /* Uses --gradient-primary-start/-end rather than --primary/--secondary
+     directly: those two tokens are IDENTICAL literal values in both light
+     and dark mode (tuned for buttons — white text on a solid primary/
+     secondary background, which has plenty of contrast either way), but as
+     TEXT drawn directly on --card they need their own, theme-aware tuning.
+     Verified: light mode unchanged (6.32:1 / 8.57:1 on white card); dark
+     mode was 3.16:1 / 2.33:1 on the near-black card (fails AA) before the
+     dark-mode override below raised it to 5.40:1 / 4.76:1. */
   .text-gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+    background: linear-gradient(135deg, hsl(var(--gradient-primary-start)) 0%, hsl(var(--gradient-primary-end)) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
