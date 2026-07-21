@@ -6,7 +6,8 @@ import DriverBottomNav from './driver/DriverBottomNav';
 
 interface AppShellProps {
   children: ReactNode;
-  role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler' | 'reviewer';
+  role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler' | 'reviewer'
+    | 'branch' | 'consultant' | 'gov';
 }
 
 export default function AppShell({ children, role }: AppShellProps) {

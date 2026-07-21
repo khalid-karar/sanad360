@@ -9,7 +9,8 @@ import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOut
 import Logo from './Logo';
 
 interface SidebarProps {
-  role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler' | 'reviewer';
+  role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler' | 'reviewer'
+    | 'branch' | 'consultant' | 'gov';
 }
 
 export default function Sidebar({ role }: SidebarProps) {
@@ -39,13 +40,45 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: FileCheckIcon, label: isRTL ? 'المستندات والتأسيس' : 'Onboarding & Documents', path: '/company/onboarding' },
   ];
 
-  const adminLinks = [
+  // The admin SHELL is shared by all 5 Maya-side roles (admin, super_admin,
+  // system_admin, support_agent, billing_accountant) — but each gets its OWN
+  // nav array below. There is deliberately no shared "adminLinks" fallback:
+  // that was the exact bug this phase fixes (a silent `: adminLinks` default
+  // would hand every new Maya-side role the full admin nav regardless of
+  // what it can actually see under RLS).
+  const fullAdminLinks = [
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/admin' },
     { icon: Building2Icon, label: isRTL ? 'المنشآت' : 'Companies', path: '/admin/companies' },
     { icon: UsersIcon, label: isRTL ? 'المستخدمون' : 'Users', path: '/admin/users' },
     { icon: BarChart3Icon, label: isRTL ? 'التحليلات' : 'Analytics', path: '/admin/analytics' },
     { icon: ClipboardCheckIcon, label: isRTL ? 'مراجعة المستندات' : 'Document Review', path: '/admin/document-review' },
   ];
+
+  // system_admin/support_agent/billing_accountant: RLS doesn't grant any of
+  // them is_full_admin()'s bypass (migration 025), and support_agent's
+  // audited-RPC-only surface / billing_accountant's billing UI don't exist
+  // yet (migration 024/025 headers — both explicitly greenfield/pending).
+  // Dashboard-only is the honest nav for what's actually wired today; it is
+  // NOT a stand-in for the full admin nav.
+  const dashboardOnlyLinks = [
+    { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/admin' },
+  ];
+
+  const adminShellLinksByActualRole: Record<string, typeof fullAdminLinks> = {
+    admin: fullAdminLinks,
+    super_admin: fullAdminLinks,
+    system_admin: dashboardOnlyLinks,
+    support_agent: dashboardOnlyLinks,
+    billing_accountant: dashboardOnlyLinks,
+  };
+
+  const adminShellLabel: Record<string, string> = {
+    admin: isRTL ? 'مسؤول' : 'Admin',
+    super_admin: isRTL ? 'مسؤول عام' : 'Super Admin',
+    system_admin: isRTL ? 'مسؤول النظام' : 'System Admin',
+    support_agent: isRTL ? 'موظف الدعم' : 'Support Agent',
+    billing_accountant: isRTL ? 'محاسب الفوترة' : 'Billing Accountant',
+  };
 
   const transportLinks = [
     // "Alerts" used to be a separate nav item pointing at the same '/transport'
@@ -68,13 +101,32 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: ClipboardCheckIcon, label: isRTL ? 'قائمة مراجعة المستندات' : 'Document Review Queue', path: '/reviewer' },
   ];
 
+  const branchLinks = [
+    { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/branch' },
+  ];
+
+  const consultantLinks = [
+    { icon: LayoutDashboardIcon, label: isRTL ? 'محفظة العملاء' : 'Client Portfolio', path: '/consultant' },
+  ];
+
+  const govLinks = [
+    { icon: BarChart3Icon, label: isRTL ? 'الإحصاءات الوطنية' : 'National Compliance Stats', path: '/gov' },
+  ];
+
   const links =
     role === 'driver' ? driverLinks
     : role === 'company' ? companyLinks
     : role === 'transport' ? transportLinks
     : role === 'recycler' ? recyclerLinks
     : role === 'reviewer' ? reviewerLinks
-    : adminLinks;
+    : role === 'branch' ? branchLinks
+    : role === 'consultant' ? consultantLinks
+    : role === 'gov' ? govLinks
+    // Admin shell: explicit per-actual-role nav, keyed by the real MemberRole
+    // (not the shell-role prop, which is just 'admin' for all 5 Maya-side
+    // roles). Falls closed to the most restrictive nav (Dashboard-only) if
+    // the actual role is somehow unmapped — never opens to the full nav.
+    : (adminShellLinksByActualRole[user?.role ?? ''] ?? dashboardOnlyLinks);
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-card border-l border-border shadow-soft">
@@ -92,8 +144,11 @@ export default function Sidebar({ role }: SidebarProps) {
               {role === 'company' && (isRTL ? 'منشأة' : 'Company')}
               {role === 'transport' && (isRTL ? 'شركة نقل' : 'Transport')}
               {role === 'recycler' && (isRTL ? 'منشأة إعادة تدوير' : 'Recycler')}
-              {role === 'admin' && (isRTL ? 'مسؤول' : 'Admin')}
+              {role === 'admin' && (adminShellLabel[user?.role ?? ''] ?? adminShellLabel.admin)}
               {role === 'reviewer' && (isRTL ? 'مراجع مستندات' : 'Document Reviewer')}
+              {role === 'branch' && (isRTL ? 'مشغل فرع' : 'Branch Operator')}
+              {role === 'consultant' && (isRTL ? 'مستشار' : 'Consultant')}
+              {role === 'gov' && (isRTL ? 'جهة حكومية' : 'Government')}
             </p>
           </div>
         </div>
