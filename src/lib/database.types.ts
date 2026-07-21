@@ -223,6 +223,22 @@ export interface PickupConfirmation {
   created_at: string;
 }
 
+/** CP5 (migration 031): one row from gov_rollup() — k-anonymized, differencing-safe. */
+export interface GovRollupRow {
+  level: 'region' | 'industry' | 'facility' | 'transporter';
+  group_key: string | null;
+  label_ar: string;
+  label_en: string;
+  is_suppressed: boolean;
+  n_companies: number | null;
+  total_pickups: number | null;
+  total_weight_kg: number | null;
+  compliant_count: number | null;
+  warning_count: number | null;
+  non_compliant_count: number | null;
+  pending_confirmation_count: number | null;
+}
+
 export interface AuditLog {
   id: string;
   user_id: string | null;
@@ -523,6 +539,13 @@ export interface Database {
           unverified_doc_types: string[];
           expiring_soon: ExpiringSoonDoc[];
         }[];
+      };
+      // migration 031 — SECURITY DEFINER, restricted to gov_viewer/admin/
+      // super_admin (enforced inside the function, not by RLS — RLS grants
+      // gov_viewer no path to any PII-bearing table at all).
+      gov_rollup: {
+        Args: { p_region_code: string | null; p_industry_code: string | null; p_facility_id: string | null };
+        Returns: GovRollupRow[];
       };
     };
     Enums: Record<string, never>;

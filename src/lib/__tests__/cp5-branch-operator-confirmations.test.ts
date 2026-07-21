@@ -190,6 +190,16 @@ describe('Branch operator confirm/dispute (Migrations 026/030, CP5 4d)', () => {
     expect(aErr).toBeNull();
     expect((aView ?? []).map((r) => r.id)).toContain(eventA);
     expect((aView ?? []).map((r) => r.id)).not.toContain(eventB);
+
+    // Same check from operator B's own session, for their own branch.
+    const { data: bView, error: bErr } = await operatorBClient
+      .from('pickup_events')
+      .select('id')
+      .eq('branch_id', branchBId)
+      .eq('compliance_status', 'pending_confirmation');
+    expect(bErr).toBeNull();
+    expect((bView ?? []).map((r) => r.id)).toContain(eventB);
+    expect((bView ?? []).map((r) => r.id)).not.toContain(eventA);
   });
 
   it('2. confirming (in_app_confirm) resolves pending_confirmation to a score-based status', async () => {

@@ -36,6 +36,7 @@ import TransportTripsPage from './pages/TransportTripsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
 import BranchOperatorPage from './pages/BranchOperatorPage';
+import GovernmentViewPage from './pages/GovernmentViewPage';
 import { homeRouteFor } from './lib/roleRouting';
 
 const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
@@ -398,8 +399,16 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
-        {/* /gov, /consultant routes are added alongside their pages in the
-            4f/4g commits, not speculatively here. */}
+        <Route
+          path="/gov"
+          element={
+            user?.role === 'gov_viewer'
+              ? <GovernmentViewPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        {/* /consultant route is added alongside its page in the 4g commit,
+            not speculatively here. */}
         <Route
           path="/"
           element={
