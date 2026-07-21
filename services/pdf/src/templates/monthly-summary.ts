@@ -10,27 +10,35 @@ interface ExpiryWarning {
   expiryDate: string;
 }
 
-interface MonthlyStats {
+export interface MonthlyStats {
   totalPickups: number;
   totalWeight: number;
   compliant: number;
   warning: number;
   nonCompliant: number;
+  pendingConfirmation: number;
   missingEvidence: number;
 }
 
-function computeStats(events: PickupEventRow[]): MonthlyStats {
+export function computeStats(events: PickupEventRow[]): MonthlyStats {
   return events.reduce(
     (acc, e) => {
       acc.totalPickups++;
       acc.totalWeight += Number(e.weight_kg);
-      if (e.compliance_status === 'compliant')     acc.compliant++;
-      if (e.compliance_status === 'warning')       acc.warning++;
-      if (e.compliance_status === 'non_compliant') acc.nonCompliant++;
+      // Exhaustive over the 4 known values (not independent ifs) so a fifth
+      // value added later fails loudly (TS narrows the switch) rather than
+      // silently vanishing from every bucket the way pending_confirmation
+      // did before this fix.
+      switch (e.compliance_status) {
+        case 'compliant':            acc.compliant++; break;
+        case 'warning':              acc.warning++; break;
+        case 'non_compliant':        acc.nonCompliant++; break;
+        case 'pending_confirmation': acc.pendingConfirmation++; break;
+      }
       if (!e.photo_path || !e.signature_path)      acc.missingEvidence++;
       return acc;
     },
-    { totalPickups: 0, totalWeight: 0, compliant: 0, warning: 0, nonCompliant: 0, missingEvidence: 0 }
+    { totalPickups: 0, totalWeight: 0, compliant: 0, warning: 0, nonCompliant: 0, pendingConfirmation: 0, missingEvidence: 0 }
   );
 }
 
@@ -162,6 +170,10 @@ export function buildMonthlyHtml(opts: {
       <div class="row">
         <span class="label"><span class="risk-badge badge-non_compliant" style="font-size:9pt; padding:2px 10px;">غير ممتثل</span></span>
         <span class="value">${stats.nonCompliant} عملية</span>
+      </div>
+      <div class="row">
+        <span class="label"><span class="risk-badge badge-pending_confirmation" style="font-size:9pt; padding:2px 10px;">بانتظار تأكيد الفرع</span></span>
+        <span class="value">${stats.pendingConfirmation} عملية</span>
       </div>
     </div>
   </div>

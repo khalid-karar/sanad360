@@ -8,7 +8,7 @@ export type MemberRole =
   // CP2 (migration 020): tenant-less Maya-side document reviewer.
   | 'document_reviewer';
 export type WasteType = 'industrial' | 'plastic' | 'chemical' | 'organic' | 'electronic' | 'medical';
-export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant';
+export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant' | 'pending_confirmation';
 
 export interface Company {
   id: string;

@@ -69,7 +69,29 @@ export interface PickupEventRow {
   signature_sha256: string | null;
   risk_score: number;
   risk_flags: string[];
-  compliance_status: 'compliant' | 'warning' | 'non_compliant';
+  compliance_status: 'compliant' | 'warning' | 'non_compliant' | 'pending_confirmation';
+  notes: string | null;
+  created_at: string;
+}
+
+// Branch-operator attestation row (migration 026/030) — one per pickup_event
+// (UNIQUE), append-only, written by a branch_operator of that pickup's own
+// branch. Distinct from DisposalRow (recycler-side, per-trip).
+export interface PickupConfirmationRow {
+  id: string;
+  pickup_event_id: string;
+  branch_id: string;
+  company_id: string;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  method: 'in_app_confirm' | 'signature_on_driver_device' | 'unavailable';
+  signature_path: string | null;
+  signature_sha256: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  gps_accuracy_m: number | null;
+  status: 'confirmed' | 'disputed';
+  dispute_reason: string | null;
   notes: string | null;
   created_at: string;
 }

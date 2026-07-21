@@ -27,7 +27,7 @@ export interface RecentPickup {
   wasteType: string;
   weight: string;
   driver: string;   // driver_id for now; Phase 3 joins to name
-  complianceStatus: 'compliant' | 'warning' | 'non_compliant';
+  complianceStatus: 'compliant' | 'warning' | 'non_compliant' | 'pending_confirmation';
   riskScore: number;
   branchId: string;
   companyId: string;

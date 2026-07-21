@@ -19,6 +19,7 @@ import { handleSinglePickup } from './routes/single.js';
 import { handleMonthly } from './routes/monthly.js';
 import { handleMonthlyCompany } from './routes/monthly-company.js';
 import { handleOnboardCompany } from './routes/onboard.js';
+import { handleSweepExpiredConfirmations } from './routes/admin-sweep-confirmations.js';
 import { handleInviteDriver } from './routes/invite-driver.js';
 import { handleInviteRecycler, handleCreateFacility } from './routes/invite-recycler.js';
 import { handleIssueTripQr, handleValidateTripQr } from './routes/trip-qr.js';
@@ -142,6 +143,16 @@ app.post(
   rateLimiter,
   requestTimeout,
   asyncHandler((req, res) => handleOnboardCompany(req, res))
+);
+
+// CP5 (migration 030): manual invocation of sweep_expired_pickup_confirmations()
+// for staging/CP11 demo seeding — service-role or admin only, same
+// not-the-shared-authMiddleware posture as onboarding above.
+app.post(
+  '/admin/sweep-expired-confirmations',
+  rateLimiter,
+  requestTimeout,
+  asyncHandler((req, res) => handleSweepExpiredConfirmations(req, res))
 );
 
 // Transport-side driver invitation (creates the driver's auth account +

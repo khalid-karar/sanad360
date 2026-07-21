@@ -15,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   CalendarIcon, TruckIcon, UserIcon, WeightIcon, DownloadIcon, EyeIcon,
-  CheckCircle2Icon, AlertTriangleIcon, XCircleIcon, MapPinIcon, XIcon,
+  CheckCircle2Icon, AlertTriangleIcon, XCircleIcon, MapPinIcon, XIcon, ClockIcon,
 } from 'lucide-react';
 
 export default function PickupLogPage() {
@@ -83,6 +83,8 @@ export default function PickupLogPage() {
     compliant: events.filter((e) => e.compliance_status === 'compliant').length,
     warning: events.filter((e) => e.compliance_status === 'warning').length,
     nonCompliant: events.filter((e) => e.compliance_status === 'non_compliant').length,
+    // (CP5/030) Its own tile — never folded into compliant or non_compliant.
+    pendingConfirmation: events.filter((e) => e.compliance_status === 'pending_confirmation').length,
   }), [events]);
 
   function handleExport() {
@@ -169,6 +171,7 @@ export default function PickupLogPage() {
                     <SelectItem value="compliant">{isRTL ? 'ممتثل' : 'Compliant'}</SelectItem>
                     <SelectItem value="warning">{isRTL ? 'تحذير' : 'Warning'}</SelectItem>
                     <SelectItem value="non_compliant">{isRTL ? 'غير ممتثل' : 'Non-Compliant'}</SelectItem>
+                    <SelectItem value="pending_confirmation">{isRTL ? 'بانتظار تأكيد الفرع' : 'Pending Confirmation'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -177,12 +180,13 @@ export default function PickupLogPage() {
         </Card>
 
         {/* Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {[
             { labelAr: 'الإجمالي', labelEn: 'Total', value: counts.total, Icon: CalendarIcon, cls: 'text-foreground' },
             { labelAr: 'ممتثلة', labelEn: 'Compliant', value: counts.compliant, Icon: CheckCircle2Icon, cls: 'text-success' },
             { labelAr: 'تحذيرات', labelEn: 'Warnings', value: counts.warning, Icon: AlertTriangleIcon, cls: 'text-warning' },
             { labelAr: 'غير ممتثلة', labelEn: 'Non-Compliant', value: counts.nonCompliant, Icon: XCircleIcon, cls: 'text-destructive' },
+            { labelAr: 'بانتظار تأكيد الفرع', labelEn: 'Pending Confirmation', value: counts.pendingConfirmation, Icon: ClockIcon, cls: 'text-secondary' },
           ].map((c) => (
             <Card key={c.labelEn} className="bg-card text-card-foreground border-border">
               <CardContent className="pt-6 flex items-center justify-between">
@@ -218,6 +222,10 @@ export default function PickupLogPage() {
                   <Card key={e.id} className={`border-2 ${
                     e.compliance_status === 'compliant' ? 'bg-success/5 border-success/20'
                     : e.compliance_status === 'warning' ? 'bg-warning/5 border-warning/20'
+                    // (CP5/030) Was an else-fallthrough that miscounted
+                    // pending_confirmation as non_compliant — now its own
+                    // explicit branch, never folded in.
+                    : e.compliance_status === 'pending_confirmation' ? 'bg-secondary/5 border-secondary/20'
                     : 'bg-destructive/5 border-destructive/20'}`}>
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between mb-4">

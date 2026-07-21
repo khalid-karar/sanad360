@@ -13,28 +13,34 @@ export interface BranchSection {
   custodyConfirmedIds: string[];
 }
 
-interface BranchStats {
+export interface BranchStats {
   total: number;
   weight: number;
   compliant: number;
   warning: number;
   nonCompliant: number;
+  pendingConfirmation: number;
   custodyMissing: number;
 }
 
-function stats(section: BranchSection): BranchStats {
+export function stats(section: BranchSection): BranchStats {
   const custody = new Set(section.custodyConfirmedIds);
   return section.events.reduce(
     (acc, e) => {
       acc.total++;
       acc.weight += Number(e.weight_kg);
-      if (e.compliance_status === 'compliant') acc.compliant++;
-      if (e.compliance_status === 'warning') acc.warning++;
-      if (e.compliance_status === 'non_compliant') acc.nonCompliant++;
+      // Exhaustive switch, not independent ifs — see monthly-summary.ts's
+      // computeStats for why (a 5th value fails loudly instead of vanishing).
+      switch (e.compliance_status) {
+        case 'compliant':            acc.compliant++; break;
+        case 'warning':              acc.warning++; break;
+        case 'non_compliant':        acc.nonCompliant++; break;
+        case 'pending_confirmation': acc.pendingConfirmation++; break;
+      }
       if (!custody.has(e.id)) acc.custodyMissing++;
       return acc;
     },
-    { total: 0, weight: 0, compliant: 0, warning: 0, nonCompliant: 0, custodyMissing: 0 }
+    { total: 0, weight: 0, compliant: 0, warning: 0, nonCompliant: 0, pendingConfirmation: 0, custodyMissing: 0 }
   );
 }
 
@@ -61,9 +67,10 @@ export function buildMonthlyCompanyHtml(opts: {
       compliant: acc.compliant + st.compliant,
       warning: acc.warning + st.warning,
       nonCompliant: acc.nonCompliant + st.nonCompliant,
+      pendingConfirmation: acc.pendingConfirmation + st.pendingConfirmation,
       custodyMissing: acc.custodyMissing + st.custodyMissing,
     }),
-    { total: 0, weight: 0, compliant: 0, warning: 0, nonCompliant: 0, custodyMissing: 0 }
+    { total: 0, weight: 0, compliant: 0, warning: 0, nonCompliant: 0, pendingConfirmation: 0, custodyMissing: 0 }
   );
 
   const branchRows = perBranch
@@ -75,6 +82,7 @@ export function buildMonthlyCompanyHtml(opts: {
         <td style="text-align:center; color:#166534">${st.compliant}</td>
         <td style="text-align:center; color:#a16207">${st.warning}</td>
         <td style="text-align:center; color:#991b1b">${st.nonCompliant}</td>
+        <td style="text-align:center; color:#3730a3">${st.pendingConfirmation}</td>
         <td style="text-align:center; color:${st.custodyMissing > 0 ? '#991b1b' : '#166534'}">
           ${st.total - st.custodyMissing} / ${st.total}
         </td>
@@ -154,6 +162,7 @@ export function buildMonthlyCompanyHtml(opts: {
     <div class="kpi-card"><div class="kpi-value">${totals.total}</div><div class="kpi-label">إجمالي العمليات</div></div>
     <div class="kpi-card"><div class="kpi-value">${totals.weight.toFixed(1)}</div><div class="kpi-label">إجمالي الوزن (كجم)</div></div>
     <div class="kpi-card"><div class="kpi-value" style="color:${totals.nonCompliant > 0 ? '#991b1b' : '#166534'}">${totals.nonCompliant}</div><div class="kpi-label">عمليات غير ممتثلة</div></div>
+    <div class="kpi-card"><div class="kpi-value" style="color:#3730a3">${totals.pendingConfirmation}</div><div class="kpi-label">بانتظار تأكيد الفرع</div></div>
   </div>
 
   <div class="section">
@@ -163,7 +172,7 @@ export function buildMonthlyCompanyHtml(opts: {
         <thead>
           <tr>
             <th>الفرع</th><th>العمليات</th><th>الوزن (كجم)</th>
-            <th>ممتثل</th><th>تحذير</th><th>غير ممتثل</th><th>سلسلة العهدة</th>
+            <th>ممتثل</th><th>تحذير</th><th>غير ممتثل</th><th>بانتظار التأكيد</th><th>سلسلة العهدة</th>
           </tr>
         </thead>
         <tbody>${branchRows}</tbody>

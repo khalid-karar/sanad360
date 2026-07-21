@@ -1,4 +1,4 @@
-import { CheckCircle2Icon, AlertTriangleIcon, XCircleIcon } from 'lucide-react';
+import { CheckCircle2Icon, AlertTriangleIcon, XCircleIcon, ClockIcon } from 'lucide-react';
 import type { ComplianceStatus } from '@/lib/database.types';
 
 /**
@@ -25,6 +25,15 @@ const TONES: Record<ComplianceStatus, {
     ar: 'غير ممتثل', en: 'Non-Compliant',
     cls: 'bg-destructive/10 text-destructive border-destructive/30',
     Icon: XCircleIcon,
+  },
+  // (CP5/030) A pickup awaiting a required branch-operator confirmation —
+  // its own distinct state, never compliant, never folded into
+  // non_compliant (that would misreport a policy-in-progress case as a
+  // violation before the window has even had a chance to elapse).
+  pending_confirmation: {
+    ar: 'بانتظار تأكيد الفرع', en: 'Pending Confirmation',
+    cls: 'bg-secondary/10 text-secondary border-secondary/30',
+    Icon: ClockIcon,
   },
 };
 

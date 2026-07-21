@@ -94,12 +94,14 @@ export default function CompanyDashboard() {
 
           {/* Real KPIs — last 30 days */}
           <FadeInUp delay={0.25}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { labelAr: 'إجمالي الالتقاطات', labelEn: 'Total Pickups', value: kpis?.totalPickups ?? 0, cls: 'text-foreground' },
                 { labelAr: 'الوزن الكلي (كجم)', labelEn: 'Total Weight (kg)', value: kpis?.totalWeightKg ?? 0, cls: 'text-foreground' },
                 { labelAr: 'ممتثلة', labelEn: 'Compliant', value: kpis?.compliantCount ?? 0, cls: 'text-success' },
                 { labelAr: 'غير ممتثلة', labelEn: 'Non-Compliant', value: kpis?.nonCompliantCount ?? 0, cls: 'text-destructive' },
+                // (CP5/030) Its own tile — never folded into compliant or non_compliant.
+                { labelAr: 'بانتظار تأكيد الفرع', labelEn: 'Pending Confirmation', value: kpis?.pendingConfirmationCount ?? 0, cls: 'text-secondary' },
               ].map((k) => (
                 <Card key={k.labelEn} className="bg-card text-card-foreground border-border">
                   <CardContent className="pt-6">

@@ -13,6 +13,10 @@ export interface DashboardKpis {
   compliantCount: number;
   warningCount: number;
   nonCompliantCount: number;
+  // (CP5/030) Its own bucket — previously these rows fell through all three
+  // ifs and silently vanished from the KPI breakdown while still diluting
+  // complianceRate's denominator.
+  pendingConfirmationCount: number;
   complianceRate: number;       // 0..100, % compliant of total
   trendByWeek: WeekPoint[];
 }
@@ -60,13 +64,17 @@ export async function getDashboardKpis(
   let compliantCount = 0;
   let warningCount = 0;
   let nonCompliantCount = 0;
+  let pendingConfirmationCount = 0;
   const weekMap = new Map<string, WeekPoint>();
 
   for (const r of rows) {
     totalWeightKg += Number(r.weight_kg) || 0;
+    // Exhaustive over the 4 known values — see PickupLogPage.tsx's counts
+    // memo for the same fix and why (a silent-drop bug this replaces).
     if (r.compliance_status === 'compliant') compliantCount++;
     else if (r.compliance_status === 'warning') warningCount++;
     else if (r.compliance_status === 'non_compliant') nonCompliantCount++;
+    else if (r.compliance_status === 'pending_confirmation') pendingConfirmationCount++;
 
     const wk = weekStart(new Date(r.created_at));
     const point = weekMap.get(wk) ?? { weekStart: wk, total: 0, compliant: 0 };
@@ -89,6 +97,7 @@ export async function getDashboardKpis(
     compliantCount,
     warningCount,
     nonCompliantCount,
+    pendingConfirmationCount,
     complianceRate,
     trendByWeek,
   };

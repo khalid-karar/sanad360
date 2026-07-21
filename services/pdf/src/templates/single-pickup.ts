@@ -6,6 +6,7 @@ import type {
   PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow,
   HashCheck, EvidenceHashChecks, DisposalRow, FacilityRow, TripRow,
+  PickupConfirmationRow,
 } from '../types.js';
 
 const QR_SKIP_REASON_LABELS: Record<string, string> = {
@@ -13,6 +14,12 @@ const QR_SKIP_REASON_LABELS: Record<string, string> = {
   scan_failed:                'تعذّر المسح',
   not_applicable_for_stream:  'لا ينطبق على نوع النفايات',
   other:                      'سبب آخر',
+};
+
+const CONFIRMATION_METHOD_LABELS: Record<PickupConfirmationRow['method'], string> = {
+  in_app_confirm:              'تأكيد داخل التطبيق',
+  signature_on_driver_device:  'توقيع على جهاز السائق (بديل أضعف)',
+  unavailable:                 'غير متاح',
 };
 
 const RECONCILIATION_LABELS: Record<TripRow['weight_reconciliation_status'], string> = {
@@ -72,6 +79,8 @@ export function buildSinglePickupHtml(opts: {
   disposalFacility?: FacilityRow | null; // the confirming facility's identity
   disposalPhotoCheck?: HashCheck;  // server-side re-hash verdict for the weighbridge photo
   trip?: TripRow | null;           // the trip this pickup was grouped into, for reconciliation result
+  branchConfirmation?: PickupConfirmationRow | null; // branch_operator's own attestation (migration 026/030)
+  branchConfirmationSignatureCheck?: HashCheck;       // server-side re-hash verdict for its signature
   documentId: string; // short ID for the footer
   generatedAt: string; // ISO timestamp
   pdfSha256?: string;  // SHA-256 of the rendered PDF bytes (threaded from the route)
@@ -216,6 +225,9 @@ export function buildSinglePickupHtml(opts: {
       ${event.compliance_status === 'non_compliant' && hasPolicyViolation ? `
       <div class="custody-warning" style="margin-top:8px;">⚠ غير ممتثل بسبب نقص دليل إلزامي وفق السياسة — بصرف النظر عن درجة الخطورة</div>
       ` : ''}
+      ${event.compliance_status === 'pending_confirmation' ? `
+      <div class="custody-warning" style="margin-top:8px; border-color:#3730a3; background:#e0e7ff; color:#3730a3;">⏳ بانتظار تأكيد مشغّل الفرع — هذه العملية ليست ممتثلة بعد، بصرف النظر عن درجة الخطورة، إلى حين ورود التأكيد المطلوب (انظر قسم تأكيد الفرع أدناه)</div>
+      ` : ''}
       ${event.risk_flags.length > 0 ? `
       <div style="margin-top:8px;">
         <div class="label" style="margin-bottom:4px;">العلامات المُفعَّلة</div>
@@ -223,6 +235,41 @@ export function buildSinglePickupHtml(opts: {
       </div>` : '<div class="label" style="margin-top:6px;">✓ لا توجد علامات مخاطر</div>'}
     </div>
   </div>
+
+  <!-- ── Branch confirmation (migration 026/030) — the branch_operator's own
+       attestation of THIS pickup. Rendered whenever the pickup is (or was)
+       pending_confirmation, OR a confirmation row exists — omitted only for
+       ordinary pickups where branch confirmation was never required at
+       all, to avoid noise on the vast majority of reports. ── -->
+  ${event.compliance_status === 'pending_confirmation' || opts.branchConfirmation || event.risk_flags.some((f) => f === 'confirmation_window_expired' || f === 'branch_confirmation_disputed') ? `
+  <div class="section">
+    <div class="section-header">تأكيد فرع الاستلام</div>
+    <div class="section-body">
+      ${!opts.branchConfirmation ? (
+        event.risk_flags.includes('confirmation_window_expired')
+          ? `<div class="custody-warning">⚠ انتهت مهلة تأكيد الفرع دون ورود أي تأكيد — العملية غير ممتثلة الآن</div>`
+          : `<div class="custody-warning">⏳ بانتظار تأكيد مشغّل الفرع لهذه العملية — لم يرد أي تأكيد بعد</div>`
+      ) : opts.branchConfirmation.status === 'disputed' ? `
+      <div class="custody-warning">⚠ نازع مشغّل الفرع هذه العملية — السبب: ${esc(opts.branchConfirmation.dispute_reason ?? 'غير محدد')}</div>
+      ` : `
+      ${event.risk_flags.includes('missing_required:branch_confirmation') && event.risk_flags.includes('reduced_verification') ? `
+      <div class="custody-warning">⚠ طريقة التأكيد المُستخدَمة لا تفي بمتطلبات السياسة — العملية غير ممتثلة رغم وجود تأكيد</div>
+      ` : ''}
+      <div class="row"><span class="label">طريقة التأكيد</span><span class="value">${esc(CONFIRMATION_METHOD_LABELS[opts.branchConfirmation.method] ?? opts.branchConfirmation.method)}</span></div>
+      <div class="row"><span class="label">تاريخ التأكيد</span><span class="value">${esc(arabicDateTime(opts.branchConfirmation.confirmed_at ?? opts.branchConfirmation.created_at))}</span></div>
+      ${opts.branchConfirmation.signature_path ? `
+      <div class="row">
+        <span class="label">توقيع مشغّل الفرع SHA-256</span>
+        <span class="value hash">${esc(opts.branchConfirmation.signature_sha256 ?? 'N/A')}${hashVerdict(opts.branchConfirmationSignatureCheck)}</span>
+      </div>` : ''}
+      ${opts.branchConfirmation.gps_lat && opts.branchConfirmation.gps_lng
+        ? `<div class="row"><span class="label">إحداثيات التأكيد</span><span class="value">${opts.branchConfirmation.gps_lat.toFixed(5)}, ${opts.branchConfirmation.gps_lng.toFixed(5)}</span></div>`
+        : ''}
+      ${opts.branchConfirmation.notes ? `<div class="row"><span class="label">ملاحظات</span><span class="value">${esc(opts.branchConfirmation.notes)}</span></div>` : ''}
+      `}
+    </div>
+  </div>
+  ` : ''}
 
   <!-- ── Chain of Custody: recycler-confirmed disposal leg (migration 018) ── -->
   <div class="section">
