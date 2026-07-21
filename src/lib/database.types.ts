@@ -21,6 +21,8 @@ export interface Company {
   name_en: string | null;
   commercial_registration: string;
   vat_number: string | null;
+  /** CP5 (migration 028): FK to industries.code, nullable (pre-CP5 companies). */
+  industry_code: string | null;
   created_at: string;
 }
 
@@ -39,6 +41,29 @@ export interface Branch {
   // (migration 022) — column-level GRANTs (023) mean it never reaches the
   // client anyway. Fetch a rotating scan token from services/pdf instead
   // (src/lib/api/branches.ts requestBranchQrToken()).
+  /** CP5 (migration 027): FK to regions.code, nullable (pre-CP5 branches). */
+  region_code: string | null;
+  created_at: string;
+}
+
+/** CP5 (migration 028): bilingual industry lookup, consumed by gov_rollup(). */
+export interface Industry {
+  code: string;
+  label_ar: string;
+  label_en: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+/** CP5 (migration 027): canonical ISO 3166-2:SA region lookup. */
+export interface Region {
+  code: string;
+  name_ar: string;
+  name_en: string;
+  sort_order: number;
+  /** CP5 (migration 030): nullable GASTAT code, distinct from the ISO code. */
+  gastat_code: string | null;
   created_at: string;
 }
 
@@ -526,6 +551,8 @@ export interface Database {
       documents: TableShape<DocumentRow>;
       required_documents: TableShape<RequiredDocument>;
       pickup_confirmations: TableShape<PickupConfirmation>;
+      industries: TableShape<Industry>;
+      regions: TableShape<Region>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };

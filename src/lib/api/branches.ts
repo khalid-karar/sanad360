@@ -8,7 +8,7 @@ import type { Branch } from '../database.types';
 // Exported so every other module querying `branches` (companies.ts) uses the
 // same list rather than drifting.
 export const BRANCH_COLUMNS =
-  'id, company_id, name_ar, name_en, address_ar, city, geofence_lat, geofence_lng, geofence_radius_m, status, created_at';
+  'id, company_id, name_ar, name_en, address_ar, city, geofence_lat, geofence_lng, geofence_radius_m, status, region_code, created_at';
 
 export interface CreateBranchInput {
   company_id: string;
@@ -19,6 +19,8 @@ export interface CreateBranchInput {
   geofence_lat?: number;
   geofence_lng?: number;
   geofence_radius_m?: number;
+  /** CP5 (migration 027): FK to regions.code — consumed by gov_rollup(). */
+  region_code?: string;
 }
 
 export type UpdateBranchInput = Partial<

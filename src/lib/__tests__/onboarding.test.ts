@@ -114,7 +114,7 @@ describe('Admin onboarding endpoint', () => {
     }
   });
 
-  it('1. admin can onboard a company (201) with owner membership', async () => {
+  it('1. admin can onboard a company (201) with owner membership and industry_code (CP5 4h)', async () => {
     if (!serviceUp) return;
     const jwt = await jwtFor(ADMIN_EMAIL, ADMIN_PASSWORD);
     const res = await postOnboard(
@@ -125,6 +125,7 @@ describe('Admin onboarding endpoint', () => {
         owner_email: NEW_OWNER_EMAIL,
         owner_temp_password: 'TempPass1234!',
         owner_name_ar: 'مالك تجريبي',
+        industry_code: 'logistics_warehousing',
       },
       jwt
     );
@@ -144,6 +145,14 @@ describe('Admin onboarding endpoint', () => {
       .single<{ role: string; company_id: string }>();
     expect(mem?.role).toBe('owner');
     expect(mem?.company_id).toBe(json.companyId);
+
+    // industry_code threaded through to the new company row.
+    const { data: company } = await admin
+      .from('companies')
+      .select('industry_code')
+      .eq('id', json.companyId)
+      .single<{ industry_code: string | null }>();
+    expect(company?.industry_code).toBe('logistics_warehousing');
   });
 
   it('2. non-admin caller gets 403', async () => {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
-import type { TransportCompany } from '../../lib/database.types';
+import { listIndustries } from '../../lib/api/industries';
+import type { TransportCompany, Industry } from '../../lib/database.types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +41,11 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
   const [transportCompanies, setTransportCompanies] = useState<TransportCompany[]>([]);
   const [selectedTcIds, setSelectedTcIds] = useState<string[]>([]);
 
+  // Industry (company tenants only — migration 028's lookup, consumed by
+  // gov_rollup()'s region → industry drill-down).
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [industryCode, setIndustryCode] = useState('');
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardResult | null>(null);
@@ -56,6 +62,22 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
         .order('name_ar');
       if (cancelled) return;
       if (!tcErr && data) setTransportCompanies(data as TransportCompany[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantType]);
+
+  useEffect(() => {
+    if (tenantType !== 'company') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await listIndustries();
+        if (!cancelled) setIndustries(rows);
+      } catch {
+        // Non-fatal — industry is optional at onboarding time (nullable column).
+      }
     })();
     return () => {
       cancelled = true;
@@ -91,6 +113,7 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
         owner_temp_password: ownerPassword,
         transport_company_ids:
           tenantType === 'company' && selectedTcIds.length > 0 ? selectedTcIds : undefined,
+        industry_code: tenantType === 'company' && industryCode ? industryCode : undefined,
       };
 
       const res = await fetch(`${PDF_SERVICE_URL}/admin/onboard-company`, {
@@ -227,6 +250,28 @@ export default function OnboardCompanyForm({ onClose, onSuccess }: OnboardCompan
                 </Label>
                 <Input id="vat" value={vat} onChange={(e) => setVat(e.target.value)} dir="ltr" />
               </div>
+
+              {/* Industry (company tenants only, migration 028) */}
+              {tenantType === 'company' && (
+                <div>
+                  <Label htmlFor="industry_code" className="text-foreground">
+                    {isRTL ? 'القطاع' : 'Industry'}
+                  </Label>
+                  <select
+                    id="industry_code"
+                    value={industryCode}
+                    onChange={(e) => setIndustryCode(e.target.value)}
+                    className="mt-2 w-full bg-background text-foreground border border-input rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">{isRTL ? '— بدون تحديد —' : '— Not specified —'}</option>
+                    {industries.map((ind) => (
+                      <option key={ind.code} value={ind.code}>
+                        {isRTL ? ind.label_ar : ind.label_en}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Link transport companies (company tenants only) */}
               {tenantType === 'company' && (
