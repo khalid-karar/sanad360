@@ -6,7 +6,12 @@ export type MemberRole =
   // CP1 (migration 017): recycler-side roles, tenant-scoped to a facility.
   | 'recycler_manager' | 'scale_operator'
   // CP2 (migration 020): tenant-less Maya-side document reviewer.
-  | 'document_reviewer';
+  | 'document_reviewer'
+  // CP5 (migration 024): Maya-side roles (tenant-less; only super_admin may
+  // grant/modify any of these — enforced in the DB, migration 029).
+  | 'super_admin' | 'system_admin' | 'support_agent' | 'billing_accountant'
+  // CP5 (migration 024): tenant-side roles.
+  | 'branch_operator' | 'consultant' | 'gov_viewer';
 export type WasteType = 'industrial' | 'plastic' | 'chemical' | 'organic' | 'electronic' | 'medical';
 export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant' | 'pending_confirmation';
 
