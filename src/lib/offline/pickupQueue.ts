@@ -38,6 +38,10 @@ export interface QueuedSubmission {
   gpsLng?: number;
   gpsAccuracyM?: number;
   qrCodeValue?: string;
+  /** Set instead of qrCodeValue when the driver skipped the QR scan —
+   *  migration 022's CHECK requires one or the other on every insert. */
+  qrSkipReason?: 'device_unavailable' | 'scan_failed' | 'not_applicable_for_stream' | 'other';
+  qrSkipReasonNotes?: string;
   /** Signature as base64 data URL (canvas output). */
   signatureDataUrl?: string;
   /** Blobs persist natively in IndexedDB; names/types kept to rebuild Files. */
@@ -199,6 +203,8 @@ async function replay(sub: QueuedSubmission): Promise<void> {
       gps_lng: sub.gpsLng,
       gps_accuracy_m: sub.gpsAccuracyM,
       qr_code_value: sub.qrCodeValue,
+      qr_skip_reason: sub.qrSkipReason,
+      qr_skip_reason_notes: sub.qrSkipReasonNotes,
       photo_path: photoRes?.path,
       scale_photo_path: scaleRes?.path,
       receipt_path: receiptRes?.path,

@@ -22,6 +22,7 @@ import { handleOnboardCompany } from './routes/onboard.js';
 import { handleInviteDriver } from './routes/invite-driver.js';
 import { handleInviteRecycler, handleCreateFacility } from './routes/invite-recycler.js';
 import { handleIssueTripQr, handleValidateTripQr } from './routes/trip-qr.js';
+import { handleIssueBranchQr } from './routes/branch-qr.js';
 import type { AuthedRequest } from './types.js';
 
 const app = express();
@@ -188,6 +189,17 @@ app.post(
   requestTimeout,
   authMiddleware,
   asyncHandler((req, res) => handleValidateTripQr(req as AuthedRequest, res))
+);
+
+// CP3: HMAC short-TTL branch QR — issued to the branch's own device (owner/
+// manager of the branch's company), rotated client-side before each 90s
+// expiry. Replaces the old static, printable qr_token board (migration 022).
+app.post(
+  '/branches/:branchId/qr',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleIssueBranchQr(req as AuthedRequest, res))
 );
 
 const server = app.listen(PORT, () => {

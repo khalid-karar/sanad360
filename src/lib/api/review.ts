@@ -9,16 +9,12 @@ import type { PickupEvent } from '../database.types';
  * Everything here reads through RLS-scoped views/tables — no service role.
  */
 
-export type ReviewReason =
-  | 'missing_photo'
-  | 'missing_signature'
-  | 'geofence_failed'
-  | 'gps_low_accuracy'
-  | 'qr_mismatch'
-  | 'weight_anomaly'
-  | 'driver_license_expiring'
-  | 'vehicle_license_expiring'
-  | 'custody_missing';
+// A plain string, not a closed union: migration 022 added `missing_required:
+// <item>` — a dynamically-suffixed flag (one per missing required-evidence
+// item) that can never be enumerated as a fixed literal. The rendering side
+// (ReviewQueuePage) already needs a startsWith() branch for it regardless, so
+// a closed union here would buy no real safety, only force casts.
+export type ReviewReason = string;
 
 export interface FlaggedRecord {
   event: PickupEvent;

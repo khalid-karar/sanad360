@@ -2,13 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAuthStore } from '../../stores/authStore';
 import { useDriverStore } from '../../stores/driverStore';
+import type { QrSkipReason } from '../../stores/driverStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { QrCodeIcon, KeyboardIcon } from 'lucide-react';
 
 const QR_ELEMENT_ID = 'tadweer-qr-reader';
+
+const SKIP_REASONS: { value: QrSkipReason; ar: string; en: string }[] = [
+  { value: 'device_unavailable', ar: 'لا يوجد جهاز/رمز في الموقع', en: 'No device/code at the site' },
+  { value: 'scan_failed', ar: 'تعذّر المسح (كاميرا/رمز تالف)', en: 'Scan failed (camera/damaged code)' },
+  { value: 'not_applicable_for_stream', ar: 'لا ينطبق على نوع النفايات هذا', en: 'Not applicable for this waste type' },
+  { value: 'other', ar: 'سبب آخر', en: 'Other reason' },
+];
 
 export default function QRScanner() {
   const { isRTL } = useAuthStore();
@@ -18,6 +27,9 @@ export default function QRScanner() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [showManual, setShowManual] = useState(false);
+  const [showSkipReasons, setShowSkipReasons] = useState(false);
+  const [skipReason, setSkipReason] = useState<QrSkipReason | null>(null);
+  const [skipNotes, setSkipNotes] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -79,9 +91,19 @@ export default function QRScanner() {
     handleResult(manualCode.trim());
   };
 
-  const handleSkip = () => {
+  // A bare skip is no longer allowed server-side (migration 022's CHECK
+  // requires qr_code_value OR qr_skip_reason) — gate it client-side first so
+  // a driver never hits a raw Postgres rejection mid-flow.
+  const canConfirmSkip =
+    skipReason !== null && (skipReason !== 'other' || skipNotes.trim().length > 0);
+
+  const confirmSkip = () => {
+    if (!canConfirmSkip || !skipReason) return;
     stopScannerSafely();
-    // qr_code_value stays undefined — allowed; geofence_verified will be false
+    updateManifestData({
+      qr_skip_reason: skipReason,
+      qr_skip_reason_notes: skipReason === 'other' ? skipNotes.trim() : undefined,
+    });
     setPickupState('geolocation-verified');
   };
 
@@ -160,25 +182,93 @@ export default function QRScanner() {
         </Card>
       )}
 
-      <div className="flex gap-3">
-        {!showManual && (
+      {!showSkipReasons && (
+        <div className="flex gap-3">
+          {!showManual && (
+            <Button
+              variant="outline"
+              onClick={() => setShowManual(true)}
+              className="flex-1 bg-background text-foreground border-border hover:bg-accent"
+            >
+              <KeyboardIcon className="w-4 h-4 me-2" />
+              {isRTL ? 'إدخال يدوي' : 'Manual Entry'}
+            </Button>
+          )}
           <Button
             variant="outline"
-            onClick={() => setShowManual(true)}
-            className="flex-1 bg-background text-foreground border-border hover:bg-accent"
+            onClick={() => setShowSkipReasons(true)}
+            className="flex-1 bg-background text-muted-foreground border-border hover:bg-accent"
           >
-            <KeyboardIcon className="w-4 h-4 me-2" />
-            {isRTL ? 'إدخال يدوي' : 'Manual Entry'}
+            {isRTL ? 'تخطي (بدون QR)' : 'Skip (No QR)'}
           </Button>
-        )}
-        <Button
-          variant="outline"
-          onClick={handleSkip}
-          className="flex-1 bg-background text-muted-foreground border-border hover:bg-accent"
-        >
-          {isRTL ? 'تخطي (بدون QR)' : 'Skip (No QR)'}
-        </Button>
-      </div>
+        </div>
+      )}
+
+      {/* Skip-reason picker — a bare skip is no longer accepted server-side
+          (migration 022); the driver must state why before advancing. */}
+      {showSkipReasons && (
+        <Card className="bg-card text-card-foreground border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">
+              {isRTL ? 'لماذا تم تخطي رمز QR؟' : 'Why was the QR skipped?'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-2">
+              {SKIP_REASONS.map((r) => (
+                <Button
+                  key={r.value}
+                  type="button"
+                  variant={skipReason === r.value ? 'default' : 'outline'}
+                  onClick={() => setSkipReason(r.value)}
+                  className={
+                    skipReason === r.value
+                      ? 'w-full justify-start bg-primary text-primary-foreground'
+                      : 'w-full justify-start bg-background text-foreground border-border hover:bg-accent'
+                  }
+                >
+                  {isRTL ? r.ar : r.en}
+                </Button>
+              ))}
+            </div>
+
+            {skipReason === 'other' && (
+              <div className="space-y-2">
+                <Label className="text-foreground">
+                  {isRTL ? 'اذكر السبب' : 'Describe the reason'}
+                </Label>
+                <Textarea
+                  value={skipNotes}
+                  onChange={(e) => setSkipNotes(e.target.value)}
+                  placeholder={isRTL ? 'اكتب السبب هنا...' : 'Type the reason here...'}
+                  className="bg-background text-foreground border-input"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSkipReasons(false);
+                  setSkipReason(null);
+                  setSkipNotes('');
+                }}
+                className="flex-1 bg-background text-foreground border-border hover:bg-accent"
+              >
+                {isRTL ? 'رجوع' : 'Back'}
+              </Button>
+              <Button
+                onClick={confirmSkip}
+                disabled={!canConfirmSkip}
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isRTL ? 'تأكيد التخطي' : 'Confirm Skip'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

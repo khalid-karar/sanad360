@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import {
-  listBranches, createBranch, updateBranch, deleteBranch,
+  listBranches, createBranch, updateBranch, deleteBranch, requestBranchQrToken,
 } from '../lib/api/branches';
 import type { Branch } from '../lib/database.types';
 import AppShell from '../components/AppShell';
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, Building2Icon, FileCheckIcon } from 'lucide-react';
+import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, Building2Icon, FileCheckIcon } from 'lucide-react';
 import GeofenceMapPicker from '@/components/map/GeofenceMapPicker';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import { Modal } from '@/components/ui/modal';
@@ -42,59 +42,78 @@ export default function BranchesPage() {
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
 
-  // QR board: the branch qr_token rendered as a scannable, printable code.
-  // Drivers scan it at the waste point; the server verifies the value against
-  // branches.qr_token (migration 013) — so this board is what makes the QR
-  // check real in the field.
+  // Rotating branch QR (migration 022/Part B): branches.qr_token is now a
+  // server-only HMAC secret, never sent to any client. This device polls
+  // services/pdf for a fresh, short-TTL (90s) signed token and re-renders the
+  // QR image from IT — never from a stored secret — refreshing itself before
+  // each token expires. A printed poster no longer makes sense (it would go
+  // stale within 90s), so this modal is meant to stay open on a device left
+  // at the waste point instead of being printed.
+  const QR_REFRESH_MARGIN_MS = 20_000; // refetch ~20s before expiry
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [docsFor, setDocsFor] = useState<Branch | null>(null);
+  const qrRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function openQr(b: Branch) {
-    try {
-      const dataUrl = await QRCode.toDataURL(b.qr_token, { width: 480, margin: 2 });
-      setQrDataUrl(dataUrl);
-      setQrBranch(b);
-    } catch {
-      toast({ title: isRTL ? 'خطأ' : 'Error', description: isRTL ? 'تعذر إنشاء الرمز' : 'Could not generate QR', variant: 'destructive' });
+  function clearQrRefresh() {
+    if (qrRefreshTimer.current) {
+      clearTimeout(qrRefreshTimer.current);
+      qrRefreshTimer.current = null;
     }
   }
 
-  function printQr() {
-    if (!qrBranch || !qrDataUrl) return;
-    const w = window.open('', '_blank', 'width=800,height=1000');
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-  <meta charset="UTF-8">
-  <title>${qrBranch.name_ar} — رمز نقطة النفايات</title>
-  <style>
-    @page { size: A4; margin: 20mm; }
-    body { font-family: 'Segoe UI', Tahoma, sans-serif; text-align: center; color: #111; margin: 0; }
-    .brand { font-size: 20pt; font-weight: 700; margin-top: 10mm; }
-    .brand span { color: #16a34a; }
-    h1 { font-size: 26pt; margin: 8mm 0 2mm; }
-    .en { font-size: 13pt; color: #555; margin: 0 0 8mm; direction: ltr; }
-    img { width: 120mm; height: 120mm; }
-    .hint { font-size: 14pt; margin-top: 8mm; }
-    .hint-en { font-size: 11pt; color: #555; direction: ltr; }
-    .footer { position: fixed; bottom: 10mm; left: 0; right: 0; font-size: 9pt; color: #888; }
-  </style>
-</head>
-<body>
-  <div class="brand">سند <span>360</span></div>
-  <h1>${qrBranch.name_ar}</h1>
-  ${qrBranch.name_en ? `<p class="en">${qrBranch.name_en}</p>` : ''}
-  <img src="${qrDataUrl}" alt="QR">
-  <p class="hint">يُثبَّت هذا الرمز عند نقطة تسليم النفايات — يمسحه السائق لتأكيد الموقع</p>
-  <p class="hint-en">Post this code at the waste hand-over point — the driver scans it to confirm the location</p>
-  <div class="footer">سند 360 — رمز فرع يُتحقق منه خادمياً</div>
-  <script>window.onload = () => { window.print(); };</script>
-</body>
-</html>`);
-    w.document.close();
+  async function refreshQr(branchId: string) {
+    try {
+      const { token, expires_at } = await requestBranchQrToken(branchId);
+      const dataUrl = await QRCode.toDataURL(token, { width: 480, margin: 2 });
+      setQrDataUrl(dataUrl);
+      setQrError(null);
+
+      const msUntilExpiry = new Date(expires_at).getTime() - Date.now();
+      const delay = Math.max(msUntilExpiry - QR_REFRESH_MARGIN_MS, 5_000);
+      qrRefreshTimer.current = setTimeout(() => refreshQr(branchId), delay);
+    } catch (e) {
+      setQrError(describeError(e, isRTL));
+      // Still retry — a branch operator's device losing the display for a
+      // full refresh cycle is a real field problem, so back off briefly
+      // instead of giving up.
+      qrRefreshTimer.current = setTimeout(() => refreshQr(branchId), 5_000);
+    }
   }
+
+  function openQr(b: Branch) {
+    setQrBranch(b);
+    setQrDataUrl(null);
+    setQrError(null);
+    void refreshQr(b.id);
+  }
+
+  function closeQr() {
+    clearQrRefresh();
+    setQrBranch(null);
+    setQrDataUrl(null);
+    setQrError(null);
+  }
+
+  // A backgrounded tab can have its timers throttled by the browser, letting
+  // the displayed code silently go stale while a driver waits at the point —
+  // refresh immediately whenever the tab regains focus/visibility.
+  useEffect(() => {
+    if (!qrBranch) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshQr(qrBranch.id);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrBranch?.id]);
+
+  useEffect(() => () => clearQrRefresh(), []);
 
   async function load() {
     if (!user?.company_id) return;
@@ -258,8 +277,8 @@ export default function BranchesPage() {
             icon={<Building2Icon />}
             title={isRTL ? 'لا توجد فروع بعد' : 'No branches yet'}
             hint={isRTL
-              ? 'أضف أول فرع وحدّد نطاقه الجغرافي، ثم اطبع رمز QR وثبّته عند نقطة النفايات'
-              : 'Add your first branch with its geofence, then print its QR board and post it at the waste point'}
+              ? 'أضف أول فرع وحدّد نطاقه الجغرافي، ثم اعرض رمز QR المتجدد على جهاز عند نقطة النفايات'
+              : 'Add your first branch with its geofence, then display its rotating QR on a device at the waste point'}
             action={{ label: isRTL ? 'إضافة فرع' : 'Add Branch', onClick: openCreate }}
           />
         )}
@@ -307,32 +326,39 @@ export default function BranchesPage() {
         </div>
       </div>
 
-      {/* Branch QR board modal — preview + print (Radix Dialog: focus trap + Esc) */}
-      {qrBranch && qrDataUrl && (
+      {/* Rotating branch QR modal — a live signed token, refreshed before each
+          90s expiry (Radix Dialog: focus trap + Esc). Meant to stay open on a
+          device left at the waste point, not printed — a printed code would
+          go stale within 90 seconds. */}
+      {qrBranch && (
         <Modal
           open
-          onClose={() => setQrBranch(null)}
+          onClose={closeQr}
           isRTL={isRTL}
           maxWidth="max-w-sm"
           title={
             <span className="flex items-center gap-2">
               <QrCodeIcon className="w-5 h-5 text-primary" />
-              {isRTL ? 'رمز نقطة النفايات' : 'Waste-Point QR Board'}
+              {isRTL ? 'رمز نقطة النفايات' : 'Waste-Point QR'}
             </span>
           }
         >
           <div className="space-y-4 text-center">
               <p className="font-semibold text-lg text-foreground">{qrBranch.name_ar}</p>
               {qrBranch.name_en && <p className="text-sm text-muted-foreground" dir="ltr">{qrBranch.name_en}</p>}
-              <img src={qrDataUrl} alt="Branch QR" className="mx-auto w-56 h-56 rounded-md border border-border bg-white p-2" />
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="Branch QR" className="mx-auto w-56 h-56 rounded-md border border-border bg-white p-2" />
+              ) : (
+                <div className="mx-auto w-56 h-56 rounded-md border border-border bg-muted flex items-center justify-center text-sm text-muted-foreground">
+                  {isRTL ? 'جارٍ التحميل...' : 'Loading...'}
+                </div>
+              )}
+              {qrError && <p className="text-xs text-destructive">{qrError}</p>}
               <p className="text-xs text-muted-foreground">
                 {isRTL
-                  ? 'اطبع هذا الرمز وثبّته عند نقطة تسليم النفايات — يمسحه السائق ويتحقق منه الخادم'
-                  : 'Print and post at the waste hand-over point — the driver scans it and the server verifies it'}
+                  ? 'اترك هذا الجهاز ظاهراً عند نقطة تسليم النفايات — الرمز يتجدد تلقائياً ويمسحه السائق'
+                  : 'Keep this device visible at the waste hand-over point — the code refreshes itself; the driver scans it'}
               </p>
-              <Button onClick={printQr} className="w-full bg-primary text-primary-foreground">
-                <PrinterIcon className="w-4 h-4 me-2" />{isRTL ? 'طباعة' : 'Print'}
-              </Button>
           </div>
         </Modal>
       )}

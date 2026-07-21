@@ -18,6 +18,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createHmac } from 'node:crypto';
 import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
@@ -63,6 +64,20 @@ interface EventResult {
 
 const cleanupEventIds: string[] = [];
 
+/**
+ * Builds a signed branch QR token exactly as the (future) PDF-service issuer
+ * will: base64(JSON payload) + '.' + base64(HMAC-SHA256(payload, branch
+ * secret)) — the plain-base64 encoding (not base64url) mirrors migration
+ * 022/B4's decision 6, so Node's Buffer.toString('base64') here matches
+ * Postgres's encode(...,'base64') in the trigger byte-for-byte.
+ */
+function signQrToken(branchId: string, secret: string, ttlMs = 90_000): string {
+  const payload = JSON.stringify({ branch_id: branchId, exp: Date.now() + ttlMs });
+  const payloadB64 = Buffer.from(payload, 'utf8').toString('base64');
+  const sigB64 = createHmac('sha256', secret).update(payloadB64, 'utf8').digest('base64');
+  return `${payloadB64}.${sigB64}`;
+}
+
 async function insertEvent(overrides: Record<string, unknown>): Promise<EventResult> {
   const { data, error } = await admin
     .from('pickup_events')
@@ -81,6 +96,11 @@ async function insertEvent(overrides: Record<string, unknown>): Promise<EventRes
       gps_accuracy_m: 10,
       photo_path: 'p/photo.jpg',
       signature_path: 'p/sig.png',
+      // (022) pickup_events_qr_or_reason_check requires qr_code_value OR
+      // qr_skip_reason; tests below that don't care about QR override
+      // qr_code_value explicitly, so this default only fires for those that
+      // don't.
+      qr_skip_reason: overrides.qr_code_value ? undefined : 'not_applicable_for_stream',
       ...overrides,
     })
     .select('id, qr_verified, geofence_verified, risk_flags')
@@ -167,8 +187,8 @@ describe('Evidence hardening (Migration 013)', () => {
     }
   });
 
-  it('1. real branch qr_token verifies server-side (no flag)', async () => {
-    const ev = await insertEvent({ qr_code_value: branchQrToken });
+  it('1. a QR token signed with the branch secret verifies server-side (no flag)', async () => {
+    const ev = await insertEvent({ qr_code_value: signQrToken(SEED.branchId, branchQrToken) });
     expect(ev.qr_verified).toBe(true);
     expect(ev.risk_flags).not.toContain('qr_mismatch');
   });

@@ -57,6 +57,8 @@ export interface PickupEventRow {
   geofence_verified: boolean;
   qr_verified: boolean;
   qr_code_value: string | null;
+  qr_skip_reason: string | null;
+  qr_skip_reason_notes: string | null;
   photo_path: string | null;
   scale_photo_path: string | null;
   receipt_path: string | null;

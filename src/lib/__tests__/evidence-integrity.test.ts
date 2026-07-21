@@ -114,6 +114,9 @@ describe('Evidence-file integrity (Migration 005)', () => {
         gps_lng: 46.6876,
         photo_path: photoPath,
         photo_sha256: photoSha,
+        // (022) pickup_events_qr_or_reason_check requires qr_code_value OR
+        // qr_skip_reason — this suite doesn't exercise QR, so state a reason.
+        qr_skip_reason: 'not_applicable_for_stream',
       })
       .select('id')
       .single<{ id: string }>();

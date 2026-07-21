@@ -23,6 +23,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createHmac } from 'node:crypto';
 import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 // ─── Client setup ────────────────────────────────────────────────────────────
@@ -107,6 +108,22 @@ async function createTestVehicle(ncwmExpiry: string): Promise<string> {
   return data.id;
 }
 
+/**
+ * Signs a branch QR token exactly as migration 022/B4 verifies it. This
+ * suite's assertions are about the risk-score arithmetic (photo/signature/
+ * geofence/license flags), not QR — a valid QR keeps 'qr' out of the
+ * missing-required-evidence set (022) so compliance_status still reflects
+ * pure score math, undisturbed by CP3's independent evidence gate.
+ */
+function signQrToken(branchId: string, secret: string, ttlMs = 90_000): string {
+  const payload = JSON.stringify({ branch_id: branchId, exp: Date.now() + ttlMs });
+  const payloadB64 = Buffer.from(payload, 'utf8').toString('base64');
+  const sigB64 = createHmac('sha256', secret).update(payloadB64, 'utf8').digest('base64');
+  return `${payloadB64}.${sigB64}`;
+}
+
+let branchQrToken = '';
+
 interface InsertResult {
   id: string;
   risk_score: number;
@@ -123,6 +140,15 @@ async function insertPickup(opts: {
   gpsLng?: number | null;
   gpsAccuracyM?: number | null;
 }): Promise<InsertResult> {
+  // Use !== undefined so explicit null is forwarded as null (not replaced by the default)
+  const gpsLat = opts.gpsLat !== undefined ? opts.gpsLat : 24.6877;
+  const gpsLng = opts.gpsLng !== undefined ? opts.gpsLng : 46.6876;
+  // A valid QR paired with a geofence miss trips the trigger's OWN
+  // possible_relay_attack rule (+30) — only attach one when GPS is at the
+  // branch centre, so this suite's exact score math for its deliberately
+  // geofence-failing cases (null/other GPS) stays undisturbed.
+  const insideGeofence = gpsLat === 24.6877 && gpsLng === 46.6876;
+
   const { data, error } = await admin
     .from('pickup_events')
     .insert({
@@ -135,13 +161,17 @@ async function insertPickup(opts: {
       vehicle_id:           opts.vehicleId,
       waste_types:          ['organic'],
       weight_kg:            10,
-      // Use !== undefined so explicit null is forwarded as null (not replaced by the default)
-      gps_lat:         opts.gpsLat         !== undefined ? opts.gpsLat         : 24.6877,
-      gps_lng:         opts.gpsLng         !== undefined ? opts.gpsLng         : 46.6876,
+      gps_lat:         gpsLat,
+      gps_lng:         gpsLng,
       // Migration 013: geofence requires credible accuracy; default to a good fix
       gps_accuracy_m:  opts.gpsAccuracyM   !== undefined ? opts.gpsAccuracyM   : 10,
       photo_path:      opts.photoPath      !== undefined ? opts.photoPath      : 'company/branch/event/photo.jpg',
       signature_path:  opts.signaturePath  !== undefined ? opts.signaturePath  : 'company/branch/event/signature.png',
+      // (022) a valid signed QR satisfies the required-evidence gate without
+      // adding any risk flag, keeping this suite's score math undisturbed.
+      ...(insideGeofence
+        ? { qr_code_value: signQrToken(SEED.branchId, branchQrToken) }
+        : { qr_skip_reason: 'not_applicable_for_stream' }),
     })
     .select('id, risk_score, risk_flags, compliance_status')
     .single<InsertResult>();
@@ -160,6 +190,12 @@ beforeAll(async () => {
       'Seed data not found. Run `supabase db reset` (applies 001 + 002 + seed), then retry.'
     );
   }
+  const { data: branch } = await admin
+    .from('branches')
+    .select('qr_token')
+    .eq('id', SEED.branchId)
+    .single<{ qr_token: string }>();
+  branchQrToken = branch!.qr_token;
 });
 
 afterAll(async () => {
@@ -252,7 +288,13 @@ describe('Risk engine — pickup_events_before_insert()', () => {
       gpsLng: null,
     });
 
-    expect(result.risk_flags).toHaveLength(5);
+    // (022) missing photo/signature/geofenced_gps are also required-evidence
+    // items, and this fixture skips QR — so the trigger's independent CP3
+    // gate (missing_required_evidence, missing_required:*, qr_skipped_with_
+    // reason, reduced_verification) legitimately adds more flags on top of
+    // these five score-bearing ones. This test's actual point (per its
+    // title) is the score cap, not the total flag count.
+    expect(result.risk_flags.length).toBeGreaterThanOrEqual(5);
     expect(result.risk_flags).toContain('missing_photo');
     expect(result.risk_flags).toContain('missing_signature');
     expect(result.risk_flags).toContain('geofence_failed');

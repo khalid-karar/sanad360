@@ -30,9 +30,10 @@ export interface Branch {
   geofence_lng: number | null;
   geofence_radius_m: number;
   status: 'active' | 'inactive';
-  /** Secret printed as the facility QR board; scans are verified against it
-   *  server-side (migration 013). */
-  qr_token: string;
+  // qr_token intentionally omitted: it's a server-only HMAC signing secret
+  // (migration 022) — column-level GRANTs (023) mean it never reaches the
+  // client anyway. Fetch a rotating scan token from services/pdf instead
+  // (src/lib/api/branches.ts requestBranchQrToken()).
   created_at: string;
 }
 
@@ -179,6 +180,8 @@ export interface PickupEvent {
   geofence_verified: boolean;
   qr_verified: boolean;
   qr_code_value: string | null;
+  qr_skip_reason: 'device_unavailable' | 'scan_failed' | 'not_applicable_for_stream' | 'other' | null;
+  qr_skip_reason_notes: string | null;
   photo_path: string | null;
   scale_photo_path: string | null;
   receipt_path: string | null;
@@ -238,6 +241,8 @@ export type CreatePickupEventInput = {
   gps_lng?: number;
   gps_accuracy_m?: number;
   qr_code_value?: string;
+  qr_skip_reason?: 'device_unavailable' | 'scan_failed' | 'not_applicable_for_stream' | 'other';
+  qr_skip_reason_notes?: string;
   photo_path?: string;
   scale_photo_path?: string;
   receipt_path?: string;

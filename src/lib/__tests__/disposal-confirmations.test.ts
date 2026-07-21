@@ -89,6 +89,7 @@ async function addPickupToTrip(tripId: string, weightKg: number): Promise<string
       trip_id: tripId,
       waste_types: ['plastic'],
       weight_kg: weightKg,
+      qr_skip_reason: 'not_applicable_for_stream',
     })
     .select('id')
     .single<{ id: string }>();

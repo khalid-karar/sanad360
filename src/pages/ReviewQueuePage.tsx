@@ -7,7 +7,7 @@ import {
   listFlaggedPickups,
   acknowledgePickupReview,
 } from '../lib/api/review';
-import type { FlaggedRecord, ReviewReason } from '../lib/api/review';
+import type { FlaggedRecord } from '../lib/api/review';
 import { getSignedUrl } from '../lib/api/storage';
 import { generateSinglePickupPdf } from '../lib/api/inspection';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,17 +18,51 @@ import {
   Loader2Icon, ImageIcon, PenLineIcon, FileTextIcon, CheckIcon, EyeIcon,
 } from 'lucide-react';
 
-const REASON_LABELS: Record<ReviewReason, { ar: string; en: string }> = {
+const REASON_LABELS: Record<string, { ar: string; en: string }> = {
   missing_photo:            { ar: 'بدون صورة',                 en: 'No photo' },
   missing_signature:        { ar: 'بدون توقيع',                en: 'No signature' },
   geofence_failed:          { ar: 'خارج النطاق الجغرافي',      en: 'Geofence failed' },
   gps_low_accuracy:         { ar: 'دقة موقع منخفضة',           en: 'Low GPS accuracy' },
   qr_mismatch:              { ar: 'رمز QR غير مطابق',          en: 'QR mismatch' },
+  qr_token_replayed:        { ar: 'محاولة إعادة استخدام رمز QR', en: 'QR token replayed' },
+  possible_relay_attack:    { ar: 'اشتباه بنقل الرمز عن بُعد',  en: 'Possible relay attack' },
   weight_anomaly:           { ar: 'وزن غير معتاد',             en: 'Weight anomaly' },
   driver_license_expiring:  { ar: 'رخصة السائق تنتهي قريباً',  en: 'Driver license expiring' },
   vehicle_license_expiring: { ar: 'رخصة المركبة تنتهي قريباً', en: 'Vehicle license expiring' },
   custody_missing:          { ar: 'بدون تأكيد تسليم',          en: 'Custody not confirmed' },
+  qr_skipped_with_reason:   { ar: 'تخطي QR بسبب مُسجَّل',       en: 'QR skipped with reason' },
+  reduced_verification:     { ar: 'تحقق مخفَّض (QR إلزامي متخطى)', en: 'Reduced verification' },
+  missing_required_evidence: { ar: 'دليل إلزامي مفقود',        en: 'Missing required evidence' },
 };
+
+// Per-item labels for the dynamic `missing_required:<item>` flag (022) — one
+// entry per evidence_requirements item value.
+const REQUIRED_ITEM_LABELS: Record<string, { ar: string; en: string }> = {
+  qr:             { ar: 'رمز QR',        en: 'QR code' },
+  geofenced_gps:  { ar: 'الموقع الجغرافي', en: 'Geofenced GPS' },
+  photo:          { ar: 'الصورة',         en: 'Photo' },
+  signature:      { ar: 'التوقيع',        en: 'Signature' },
+  receipt:        { ar: 'الإيصال',        en: 'Receipt' },
+  scale_photo:    { ar: 'صورة الميزان',    en: 'Scale photo' },
+};
+
+const MISSING_REQUIRED_PREFIX = 'missing_required:';
+
+/** True for flags that mean "a policy-required item is absent" — these must
+ *  read as a distinct, more serious category than an ordinary risk flag,
+ *  since they can appear even when risk_score is 0. */
+function isPolicyViolationReason(reason: string): boolean {
+  return reason === 'missing_required_evidence' || reason.startsWith(MISSING_REQUIRED_PREFIX);
+}
+
+function reasonLabel(reason: string, isRTL: boolean): string {
+  if (reason.startsWith(MISSING_REQUIRED_PREFIX)) {
+    const item = reason.slice(MISSING_REQUIRED_PREFIX.length);
+    const itemLabel = REQUIRED_ITEM_LABELS[item]?.[isRTL ? 'ar' : 'en'] ?? item;
+    return isRTL ? `مفقود: ${itemLabel}` : `Missing: ${itemLabel}`;
+  }
+  return (isRTL ? REASON_LABELS[reason]?.ar : REASON_LABELS[reason]?.en) ?? reason;
+}
 
 /**
  * Manager review queue: every pickup the server flagged (risk engine) or whose
@@ -157,7 +191,7 @@ export default function ReviewQueuePage() {
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-start justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
-                      <RiskGauge score={r.event.risk_score} />
+                      <RiskGauge score={r.event.risk_score} complianceStatus={r.event.compliance_status} />
                       <div>
                         <p className="text-sm text-foreground" dir="ltr">
                           {formatDateTime(r.event.created_at, isRTL)}
@@ -172,9 +206,17 @@ export default function ReviewQueuePage() {
                         <Badge
                           key={reason}
                           variant={reason === 'custody_missing' ? 'secondary' : 'destructive'}
-                          className="text-[10px]"
+                          className={
+                            isPolicyViolationReason(reason)
+                              // Policy violations (a required item is missing) must not
+                              // carry the same visual weight as an ordinary risk flag —
+                              // this is exactly the "score=0 but non_compliant" case that
+                              // must never read as fine.
+                              ? 'text-[10px] bg-black text-white border-black dark:bg-white dark:text-black dark:border-white font-semibold'
+                              : 'text-[10px]'
+                          }
                         >
-                          {isRTL ? REASON_LABELS[reason]?.ar ?? reason : REASON_LABELS[reason]?.en ?? reason}
+                          {reasonLabel(reason, isRTL)}
                         </Badge>
                       ))}
                       {r.reviewed && (

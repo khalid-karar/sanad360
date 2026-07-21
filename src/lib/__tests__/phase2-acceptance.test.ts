@@ -20,7 +20,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createHash } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -98,6 +98,20 @@ function currentMonth(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' }).substring(0, 7);
 }
 
+/**
+ * Signs a branch QR token exactly as migration 022/B4 verifies it. This
+ * suite's risk-engine assertions (section 1) are about score arithmetic, not
+ * QR — a valid QR keeps 'qr' out of the missing-required-evidence set (022)
+ * so compliance_status still reflects pure score math.
+ */
+let branchQrToken = '';
+function signQrToken(branchId: string, secret: string, ttlMs = 90_000): string {
+  const payload = JSON.stringify({ branch_id: branchId, exp: Date.now() + ttlMs });
+  const payloadB64 = Buffer.from(payload, 'utf8').toString('base64');
+  const sigB64 = createHmac('sha256', secret).update(payloadB64, 'utf8').digest('base64');
+  return `${payloadB64}.${sigB64}`;
+}
+
 async function createTestDriver(licenseExpiry: string): Promise<string> {
   const { data, error } = await admin
     .from('drivers')
@@ -161,6 +175,12 @@ async function insertPickup(opts: {
   complianceOverride?: string;
   geofenceVerifiedOverride?: boolean;
 }): Promise<PickupResult> {
+  const gpsLat = opts.gpsLat !== undefined ? opts.gpsLat : SEED.branchLat;
+  const gpsLng = opts.gpsLng !== undefined ? opts.gpsLng : SEED.branchLng;
+  // Whether THIS insert's GPS is inside the branch geofence — matters for
+  // which QR fixture to use below.
+  const insideGeofence = gpsLat === SEED.branchLat && gpsLng === SEED.branchLng;
+
   const row: Record<string, unknown> = {
     logical_id:           crypto.randomUUID(),
     revision:             1,
@@ -171,12 +191,21 @@ async function insertPickup(opts: {
     vehicle_id:           opts.vehicleId           ?? SEED.vehicleId,
     waste_types:          ['organic'],
     weight_kg:            opts.weightKg            ?? 42,
-    gps_lat:              opts.gpsLat  !== undefined ? opts.gpsLat  : SEED.branchLat,
-    gps_lng:              opts.gpsLng  !== undefined ? opts.gpsLng  : SEED.branchLng,
+    gps_lat:              gpsLat,
+    gps_lng:              gpsLng,
     // Migration 013: geofence requires credible accuracy — send a good fix
     gps_accuracy_m:       10,
     photo_path:           opts.photoPath      !== undefined ? opts.photoPath      : 'co/br/photo.jpg',
     signature_path:       opts.signaturePath  !== undefined ? opts.signaturePath  : 'co/br/sig.png',
+    // (022) a valid signed QR satisfies the required-evidence gate without
+    // adding any risk flag, keeping section 1's score math undisturbed. Only
+    // attached when GPS is actually inside the geofence — a valid QR paired
+    // with an outside-geofence GPS trips the trigger's OWN possible_relay_
+    // attack rule (+30), which would corrupt this suite's exact score math
+    // for its deliberately-outside-geofence cases.
+    ...(insideGeofence
+      ? { qr_code_value: signQrToken(SEED.branchId, branchQrToken) }
+      : { qr_skip_reason: 'not_applicable_for_stream' }),
   };
 
   // Include spoofed client values — we assert the trigger overwrites them
@@ -226,6 +255,13 @@ describe('Phase 2 Acceptance Tests', () => {
     }
 
     await mkdir(TEST_OUTPUT_DIR, { recursive: true });
+
+    const { data: branch } = await admin
+      .from('branches')
+      .select('qr_token')
+      .eq('id', SEED.branchId)
+      .single<{ qr_token: string }>();
+    branchQrToken = branch!.qr_token;
 
     // Sign in as the seeded manager → normal user session for assertions
     const { data: session, error } = await anon.auth.signInWithPassword({
@@ -294,6 +330,7 @@ describe('Phase 2 Acceptance Tests', () => {
             weight_kg:            10,
             gps_lat:              24.6000,
             gps_lng:              46.7000,
+            qr_skip_reason:       'not_applicable_for_stream',
           })
           .select('id')
           .single<{ id: string }>();

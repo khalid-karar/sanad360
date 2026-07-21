@@ -163,6 +163,19 @@ export const BASE_CSS = `
     font-size: 9pt;
   }
 
+  /* Policy-violation flags (missing_required_evidence, missing_required:*) —
+     CP3 (migration 022) can force non_compliant with risk_score=0, so these
+     must never carry the same visual weight as an ordinary .flag pill. */
+  .flag-violation {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1.5pt solid #991b1b;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 9pt;
+    font-weight: 700;
+  }
+
   /* ── Footer (printed on every page via @page rule) ─────────── */
   .footer {
     position: fixed;
@@ -281,12 +294,49 @@ export function arabicDateTime(iso: string): string {
 
 // Arabic labels for risk flags
 export const FLAG_LABELS: Record<string, string> = {
-  missing_photo:            'صورة مفقودة',
-  missing_signature:        'توقيع مفقود',
-  geofence_failed:          'خارج النطاق الجغرافي',
-  driver_license_expiring:  'رخصة السائق تنتهي قريباً',
-  vehicle_license_expiring: 'رخصة المركبة تنتهي قريباً',
+  missing_photo:             'صورة مفقودة',
+  missing_signature:         'توقيع مفقود',
+  geofence_failed:           'خارج النطاق الجغرافي',
+  driver_license_expiring:   'رخصة السائق تنتهي قريباً',
+  vehicle_license_expiring:  'رخصة المركبة تنتهي قريباً',
+  gps_low_accuracy:          'دقة موقع منخفضة',
+  qr_mismatch:               'رمز QR غير مطابق',
+  qr_token_replayed:         'محاولة إعادة استخدام رمز QR',
+  possible_relay_attack:     'اشتباه بنقل رمز QR عن بُعد',
+  weight_anomaly:            'وزن غير معتاد',
+  missing_required_evidence: 'دليل إلزامي مفقود',
+  qr_skipped_with_reason:    'تم تخطي رمز QR بسبب مُسجَّل',
+  reduced_verification:      'تحقق مخفَّض (تخطي بند إلزامي)',
 };
+
+// Per-item Arabic labels for the dynamic `missing_required:<item>` flag
+// (022) — keep in sync with src/pages/ReviewQueuePage.tsx's
+// REQUIRED_ITEM_LABELS; the two live in separate deployables.
+const REQUIRED_ITEM_LABELS: Record<string, string> = {
+  qr:            'رمز QR',
+  geofenced_gps: 'الموقع الجغرافي',
+  photo:         'الصورة',
+  signature:     'التوقيع',
+  receipt:       'الإيصال',
+  scale_photo:   'صورة الميزان',
+};
+
+const MISSING_REQUIRED_PREFIX = 'missing_required:';
+
+/** True for flags meaning "a policy-required item is absent" — must render
+ *  visually distinct from an ordinary risk flag (see .flag-violation). */
+export function isPolicyViolationFlag(flag: string): boolean {
+  return flag === 'missing_required_evidence' || flag.startsWith(MISSING_REQUIRED_PREFIX);
+}
+
+/** Arabic label for any risk flag, including the dynamic missing_required:<item>. */
+export function flagLabel(flag: string): string {
+  if (flag.startsWith(MISSING_REQUIRED_PREFIX)) {
+    const item = flag.slice(MISSING_REQUIRED_PREFIX.length);
+    return `مفقود: ${REQUIRED_ITEM_LABELS[item] ?? item}`;
+  }
+  return FLAG_LABELS[flag] ?? flag;
+}
 
 // Arabic labels for waste types
 export const WASTE_LABELS: Record<string, string> = {

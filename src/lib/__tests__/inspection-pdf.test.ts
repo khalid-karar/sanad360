@@ -87,6 +87,7 @@ async function insertTestPickup(): Promise<string> {
       weight_kg:            25,
       gps_lat:              24.6877,
       gps_lng:              46.6876,
+      qr_skip_reason:       'not_applicable_for_stream',
     })
     .select('id')
     .single<{ id: string }>();
@@ -258,6 +259,7 @@ describe('Inspection PDF generation', () => {
         vehicle_id:           SEED.vehicleId,
         waste_types:          ['organic'],
         weight_kg:            5,
+        qr_skip_reason:       'not_applicable_for_stream',
       })
       .select('id')
       .single<{ id: string }>();

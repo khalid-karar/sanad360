@@ -30,6 +30,8 @@ export interface AssignmentView {
   branchAddress: string;
 }
 
+export type QrSkipReason = 'device_unavailable' | 'scan_failed' | 'not_applicable_for_stream' | 'other';
+
 export interface ManifestData {
   location: string;
   generator: string;
@@ -40,6 +42,10 @@ export interface ManifestData {
   gps_lng?: number;
   gps_accuracy_m?: number;
   qr_code_value?: string;
+  /** Set instead of qr_code_value when the driver skips the QR scan —
+   *  migration 022's CHECK requires one or the other on every insert. */
+  qr_skip_reason?: QrSkipReason;
+  qr_skip_reason_notes?: string;
   photoFile?: File;
   scalePhotoFile?: File;
   receiptFile?: File;
@@ -236,6 +242,8 @@ export const useDriverStore = create<DriverState>((set, get) => ({
           gps_lng: state.manifestData.gps_lng,
           gps_accuracy_m: state.manifestData.gps_accuracy_m,
           qr_code_value: state.manifestData.qr_code_value,
+          qr_skip_reason: state.manifestData.qr_skip_reason,
+          qr_skip_reason_notes: state.manifestData.qr_skip_reason_notes,
           photo_path: photoRes?.path,
           scale_photo_path: scaleRes?.path,
           receipt_path: receiptRes?.path,
@@ -289,6 +297,8 @@ export const useDriverStore = create<DriverState>((set, get) => ({
             gpsLng: state.manifestData.gps_lng,
             gpsAccuracyM: state.manifestData.gps_accuracy_m,
             qrCodeValue: state.manifestData.qr_code_value,
+            qrSkipReason: state.manifestData.qr_skip_reason,
+            qrSkipReasonNotes: state.manifestData.qr_skip_reason_notes,
             signatureDataUrl: state.signature ?? undefined,
             photoBlob: state.manifestData.photoFile,
             photoName: state.manifestData.photoFile?.name,

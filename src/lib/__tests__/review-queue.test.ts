@@ -16,6 +16,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createHmac } from 'node:crypto';
 import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
@@ -50,6 +51,14 @@ async function sessionClient(email: string, password = SEED.password): Promise<S
     auth: { persistSession: false },
     global: { headers: { Authorization: `Bearer ${data.session!.access_token}` } },
   });
+}
+
+/** Signs a branch QR token exactly as migration 022/B4 verifies it. */
+function signQrToken(branchId: string, secret: string, ttlMs = 90_000): string {
+  const payload = JSON.stringify({ branch_id: branchId, exp: Date.now() + ttlMs });
+  const payloadB64 = Buffer.from(payload, 'utf8').toString('base64');
+  const sigB64 = createHmac('sha256', secret).update(payloadB64, 'utf8').digest('base64');
+  return `${payloadB64}.${sigB64}`;
 }
 
 function farFuture(): string {
@@ -158,6 +167,7 @@ describe('Review queue data contract', () => {
         gps_lng: 46.6876,
         gps_accuracy_m: 10,
         signature_path: 'rq/sig.png',
+        qr_skip_reason: 'not_applicable_for_stream',
       })
       .select('id')
       .single<{ id: string }>();
@@ -179,7 +189,7 @@ describe('Review queue data contract', () => {
         gps_lat: 24.6877,
         gps_lng: 46.6876,
         gps_accuracy_m: 10,
-        qr_code_value: branchQrToken,
+        qr_code_value: signQrToken(SEED.branchId, branchQrToken),
         photo_path: 'rq/photo.jpg',
         signature_path: 'rq/sig.png',
         trip_id: tripId,

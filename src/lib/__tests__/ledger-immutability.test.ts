@@ -76,6 +76,8 @@ function basePayload(overrides: Record<string, unknown> = {}) {
     gps_lat:              24.6877,
     gps_lng:              46.6876,
     gps_accuracy_m:       10,
+    // (022) pickup_events_qr_or_reason_check requires qr_code_value OR qr_skip_reason.
+    qr_skip_reason:       'not_applicable_for_stream',
     ...overrides,
   };
 }

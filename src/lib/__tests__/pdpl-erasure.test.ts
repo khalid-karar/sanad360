@@ -98,6 +98,7 @@ describe('PDPL erasure (Migration 015)', () => {
         waste_types: ['organic'],
         weight_kg: 12,
         created_by: userId,
+        qr_skip_reason: 'not_applicable_for_stream',
       })
       .select('id')
       .single<{ id: string }>();

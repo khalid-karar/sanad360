@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { BRANCH_COLUMNS } from './branches';
 import type { Company, Branch } from '../database.types';
 
 export async function getMyCompany(): Promise<Company | null> {
@@ -18,7 +19,7 @@ export async function getMyCompany(): Promise<Company | null> {
 export async function getMyBranches(): Promise<Branch[]> {
   const { data, error } = await supabase
     .from('branches')
-    .select('*')
+    .select(BRANCH_COLUMNS)
     .order('name_ar');
 
   if (error) throw error;
@@ -47,7 +48,7 @@ export async function getCompany(companyId: string): Promise<Company | null> {
 export async function getBranch(branchId: string): Promise<Branch | null> {
   const { data, error } = await supabase
     .from('branches')
-    .select('*')
+    .select(BRANCH_COLUMNS)
     .eq('id', branchId)
     .single<Branch>();
 

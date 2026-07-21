@@ -1,12 +1,19 @@
 import {
   BASE_CSS, esc, arabicDateTime,
-  FLAG_LABELS, WASTE_LABELS, COMPLIANCE_LABELS, VEHICLE_TYPE_LABELS,
+  flagLabel, isPolicyViolationFlag, WASTE_LABELS, COMPLIANCE_LABELS, VEHICLE_TYPE_LABELS,
 } from './base.js';
 import type {
   PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow,
   HashCheck, EvidenceHashChecks, DisposalRow, FacilityRow, TripRow,
 } from '../types.js';
+
+const QR_SKIP_REASON_LABELS: Record<string, string> = {
+  device_unavailable:         'لا يوجد جهاز/رمز في الموقع',
+  scan_failed:                'تعذّر المسح',
+  not_applicable_for_stream:  'لا ينطبق على نوع النفايات',
+  other:                      'سبب آخر',
+};
 
 const RECONCILIATION_LABELS: Record<TripRow['weight_reconciliation_status'], string> = {
   pending: 'قيد المطابقة',
@@ -79,8 +86,12 @@ export function buildSinglePickupHtml(opts: {
 
   const complianceLabel = COMPLIANCE_LABELS[event.compliance_status] ?? event.compliance_status;
   const flagRows = event.risk_flags
-    .map((f) => `<span class="flag">${esc(FLAG_LABELS[f] ?? f)}</span>`)
+    .map((f) => `<span class="${isPolicyViolationFlag(f) ? 'flag-violation' : 'flag'}">${esc(flagLabel(f))}</span>`)
     .join('');
+  // Decision 4 (022): non_compliant can mean "policy gap" (a required item is
+  // missing) rather than "risk score" — distinguish the two so a manager
+  // never reads a policy violation as a routine elevated-risk case.
+  const hasPolicyViolation = event.risk_flags.some(isPolicyViolationFlag);
 
   const gpsText = event.gps_lat && event.gps_lng
     ? `${event.gps_lat.toFixed(5)}, ${event.gps_lng.toFixed(5)}`
@@ -161,6 +172,7 @@ export function buildSinglePickupHtml(opts: {
       <div class="row"><span class="label">الوزن</span><span class="value">${event.weight_kg} كيلوجرام</span></div>
       <div class="row"><span class="label">التاريخ والوقت</span><span class="value">${esc(eventDateTime)}</span></div>
       ${event.qr_code_value ? `<div class="row"><span class="label">التحقق من رمز QR</span><span class="value" style="color:${event.qr_verified ? '#166534' : '#991b1b'}">${event.qr_verified ? '✓ مطابق للفرع' : '✗ غير مطابق'}</span></div>` : ''}
+      ${!event.qr_code_value && event.qr_skip_reason ? `<div class="row"><span class="label">سبب تخطي رمز QR</span><span class="value">${esc(QR_SKIP_REASON_LABELS[event.qr_skip_reason] ?? event.qr_skip_reason)}${event.qr_skip_reason_notes ? ` — ${esc(event.qr_skip_reason_notes)}` : ''}</span></div>` : ''}
       <div class="row">
         <span class="label">الإحداثيات GPS</span>
         <span class="value">${esc(gpsText)}</span>
@@ -201,6 +213,9 @@ export function buildSinglePickupHtml(opts: {
           </span>
         </span>
       </div>
+      ${event.compliance_status === 'non_compliant' && hasPolicyViolation ? `
+      <div class="custody-warning" style="margin-top:8px;">⚠ غير ممتثل بسبب نقص دليل إلزامي وفق السياسة — بصرف النظر عن درجة الخطورة</div>
+      ` : ''}
       ${event.risk_flags.length > 0 ? `
       <div style="margin-top:8px;">
         <div class="label" style="margin-bottom:4px;">العلامات المُفعَّلة</div>

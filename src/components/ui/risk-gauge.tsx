@@ -2,11 +2,27 @@
  * Compact risk-score arc (0–100). The product's signature visual for risk:
  * green ≤ 0, amber ≤ 39, red above — mirroring the server-side thresholds.
  * Numbers stay Latin digits (design-system digit policy).
+ *
+ * `complianceStatus`, when passed, overrides that score-only coloring: CP3
+ * (migration 022) can force compliance_status='non_compliant' purely because
+ * a policy-required evidence item is missing, independent of risk_score — a
+ * record can be score=0 and still non_compliant. Without this override the
+ * gauge would render plain green for that case, reading as "fine" when it
+ * is in fact a policy violation.
  */
-export function RiskGauge({ score, size = 44 }: { score: number; size?: number }) {
+export function RiskGauge({
+  score,
+  size = 44,
+  complianceStatus,
+}: {
+  score: number;
+  size?: number;
+  complianceStatus?: 'compliant' | 'warning' | 'non_compliant';
+}) {
   const clamped = Math.max(0, Math.min(100, score));
   const color =
-    clamped === 0 ? 'hsl(var(--success))'
+    complianceStatus === 'non_compliant' ? 'hsl(var(--destructive))'
+    : clamped === 0 ? 'hsl(var(--success))'
     : clamped <= 39 ? 'hsl(var(--warning))'
     : 'hsl(var(--destructive))';
 

@@ -82,7 +82,7 @@ describe('Bug 1 — Branch creation grants + RLS', () => {
         name_en: 'Test Branch',
         geofence_radius_m: 150,
       })
-      .select()
+      .select('id, company_id')
       .single<{ id: string; company_id: string }>();
 
     expect(error).toBeNull();

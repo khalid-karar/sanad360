@@ -167,6 +167,7 @@ describe('Phase 3 Acceptance Tests', () => {
         weight_kg: 33,
         photo_path: 'p/p.jpg',
         signature_path: 'p/s.png',
+        qr_skip_reason: 'not_applicable_for_stream',
       })
       .select('id')
       .single<{ id: string }>();
