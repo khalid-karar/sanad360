@@ -35,19 +35,10 @@ import RecyclerDashboard from './pages/RecyclerDashboard';
 import TransportTripsPage from './pages/TransportTripsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
+import { homeRouteFor } from './lib/roleRouting';
 
 const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
-
-// owner/manager exist on both company and transport-company tenants, so the
-// destination depends on which tenant field the active membership actually
-// set — see the identical fix in LoginPage.tsx's post-login redirect.
-function homeRouteFor(user: { role: string; transport_company_id: string | null }): string {
-  if (user.role === 'admin') return '/admin';
-  if (user.role === 'driver') return '/driver';
-  if (RECYCLER_ROLES.includes(user.role)) return '/recycler';
-  if (user.role === 'document_reviewer') return '/reviewer';
-  return user.transport_company_id ? '/transport' : '/company';
-}
+const MAYA_ADMIN_SHELL_ROLES = ['admin', 'super_admin', 'system_admin', 'support_agent', 'billing_accountant'];
 
 function App() {
   const { user, hydrate } = useAuthStore();
@@ -280,7 +271,7 @@ function App() {
         <Route
           path="/admin"
           element={
-            user?.role === 'admin'
+            user && MAYA_ADMIN_SHELL_ROLES.includes(user.role)
               ? <AdminDashboard />
               : <Navigate to="/login" replace />
           }
@@ -288,7 +279,10 @@ function App() {
         <Route
           path="/admin/companies"
           element={
-            user?.role === 'admin'
+            // Full-admin only (mirrors DB is_full_admin()) — system_admin's
+            // actual permission surface is still a pending product decision
+            // (migration 025), so it doesn't get raw company-list access yet.
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <CompaniesPage />
               : <Navigate to="/login" replace />
           }
@@ -296,7 +290,7 @@ function App() {
         <Route
           path="/admin/users"
           element={
-            user?.role === 'admin'
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <AdminUsersPage />
               : <Navigate to="/login" replace />
           }
@@ -304,7 +298,7 @@ function App() {
         <Route
           path="/admin/analytics"
           element={
-            user?.role === 'admin'
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <AdminAnalyticsPage />
               : <Navigate to="/login" replace />
           }
@@ -390,11 +384,13 @@ function App() {
         <Route
           path="/admin/document-review"
           element={
-            user?.role === 'admin'
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <DocumentReviewQueuePage />
               : <Navigate to="/login" replace />
           }
         />
+        {/* /branch, /gov, /consultant routes are added alongside their pages
+            in the 4d/4f/4g commits, not speculatively here. */}
         <Route
           path="/"
           element={

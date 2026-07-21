@@ -3,16 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import type { Membership } from '../lib/database.types';
+import { homeRouteFor } from '../lib/roleRouting';
 import { Building2Icon } from 'lucide-react';
-
-// Role → landing route (mirrors App.tsx roleRoute)
-const ROLE_ROUTE: Record<string, string> = {
-  driver: '/driver',
-  owner: '/company',
-  manager: '/company',
-  dispatcher: '/transport',
-  admin: '/admin',
-};
 
 /**
  * Consultant tenant switcher (migration 012). Rendered only when the user
@@ -71,8 +63,8 @@ export default function TenantSwitcher() {
     setBusy(true);
     try {
       await switchTenant(membershipId);
-      const role = useAuthStore.getState().user?.role ?? 'driver';
-      navigate(ROLE_ROUTE[role] ?? '/login');
+      const next = useAuthStore.getState().user;
+      navigate(next ? homeRouteFor(next) : '/login');
     } finally {
       setBusy(false);
     }
