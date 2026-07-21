@@ -4,12 +4,12 @@ import { useAuthStore } from '../stores/authStore';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon, FactoryIcon, ScaleIcon } from 'lucide-react';
+import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon, FactoryIcon, ScaleIcon, FileCheckIcon, ClipboardCheckIcon } from 'lucide-react';
 // TruckIcon reused for the company "Approved Transporters" link.
 import Logo from './Logo';
 
 interface SidebarProps {
-  role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler';
+  role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler' | 'reviewer';
 }
 
 export default function Sidebar({ role }: SidebarProps) {
@@ -26,6 +26,7 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: LayoutDashboardIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/driver' },
     { icon: CalendarClockIcon, label: isRTL ? 'جدولي' : 'My Schedule', path: '/driver/schedule' },
     { icon: MapPinIcon, label: isRTL ? 'تأكيد التسليم' : 'Deliveries', path: '/driver/deliveries' },
+    { icon: FileCheckIcon, label: isRTL ? 'مستنداتي' : 'My Documents', path: '/driver/onboarding' },
   ];
 
   const companyLinks = [
@@ -35,6 +36,7 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: CalendarClockIcon, label: isRTL ? 'طلب التقاط' : 'Request Pickup', path: '/company/schedule' },
     { icon: AlertTriangleIcon, label: isRTL ? 'قائمة المراجعة' : 'Review Queue', path: '/company/review' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/company/pickups' },
+    { icon: FileCheckIcon, label: isRTL ? 'المستندات والتأسيس' : 'Onboarding & Documents', path: '/company/onboarding' },
   ];
 
   const adminLinks = [
@@ -42,6 +44,7 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: Building2Icon, label: isRTL ? 'المنشآت' : 'Companies', path: '/admin/companies' },
     { icon: UsersIcon, label: isRTL ? 'المستخدمون' : 'Users', path: '/admin/users' },
     { icon: BarChart3Icon, label: isRTL ? 'التحليلات' : 'Analytics', path: '/admin/analytics' },
+    { icon: ClipboardCheckIcon, label: isRTL ? 'مراجعة المستندات' : 'Document Review', path: '/admin/document-review' },
   ];
 
   const transportLinks = [
@@ -53,10 +56,16 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: TruckIcon, label: isRTL ? 'إدارة المركبات' : 'Vehicle Management', path: '/transport/vehicles' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/transport/pickups' },
     { icon: FactoryIcon, label: isRTL ? 'الرحلات' : 'Trips', path: '/transport/trips' },
+    { icon: FileCheckIcon, label: isRTL ? 'المستندات والتأسيس' : 'Onboarding & Documents', path: '/transport/onboarding' },
   ];
 
   const recyclerLinks = [
     { icon: ScaleIcon, label: isRTL ? 'الرئيسية' : 'Dashboard', path: '/recycler' },
+    { icon: FileCheckIcon, label: isRTL ? 'المستندات والتأسيس' : 'Onboarding & Documents', path: '/recycler/onboarding' },
+  ];
+
+  const reviewerLinks = [
+    { icon: ClipboardCheckIcon, label: isRTL ? 'قائمة مراجعة المستندات' : 'Document Review Queue', path: '/reviewer' },
   ];
 
   const links =
@@ -64,6 +73,7 @@ export default function Sidebar({ role }: SidebarProps) {
     : role === 'company' ? companyLinks
     : role === 'transport' ? transportLinks
     : role === 'recycler' ? recyclerLinks
+    : role === 'reviewer' ? reviewerLinks
     : adminLinks;
 
   const sidebarContent = (
@@ -83,6 +93,7 @@ export default function Sidebar({ role }: SidebarProps) {
               {role === 'transport' && (isRTL ? 'شركة نقل' : 'Transport')}
               {role === 'recycler' && (isRTL ? 'منشأة إعادة تدوير' : 'Recycler')}
               {role === 'admin' && (isRTL ? 'مسؤول' : 'Admin')}
+              {role === 'reviewer' && (isRTL ? 'مراجع مستندات' : 'Document Reviewer')}
             </p>
           </div>
         </div>

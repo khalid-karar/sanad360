@@ -18,6 +18,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
 const ANON_KEY     = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -129,6 +130,10 @@ describe('Evidence hardening (Migration 013)', () => {
       .select('id')
       .single<{ id: string }>();
     driverBRecordId = dB!.id;
+    // This suite predates CP2's document gate and isn't testing it —
+    // grandfather the fixture so it doesn't get blocked from being
+    // scheduled (see testHelpers/complianceExempt.ts).
+    grandfatherCompliance('driver', driverBRecordId);
 
     // An assignment for driver B.
     const { data: a } = await admin

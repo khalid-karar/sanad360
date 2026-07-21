@@ -8,9 +8,10 @@ import DigitalManifest from '../components/driver/DigitalManifest';
 import SignaturePad from '../components/driver/SignaturePad';
 import PickupConfirmation from '../components/driver/PickupConfirmation';
 import FlowStepper from '../components/driver/FlowStepper';
+import RestrictionBanner from '../components/documents/RestrictionBanner';
 
 export default function DriverDashboard() {
-  const { isRTL } = useAuthStore();
+  const { isRTL, user } = useAuthStore();
   const { pickupState } = useDriverStore();
 
   const renderContent = () => {
@@ -28,6 +29,11 @@ export default function DriverDashboard() {
   return (
     <AppShell role="driver">
       <div className={isRTL ? 'rtl' : 'ltr'}>
+        {user?.driver_record_id && (
+          <div className="mb-4">
+            <RestrictionBanner ownerType="driver" ownerId={user.driver_record_id} isRTL={isRTL} />
+          </div>
+        )}
         {/* Field flow progress — glanceable "step N of 5" (P1-2) */}
         <FlowStepper current={pickupState} />
         {renderContent()}

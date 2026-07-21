@@ -16,6 +16,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
 const ANON_KEY     = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -85,6 +86,10 @@ describe('Review queue data contract', () => {
       .select('id')
       .single<{ id: string }>();
     cleanDriverId = d!.id;
+    // This suite predates CP2's document gate and isn't testing it —
+    // grandfather the fixtures so they don't get blocked from completing a
+    // pickup (see testHelpers/complianceExempt.ts).
+    grandfatherCompliance('driver', cleanDriverId);
 
     const { data: v } = await admin
       .from('vehicles')
@@ -98,6 +103,7 @@ describe('Review queue data contract', () => {
       .select('id')
       .single<{ id: string }>();
     cleanVehicleId = v!.id;
+    grandfatherCompliance('vehicle', cleanVehicleId);
 
     const { data: branch } = await admin
       .from('branches')

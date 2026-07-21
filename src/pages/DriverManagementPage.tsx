@@ -12,13 +12,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTriangleIcon, PowerIcon, KeyRoundIcon } from 'lucide-react';
+import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTriangleIcon, PowerIcon, KeyRoundIcon, FileCheckIcon } from 'lucide-react';
 import FadeInUp from '../components/animations/FadeInUp';
 import { Modal } from '@/components/ui/modal';
+import DocumentChecklist from '../components/documents/DocumentChecklist';
 
 export default function DriverManagementPage() {
   const { isRTL, user } = useAuthStore();
   const { drivers, loadDrivers, addDriver, editDriver } = useTransportStore();
+  const [docsFor, setDocsFor] = useState<Driver | null>(null);
   // drivers_insert RLS allows owner/manager/dispatcher — mirror it explicitly
   // (was previously ungated, which happened to match today's route roles but
   // wasn't self-documenting, unlike VehicleManagementPage's canManage).
@@ -211,6 +213,9 @@ export default function DriverManagementPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {badge(d.license_expiry)}
+                          <Button size="sm" variant="outline" onClick={() => setDocsFor(d)} title={isRTL ? 'المستندات' : 'Documents'}>
+                            <FileCheckIcon className="w-4 h-4 me-1" />{isRTL ? 'المستندات' : 'Documents'}
+                          </Button>
                           {!d.profile_id && d.status === 'active' && (
                             <Button size="sm" variant="outline" onClick={() => openInvite(d)} title={isRTL ? 'إنشاء حساب دخول' : 'Create login account'}>
                               <KeyRoundIcon className="w-4 h-4 me-1" />{isRTL ? 'دعوة' : 'Invite'}
@@ -312,6 +317,22 @@ export default function DriverManagementPage() {
                   </div>
                 </>
               )}
+          </div>
+        </Modal>
+      )}
+
+      {docsFor && (
+        <Modal
+          open
+          onClose={() => setDocsFor(null)}
+          isRTL={isRTL}
+          title={isRTL ? `مستندات ${docsFor.name_ar}` : `${docsFor.name_ar}'s Documents`}
+        >
+          <div className="space-y-4">
+            <DocumentChecklist ownerType="driver" ownerId={docsFor.id} isRTL={isRTL} />
+            <Button variant="outline" className="w-full" onClick={() => setDocsFor(null)}>
+              {isRTL ? 'إغلاق' : 'Close'}
+            </Button>
           </div>
         </Modal>
       )}

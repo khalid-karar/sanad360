@@ -12,7 +12,9 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, SearchIcon, TruckIcon, CalendarIcon, AlertTriangleIcon, PowerIcon, FileTextIcon } from 'lucide-react';
+import { PlusIcon, SearchIcon, TruckIcon, CalendarIcon, AlertTriangleIcon, PowerIcon, FileTextIcon, FileCheckIcon } from 'lucide-react';
+import { Modal } from '@/components/ui/modal';
+import DocumentChecklist from '../components/documents/DocumentChecklist';
 
 const vehicleTypes = [
   { value: 'small_truck', labelAr: 'شاحنة صغيرة', labelEn: 'Small Truck' },
@@ -44,6 +46,7 @@ export default function VehicleManagementPage() {
   const [form, setForm] = useState({
     plate_number: '', type: '', waste_license_type: '', ncwm_license_expiry: '',
   });
+  const [docsFor, setDocsFor] = useState<Vehicle | null>(null);
 
   useEffect(() => {
     if (user?.transport_company_id) loadVehicles(user.transport_company_id);
@@ -188,6 +191,9 @@ export default function VehicleManagementPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {badge(v.ncwm_license_expiry)}
+                          <Button size="sm" variant="outline" onClick={() => setDocsFor(v)} title={isRTL ? 'المستندات' : 'Documents'}>
+                            <FileCheckIcon className="w-4 h-4 me-1" />{isRTL ? 'المستندات' : 'Documents'}
+                          </Button>
                           {canManage && (
                             <Button
                               size="sm"
@@ -222,6 +228,22 @@ export default function VehicleManagementPage() {
           </CardContent>
         </Card>
       </div>
+
+      {docsFor && (
+        <Modal
+          open
+          onClose={() => setDocsFor(null)}
+          isRTL={isRTL}
+          title={isRTL ? `مستندات ${docsFor.plate_number}` : `${docsFor.plate_number}'s Documents`}
+        >
+          <div className="space-y-4">
+            <DocumentChecklist ownerType="vehicle" ownerId={docsFor.id} isRTL={isRTL} />
+            <Button variant="outline" className="w-full" onClick={() => setDocsFor(null)}>
+              {isRTL ? 'إغلاق' : 'Close'}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </AppShell>
   );
 }

@@ -33,6 +33,8 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
 import RecyclerDashboard from './pages/RecyclerDashboard';
 import TransportTripsPage from './pages/TransportTripsPage';
+import OnboardingPage from './pages/OnboardingPage';
+import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
 
 const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
 
@@ -43,6 +45,7 @@ function homeRouteFor(user: { role: string; transport_company_id: string | null 
   if (user.role === 'admin') return '/admin';
   if (user.role === 'driver') return '/driver';
   if (RECYCLER_ROLES.includes(user.role)) return '/recycler';
+  if (user.role === 'document_reviewer') return '/reviewer';
   return user.transport_company_id ? '/transport' : '/company';
 }
 
@@ -203,6 +206,14 @@ function App() {
           }
         />
         <Route
+          path="/driver/onboarding"
+          element={
+            user?.role === 'driver'
+              ? <OnboardingPage ownerType="driver" ownerId={user.driver_record_id} shellRole="driver" />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
           path="/company"
           element={
             user && ['owner', 'manager'].includes(user.role) && user.company_id
@@ -247,6 +258,14 @@ function App() {
           element={
             user && ['owner', 'manager'].includes(user.role) && user.company_id
               ? <ApprovedTransportersPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/company/onboarding"
+          element={
+            user && ['owner', 'manager'].includes(user.role) && user.company_id
+              ? <OnboardingPage ownerType="company" ownerId={user.company_id} shellRole="company" />
               : <Navigate to="/login" replace />
           }
         />
@@ -337,10 +356,42 @@ function App() {
           }
         />
         <Route
+          path="/transport/onboarding"
+          element={
+            user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
+              ? <OnboardingPage ownerType="transport_company" ownerId={user.transport_company_id} shellRole="transport" />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
           path="/recycler"
           element={
             user && RECYCLER_ROLES.includes(user.role) && user.facility_id
               ? <RecyclerDashboard />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/recycler/onboarding"
+          element={
+            user && RECYCLER_ROLES.includes(user.role) && user.facility_id
+              ? <OnboardingPage ownerType="facility" ownerId={user.facility_id} shellRole="recycler" />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/reviewer"
+          element={
+            user?.role === 'document_reviewer'
+              ? <DocumentReviewQueuePage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/admin/document-review"
+          element={
+            user?.role === 'admin'
+              ? <DocumentReviewQueuePage />
               : <Navigate to="/login" replace />
           }
         />

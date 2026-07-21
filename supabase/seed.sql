@@ -14,6 +14,14 @@
 --     (no transport-side 'owner'/'manager' was previously seeded — only
 --      'driver' and 'dispatcher' — so the owner/manager-gated Add Vehicle /
 --      Deactivate actions could never be exercised against seed data)
+--   Document reviewer: reviewer@sanad360.dev / DevPass1234!  (CP2)
+--
+-- CP2 demo documents: the seeded company/branch/transport company/facility
+-- each have every required document verified (100% completion, ACTIVE) so
+-- the onboarding screens show a healthy tenant by default. The seeded
+-- driver's driving licence is verified but expires in ~10 days (demonstrates
+-- the 30/15/7-day expiry warning). The seeded vehicle's NCWM licence is
+-- REJECTED (demonstrates the restriction banner + resolve flow).
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Fixed UUIDs make this seed idempotent and test-referenceable.
@@ -108,6 +116,18 @@ INSERT INTO auth.users (
   '{"provider":"email","providers":["email"]}',
   '{"name_ar":"مدير شركة النقل"}',
   now(), now(), '', '', '', ''
+),
+-- CP2: tenant-less document reviewer
+(
+  '00000000-0000-0000-0000-000000000000',
+  'f0000000-0000-0000-0000-000000000008',
+  'authenticated', 'authenticated',
+  'reviewer@sanad360.dev',
+  crypt('DevPass1234!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{"name_ar":"مراجع المستندات"}',
+  now(), now(), '', '', '', ''
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -164,6 +184,13 @@ INSERT INTO auth.identities (
   'transport.manager@sanad360.dev',
   '{"sub":"f0000000-0000-0000-0000-000000000007","email":"transport.manager@sanad360.dev"}'::jsonb,
   'email', now(), now(), now()
+),
+(
+  'f0000000-0000-0000-0000-000000000008',
+  'f0000000-0000-0000-0000-000000000008',
+  'reviewer@sanad360.dev',
+  '{"sub":"f0000000-0000-0000-0000-000000000008","email":"reviewer@sanad360.dev"}'::jsonb,
+  'email', now(), now(), now()
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -200,6 +227,10 @@ VALUES
 (
   'f0000000-0000-0000-0000-000000000007',
   'مدير شركة النقل', 'Transport Manager', NULL
+),
+(
+  'f0000000-0000-0000-0000-000000000008',
+  'مراجع المستندات', 'Document Reviewer', NULL
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -325,6 +356,22 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- CP2: the seeded driver/vehicle represent this dev tenant's fleet as it
+-- existed the moment CP2 landed — exactly the population migration 021's
+-- compliance_exempt backfill grandfathers in a real deployment. A fresh
+-- `supabase db reset` always applies migrations before this seed file, so
+-- without this explicit step these rows would look "new" to the gate
+-- (compliance_exempt defaults to false, forced by the lock trigger) and
+-- every other test/demo relying on this driver/vehicle being schedulable
+-- would break. Same disable/enable-trigger technique as the documents
+-- block below — the lock trigger intentionally blocks every other path.
+ALTER TABLE public.drivers  DISABLE TRIGGER drivers_lock_compliance_exempt_trigger;
+ALTER TABLE public.vehicles DISABLE TRIGGER vehicles_lock_compliance_exempt_trigger;
+UPDATE public.drivers  SET compliance_exempt = true WHERE id = 'd0000000-0000-0000-0000-000000000001';
+UPDATE public.vehicles SET compliance_exempt = true WHERE id = 'e0000000-0000-0000-0000-000000000001';
+ALTER TABLE public.drivers  ENABLE TRIGGER drivers_lock_compliance_exempt_trigger;
+ALTER TABLE public.vehicles ENABLE TRIGGER vehicles_lock_compliance_exempt_trigger;
+
 -- ─────────────────────────────────────────────────────────────
 -- FACILITY  (CP1: recycling plant — Riyadh industrial zone)
 -- ─────────────────────────────────────────────────────────────
@@ -425,6 +472,15 @@ VALUES
   'c0000000-0000-0000-0000-000000000001',  -- transport company
   NULL,
   NULL
+),
+(
+  '10000000-0000-0000-0000-000000000008',
+  'f0000000-0000-0000-0000-000000000008',  -- reviewer auth user
+  'document_reviewer',
+  NULL,   -- tenant-less, like admin
+  NULL,
+  NULL,
+  NULL
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -440,5 +496,125 @@ VALUES (
   'active'
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- ─────────────────────────────────────────────────────────────
+-- CP2: COMPLIANCE DOCUMENTS
+-- documents_before_insert/update (021) force server-trust fields based on
+-- auth.uid(), which is NULL in this raw superuser seed session — so the
+-- triggers are disabled for this block only and re-enabled immediately
+-- after, letting us seed rows already in their final reviewed state.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE public.documents DISABLE TRIGGER documents_before_insert_trigger;
+ALTER TABLE public.documents DISABLE TRIGGER documents_before_update_trigger;
+
+INSERT INTO public.documents (
+  id, owner_type, owner_id, doc_type,
+  file_path, file_sha256,
+  issue_date, expiry_date,
+  status, reviewed_by, reviewed_at, reject_reason,
+  uploaded_by, created_at
+)
+VALUES
+-- Company — fully verified (100% completion, ACTIVE)
+(
+  '11000000-0000-0000-0000-000000000001', 'company', 'a0000000-0000-0000-0000-000000000001',
+  'commercial_registration', 'company/a0000000-0000-0000-0000-000000000001/commercial_registration-seed.pdf',
+  encode(digest('seed-doc-1', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000001', now() - interval '1 year'
+),
+(
+  '11000000-0000-0000-0000-000000000002', 'company', 'a0000000-0000-0000-0000-000000000001',
+  'vat_certificate', 'company/a0000000-0000-0000-0000-000000000001/vat_certificate-seed.pdf',
+  encode(digest('seed-doc-2', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000001', now() - interval '1 year'
+),
+-- Branch — fully verified
+(
+  '11000000-0000-0000-0000-000000000003', 'branch', 'b0000000-0000-0000-0000-000000000001',
+  'municipal_license', 'branch/b0000000-0000-0000-0000-000000000001/municipal_license-seed.pdf',
+  encode(digest('seed-doc-3', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000001', now() - interval '1 year'
+),
+-- Transport company — fully verified
+(
+  '11000000-0000-0000-0000-000000000004', 'transport_company', 'c0000000-0000-0000-0000-000000000001',
+  'commercial_registration', 'transport_company/c0000000-0000-0000-0000-000000000001/commercial_registration-seed.pdf',
+  encode(digest('seed-doc-4', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000007', now() - interval '1 year'
+),
+(
+  '11000000-0000-0000-0000-000000000005', 'transport_company', 'c0000000-0000-0000-0000-000000000001',
+  'ncwm_license', 'transport_company/c0000000-0000-0000-0000-000000000001/ncwm_license-seed.pdf',
+  encode(digest('seed-doc-5', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000007', now() - interval '1 year'
+),
+-- Driver — iqama verified; driving licence verified but expiring in ~10
+-- days (demonstrates the 30/15/7-day expiry warning; still counts as
+-- satisfied/ACTIVE since it is not yet expired).
+(
+  '11000000-0000-0000-0000-000000000006', 'driver', 'd0000000-0000-0000-0000-000000000001',
+  'iqama', 'driver/d0000000-0000-0000-0000-000000000001/iqama-seed.pdf',
+  encode(digest('seed-doc-6', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000002', now() - interval '1 year'
+),
+(
+  '11000000-0000-0000-0000-000000000007', 'driver', 'd0000000-0000-0000-0000-000000000001',
+  'driving_license', 'driver/d0000000-0000-0000-0000-000000000001/driving_license-seed.pdf',
+  encode(digest('seed-doc-7', 'sha256'), 'hex'),
+  now() - interval '355 days', now() + interval '10 days',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000002', now() - interval '355 days'
+),
+-- Vehicle — registration verified; NCWM licence REJECTED (demonstrates the
+-- restriction banner + "click here to resolve" flow).
+(
+  '11000000-0000-0000-0000-000000000008', 'vehicle', 'e0000000-0000-0000-0000-000000000001',
+  'vehicle_registration', 'vehicle/e0000000-0000-0000-0000-000000000001/vehicle_registration-seed.pdf',
+  encode(digest('seed-doc-8', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000007', now() - interval '1 year'
+),
+(
+  '11000000-0000-0000-0000-000000000009', 'vehicle', 'e0000000-0000-0000-0000-000000000001',
+  'ncwm_license', 'vehicle/e0000000-0000-0000-0000-000000000001/ncwm_license-seed.pdf',
+  encode(digest('seed-doc-9', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'rejected', 'f0000000-0000-0000-0000-000000000008', now(), 'الصورة غير واضحة، يرجى رفع نسخة أوضح / Scan is illegible, please re-upload a clear copy',
+  'f0000000-0000-0000-0000-000000000007', now() - interval '5 days'
+),
+-- Facility — fully verified
+(
+  '1100000a-0000-0000-0000-000000000001', 'facility', '90000000-0000-0000-0000-000000000001',
+  'commercial_registration', 'facility/90000000-0000-0000-0000-000000000001/commercial_registration-seed.pdf',
+  encode(digest('seed-doc-10', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000005', now() - interval '1 year'
+),
+(
+  '1100000a-0000-0000-0000-000000000002', 'facility', '90000000-0000-0000-0000-000000000001',
+  'operating_license', 'facility/90000000-0000-0000-0000-000000000001/operating_license-seed.pdf',
+  encode(digest('seed-doc-11', 'sha256'), 'hex'),
+  now() - interval '1 year', now() + interval '1 year',
+  'verified', 'f0000000-0000-0000-0000-000000000008', now(), NULL,
+  'f0000000-0000-0000-0000-000000000005', now() - interval '1 year'
+)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE public.documents ENABLE TRIGGER documents_before_insert_trigger;
+ALTER TABLE public.documents ENABLE TRIGGER documents_before_update_trigger;
 
 END $$;

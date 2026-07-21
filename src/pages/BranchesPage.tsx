@@ -11,11 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, Building2Icon } from 'lucide-react';
+import { PlusIcon, MapPinIcon, PowerIcon, QrCodeIcon, PrinterIcon, Building2Icon, FileCheckIcon } from 'lucide-react';
 import GeofenceMapPicker from '@/components/map/GeofenceMapPicker';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import { Modal } from '@/components/ui/modal';
 import QRCode from 'qrcode';
+import DocumentChecklist from '../components/documents/DocumentChecklist';
 
 const EMPTY = { name_ar: '', name_en: '', city: '', geofence_lat: '', geofence_lng: '', geofence_radius_m: '150' };
 
@@ -47,6 +48,7 @@ export default function BranchesPage() {
   // check real in the field.
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [docsFor, setDocsFor] = useState<Branch | null>(null);
 
   async function openQr(b: Branch) {
     try {
@@ -285,6 +287,9 @@ export default function BranchesPage() {
                   <Button size="sm" variant="outline" onClick={() => openQr(b)} title={isRTL ? 'رمز QR للفرع' : 'Branch QR board'} aria-label={isRTL ? 'رمز QR للفرع' : 'Branch QR board'}>
                     <QrCodeIcon className="w-4 h-4" />
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => setDocsFor(b)} title={isRTL ? 'المستندات' : 'Documents'} aria-label={isRTL ? 'مستندات الفرع' : 'Branch documents'}>
+                    <FileCheckIcon className="w-4 h-4" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -328,6 +333,22 @@ export default function BranchesPage() {
               <Button onClick={printQr} className="w-full bg-primary text-primary-foreground">
                 <PrinterIcon className="w-4 h-4 me-2" />{isRTL ? 'طباعة' : 'Print'}
               </Button>
+          </div>
+        </Modal>
+      )}
+
+      {docsFor && (
+        <Modal
+          open
+          onClose={() => setDocsFor(null)}
+          isRTL={isRTL}
+          title={isRTL ? `مستندات ${docsFor.name_ar}` : `${docsFor.name_ar}'s Documents`}
+        >
+          <div className="space-y-4">
+            <DocumentChecklist ownerType="branch" ownerId={docsFor.id} isRTL={isRTL} />
+            <Button variant="outline" className="w-full" onClick={() => setDocsFor(null)}>
+              {isRTL ? 'إغلاق' : 'Close'}
+            </Button>
           </div>
         </Modal>
       )}

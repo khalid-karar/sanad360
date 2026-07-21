@@ -4,6 +4,7 @@ import { useTransportStore } from '../stores/transportStore';
 import AppShell from '../components/AppShell';
 import TransportKPIs from '../components/transport/TransportKPIs';
 import RealAlertsPanel from '../components/transport/RealAlertsPanel';
+import RestrictionBanner from '../components/documents/RestrictionBanner';
 
 export default function TransportDashboard() {
   const { isRTL, user } = useAuthStore();
@@ -26,7 +27,11 @@ export default function TransportDashboard() {
           </p>
         </div>
 
-        <TransportKPIs 
+        {user?.transport_company_id && (
+          <RestrictionBanner ownerType="transport_company" ownerId={user.transport_company_id} isRTL={isRTL} />
+        )}
+
+        <TransportKPIs
           pendingTasks={pendingTasks}
           complianceRate={complianceRate}
           todayPickups={todayPickups}

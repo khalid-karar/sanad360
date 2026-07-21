@@ -23,6 +23,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 // ─── Client setup ────────────────────────────────────────────────────────────
 
@@ -80,6 +81,10 @@ async function createTestDriver(licenseExpiry: string): Promise<string> {
     .single<{ id: string }>();
   if (error) throw new Error(`createTestDriver: ${error.message}`);
   cleanupDriverIds.push(data.id);
+  // This suite predates CP2's document gate and isn't testing it — grandfather
+  // the fixture so it doesn't get blocked from completing a pickup (see
+  // testHelpers/complianceExempt.ts).
+  grandfatherCompliance('driver', data.id);
   return data.id;
 }
 
@@ -98,6 +103,7 @@ async function createTestVehicle(ncwmExpiry: string): Promise<string> {
     .single<{ id: string }>();
   if (error) throw new Error(`createTestVehicle: ${error.message}`);
   cleanupVehicleIds.push(data.id);
+  grandfatherCompliance('vehicle', data.id);
   return data.id;
 }
 

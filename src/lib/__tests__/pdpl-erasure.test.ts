@@ -16,6 +16,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
 const ANON_KEY     = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -79,6 +80,10 @@ describe('PDPL erasure (Migration 015)', () => {
       .select('id')
       .single<{ id: string }>();
     driverId = d!.id;
+    // This suite predates CP2's document gate and isn't testing it —
+    // grandfather the fixture so it doesn't get blocked from completing a
+    // pickup (see testHelpers/complianceExempt.ts).
+    grandfatherCompliance('driver', driverId);
 
     const { data: ev } = await admin
       .from('pickup_events')

@@ -4,7 +4,9 @@
 export type MemberRole =
   | 'owner' | 'manager' | 'driver' | 'dispatcher' | 'admin'
   // CP1 (migration 017): recycler-side roles, tenant-scoped to a facility.
-  | 'recycler_manager' | 'scale_operator';
+  | 'recycler_manager' | 'scale_operator'
+  // CP2 (migration 020): tenant-less Maya-side document reviewer.
+  | 'document_reviewer';
 export type WasteType = 'industrial' | 'plastic' | 'chemical' | 'organic' | 'electronic' | 'medical';
 export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant';
 
@@ -136,6 +138,10 @@ export interface Driver {
   license_expiry: string;
   absher_verified: boolean;
   status: 'active' | 'inactive' | 'suspended';
+  /** CP2 (migration 021): server-forced true ONLY by the migration's
+   *  one-time backfill for rows that pre-date CP2 — never client-settable
+   *  (drivers_lock_compliance_exempt_trigger pins it on every INSERT/UPDATE). */
+  compliance_exempt: boolean;
   created_at: string;
 }
 
@@ -148,6 +154,8 @@ export interface Vehicle {
   ncwm_license_number: string | null;
   ncwm_license_expiry: string;
   status: 'active' | 'inactive';
+  /** CP2 (migration 021): same server-forced semantics as Driver.compliance_exempt. */
+  compliance_exempt: boolean;
   created_at: string;
 }
 
@@ -241,8 +249,8 @@ export type CreatePickupEventInput = {
   notes?: string;
 };
 
-export type CreateDriverInput = Omit<Driver, 'id' | 'created_at'>;
-export type CreateVehicleInput = Omit<Vehicle, 'id' | 'created_at'>;
+export type CreateDriverInput = Omit<Driver, 'id' | 'created_at' | 'compliance_exempt'>;
+export type CreateVehicleInput = Omit<Vehicle, 'id' | 'created_at' | 'compliance_exempt'>;
 
 // ─── Phase 3 tables ──────────────────────────────────────────────────────────
 
@@ -354,6 +362,74 @@ export type CreateDisposalConfirmationInput = {
   notes?: string;
 };
 
+// ─── CP2: onboarding & compliance document gating (migrations 020/021) ─────
+
+export type DocumentOwnerType =
+  | 'company' | 'branch' | 'transport_company' | 'driver' | 'vehicle' | 'facility';
+
+export type DocumentStatus = 'pending' | 'verified' | 'rejected';
+
+// Polymorphic evidence row. file_path/file_sha256/owner_type/owner_id/doc_type
+// are immutable once uploaded; status/reviewed_by/reviewed_at/reject_reason
+// are settable ONLY by a document_reviewer/admin (documents_before_update
+// trigger) — the uploader can never self-verify.
+export interface DocumentRow {
+  id: string;
+  owner_type: DocumentOwnerType;
+  owner_id: string;
+  doc_type: string;
+  file_path: string;
+  file_sha256: string;
+  issue_date: string | null;
+  expiry_date: string | null;
+  status: DocumentStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reject_reason: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export type CreateDocumentInput = {
+  owner_type: DocumentOwnerType;
+  owner_id: string;
+  doc_type: string;
+  file_path: string;
+  file_sha256: string;
+  issue_date?: string;
+  expiry_date?: string;
+};
+
+// Global config — which doc_types are mandatory per owner_type (not tenant data).
+export interface RequiredDocument {
+  id: string;
+  owner_type: DocumentOwnerType;
+  doc_type: string;
+  label_ar: string;
+  label_en: string;
+  created_at: string;
+}
+
+export type ActivationStatus = 'onboarding' | 'active' | 'restricted';
+
+export interface ExpiringSoonDoc {
+  doc_type: string;
+  expiry_date: string;
+  days_remaining: number;
+  level: 'medium' | 'high' | 'critical';
+}
+
+// Return shape of the owner_document_status(owner_type, owner_id) RPC —
+// entirely server-computed (migration 021), never trust a client value here.
+export interface OwnerDocumentStatus {
+  completion_pct: number;
+  activation_status: ActivationStatus;
+  missing_doc_types: string[];
+  expired_doc_types: string[];
+  unverified_doc_types: string[];
+  expiring_soon: ExpiringSoonDoc[];
+}
+
 // Each table exposes Row (full read shape), Insert (write shape — server-set
 // columns optional), and Update (all columns optional). supabase-js uses Insert
 // for `.insert()` and Update for `.update()`. We model Insert/Update as
@@ -397,11 +473,27 @@ export interface Database {
       facility_transporters: TableShape<FacilityTransporter>;
       trips: TableShape<Trip>;
       waste_stream_tolerances: TableShape<WasteStreamTolerance>;
+      documents: TableShape<DocumentRow>;
+      required_documents: TableShape<RequiredDocument>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      // migration 021 — RETURNS TABLE(...), so PostgREST returns an array
+      // (0 or 1 rows in practice; owner_document_status always returns exactly 1).
+      owner_document_status: {
+        Args: { p_owner_type: string; p_owner_id: string };
+        Returns: {
+          completion_pct: number;
+          activation_status: string;
+          missing_doc_types: string[];
+          expired_doc_types: string[];
+          unverified_doc_types: string[];
+          expiring_soon: ExpiringSoonDoc[];
+        }[];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

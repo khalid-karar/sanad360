@@ -25,6 +25,7 @@ import {
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import { Modal } from '@/components/ui/modal';
 import CameraCapture from '../components/camera/CameraCapture';
+import RestrictionBanner from '../components/documents/RestrictionBanner';
 
 const QR_ELEMENT_ID = 'recycler-qr-reader';
 
@@ -32,11 +33,13 @@ export default function RecyclerDashboard() {
   const { isRTL, user } = useAuthStore();
   const isManager = user?.role === 'recycler_manager';
 
-  return isManager ? <RecyclerHistory isRTL={isRTL} /> : <ScaleOperatorConsole isRTL={isRTL} />;
+  return isManager
+    ? <RecyclerHistory isRTL={isRTL} facilityId={user?.facility_id ?? null} />
+    : <ScaleOperatorConsole isRTL={isRTL} />;
 }
 
 // ─── recycler_manager: facility confirmation history ────────────────────────
-function RecyclerHistory({ isRTL }: { isRTL: boolean }) {
+function RecyclerHistory({ isRTL, facilityId }: { isRTL: boolean; facilityId: string | null }) {
   const [rows, setRows] = useState<DisposalConfirmation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +69,8 @@ function RecyclerHistory({ isRTL }: { isRTL: boolean }) {
             {isRTL ? 'كل تأكيدات وأوزان التسليم في منشأتك' : 'All drop-off confirmations and weights at your facility'}
           </p>
         </div>
+
+        {facilityId && <RestrictionBanner ownerType="facility" ownerId={facilityId} isRTL={isRTL} />}
 
         {error && <ErrorState message={error} retry={load} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />}
 

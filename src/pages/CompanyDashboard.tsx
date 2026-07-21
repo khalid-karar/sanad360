@@ -13,6 +13,7 @@ import StaggeredList from '../components/animations/StaggeredList';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileTextIcon, Loader2Icon } from 'lucide-react';
+import RestrictionBanner from '../components/documents/RestrictionBanner';
 
 // Default to current year-month in Asia/Riyadh
 function currentMonth(): string {
@@ -80,6 +81,12 @@ export default function CompanyDashboard() {
               </p>
             </div>
           </FadeInUp>
+
+          {user?.company_id && (
+            <FadeInUp delay={0.15}>
+              <RestrictionBanner ownerType="company" ownerId={user.company_id} isRTL={isRTL} />
+            </FadeInUp>
+          )}
 
           <FadeInUp delay={0.2}>
             <ComplianceWidget data={complianceData} />
