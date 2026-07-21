@@ -34,3 +34,21 @@ it if ignored.
   ```
   Safe to run more often than daily — the function is idempotent (a no-op for any row not currently
   `pending_confirmation`, and a no-op for a still-within-window row).
+
+- [ ] **`gov_rollup()` temporal differencing** (added migration 031, CP5).
+  Complementary suppression (031) defeats differencing WITHIN a single call — no sibling combination
+  in one snapshot can recover a suppressed cell's exact value. It does **not** defend across two
+  snapshots taken at different times: if a region+industry cell has exactly `min_companies` (default 5)
+  companies today and gains a 6th company next week, the cell flips from suppressed to visible. A
+  government caller who queries before and after that change, and who already knows (from any other
+  source) which companies operated in that cell before the change, can subtract to recover information
+  about the newly-added company — a boundary-crossing company can be identified by diffing two
+  legitimately-suppressed/visible snapshots even though neither snapshot alone leaks anything.
+  This is a residual risk at pilot scale (few gov_viewer accounts, low query frequency, no realistic
+  adversary doing systematic time-series differencing yet) but must be revisited before wider gov
+  rollout.
+  **Task:** either (a) add query logging on `gov_rollup()` calls (who/when/which filters) so repeated
+  probing of the same cell over time is at least detectable after the fact, or (b) add small random
+  noise to suppressed/near-threshold cells' visible neighbors so exact before/after subtraction no
+  longer yields a clean number. Same posture as the two entries above: not worth the complexity at
+  pilot scale, must not be forgotten before a real production rollout with a broader gov_viewer base.

@@ -51,7 +51,17 @@ async function managerClient(): Promise<SupabaseClient> {
 describe('regions + industries (Migrations 027/028)', () => {
   let manager: SupabaseClient;
   let facilityId = '';
-  let originalBranchRegion: string | null = null;
+  // Dedicated, throwaway branch + company — NOT SEED.branchId/companyId.
+  // Mutating the SHARED seeded branch/company's region_code/industry_code
+  // (as this test originally did) creates a phantom region/industry cell
+  // that gov_rollup() (migration 031) aggregates over — since MANY other
+  // concurrently-running test files insert pickup_events against that same
+  // shared branch/company, this could spuriously trigger complementary
+  // suppression in an unrelated test's gov-aggregation assertions. Same
+  // class of cross-test contamination already fixed once this session for
+  // evidence_requirements on the shared transport company.
+  let dedicatedBranchId = '';
+  let dedicatedCompanyId = '';
 
   beforeAll(async () => {
     manager = await managerClient();
@@ -68,17 +78,27 @@ describe('regions + industries (Migrations 027/028)', () => {
       .single<{ id: string }>();
     facilityId = facility!.id;
 
+    // Under the manager's own company, so branches_update RLS (owner/manager
+    // of the same company) permits the real signed-in manager to update it.
     const { data: branch } = await admin
       .from('branches')
-      .select('region_code')
-      .eq('id', SEED.branchId)
-      .single<{ region_code: string | null }>();
-    originalBranchRegion = branch?.region_code ?? null;
+      .insert({ company_id: SEED.companyId, name_ar: `فرع اختبار المناطق ${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    dedicatedBranchId = branch!.id;
+
+    const { data: company } = await admin
+      .from('companies')
+      .insert({ name_ar: `شركة اختبار الصناعات ${RUN}`, commercial_registration: `IND-${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    dedicatedCompanyId = company!.id;
   });
 
   afterAll(async () => {
-    await admin.from('branches').update({ region_code: originalBranchRegion }).eq('id', SEED.branchId);
     if (facilityId) await admin.from('facilities').delete().eq('id', facilityId);
+    if (dedicatedBranchId) await admin.from('branches').delete().eq('id', dedicatedBranchId);
+    if (dedicatedCompanyId) await admin.from('companies').delete().eq('id', dedicatedCompanyId);
   });
 
   it('1. regions has all 13 rows, including the SA-13 gap', async () => {
@@ -112,20 +132,20 @@ describe('regions + industries (Migrations 027/028)', () => {
     const { error: okErr } = await manager
       .from('branches')
       .update({ region_code: 'SA-01' })
-      .eq('id', SEED.branchId);
+      .eq('id', dedicatedBranchId);
     expect(okErr).toBeNull();
 
     const { data: after } = await admin
       .from('branches')
       .select('region_code')
-      .eq('id', SEED.branchId)
+      .eq('id', dedicatedBranchId)
       .single<{ region_code: string }>();
     expect(after!.region_code).toBe('SA-01');
 
     const { error: badErr } = await manager
       .from('branches')
       .update({ region_code: 'SA-99' })
-      .eq('id', SEED.branchId);
+      .eq('id', dedicatedBranchId);
     expect(badErr).not.toBeNull();
   });
 
@@ -133,17 +153,14 @@ describe('regions + industries (Migrations 027/028)', () => {
     const { error: okErr } = await admin
       .from('companies')
       .update({ industry_code: 'logistics_warehousing' })
-      .eq('id', SEED.companyId);
+      .eq('id', dedicatedCompanyId);
     expect(okErr).toBeNull();
 
     const { error: badErr } = await admin
       .from('companies')
       .update({ industry_code: 'not_a_real_industry' })
-      .eq('id', SEED.companyId);
+      .eq('id', dedicatedCompanyId);
     expect(badErr).not.toBeNull();
-
-    // Restore.
-    await admin.from('companies').update({ industry_code: null }).eq('id', SEED.companyId);
   });
 
   it('6. facilities.region_code accepts a valid code and rejects an invalid one', async () => {
