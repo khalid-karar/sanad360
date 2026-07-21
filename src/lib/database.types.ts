@@ -70,6 +70,10 @@ export interface Membership {
   facility_id: string | null;
   branch_id: string | null;
   created_at: string;
+  /** CP5 (migration 032): soft revoke — a revoked row is excluded by my_membership(). */
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoke_reason: string | null;
 }
 
 // ─── CP1: recycler facilities, trips, weight reconciliation ────────────────

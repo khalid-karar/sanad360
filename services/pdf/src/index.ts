@@ -21,6 +21,7 @@ import { handleMonthlyCompany } from './routes/monthly-company.js';
 import { handleOnboardCompany } from './routes/onboard.js';
 import { handleSweepExpiredConfirmations } from './routes/admin-sweep-confirmations.js';
 import { handleInviteDriver } from './routes/invite-driver.js';
+import { handleRevokeMembership } from './routes/revoke-membership.js';
 import { handleInviteRecycler, handleCreateFacility } from './routes/invite-recycler.js';
 import { handleIssueTripQr, handleValidateTripQr } from './routes/trip-qr.js';
 import { handleIssueBranchQr } from './routes/branch-qr.js';
@@ -163,6 +164,17 @@ app.post(
   requestTimeout,
   authMiddleware,
   asyncHandler((req, res) => handleInviteDriver(req as AuthedRequest, res))
+);
+
+// CP5 (migration 032): soft-revoke a company-side membership. Role-checked
+// inside the handler (owner/manager of that exact company) on top of
+// authMiddleware.
+app.post(
+  '/company/revoke-membership',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleRevokeMembership(req as AuthedRequest, res))
 );
 
 // CP1: recycler onboarding. Role-checked inside the handler (admin, or a

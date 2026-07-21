@@ -37,6 +37,7 @@ import OnboardingPage from './pages/OnboardingPage';
 import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
 import BranchOperatorPage from './pages/BranchOperatorPage';
 import GovernmentViewPage from './pages/GovernmentViewPage';
+import ConsultantPortfolioPage from './pages/ConsultantPortfolioPage';
 import { homeRouteFor } from './lib/roleRouting';
 
 const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
@@ -407,8 +408,14 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
-        {/* /consultant route is added alongside its page in the 4g commit,
-            not speculatively here. */}
+        <Route
+          path="/consultant"
+          element={
+            user?.role === 'consultant'
+              ? <ConsultantPortfolioPage />
+              : <Navigate to="/login" replace />
+          }
+        />
         <Route
           path="/"
           element={

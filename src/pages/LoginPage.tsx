@@ -48,10 +48,15 @@ export default function LoginPage() {
     }
   };
 
+  const revoked = error?.startsWith('MEMBERSHIP_REVOKED');
   const errorBanner = error ? (
     <div className="flex items-center gap-2 rounded-md bg-destructive/10 border border-destructive/30 p-3 text-sm text-destructive">
       <AlertCircleIcon className="w-4 h-4 flex-shrink-0" />
-      <span>{isRTL ? 'خطأ في تسجيل الدخول: ' : 'Login error: '}{error}</span>
+      <span>
+        {revoked
+          ? (isRTL ? 'تم إلغاء صلاحية وصولك. يرجى التواصل مع مسؤول حسابك.' : 'Your access has been revoked. Please contact your account administrator.')
+          : <>{isRTL ? 'خطأ في تسجيل الدخول: ' : 'Login error: '}{error}</>}
+      </span>
     </div>
   ) : null;
 
