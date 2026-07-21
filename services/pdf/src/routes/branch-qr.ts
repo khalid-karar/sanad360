@@ -11,15 +11,29 @@ import type { AuthedRequest } from '../types.js';
  * display and rotate (migration 022/Part B — branches.qr_token stops being a
  * value any client ever sees; only this endpoint's signed, 90-second-TTL
  * derivative ever leaves the server). Restricted to owner/manager of the
- * branch's own company — this is the same company-side page
- * (src/pages/BranchesPage.tsx, AppShell role="company") that already
- * mutates branches under that role pair (migration 006), not a separate
- * "branch operator" role.
+ * branch's own company (src/pages/BranchesPage.tsx, AppShell role="company"),
+ * OR a branch_operator (CP5) whose own membership.branch_id is exactly this
+ * branch — is_branch_operator_for() at the DB layer is the same predicate,
+ * mirrored here since this check happens before any DB round-trip.
  */
 export async function handleIssueBranchQr(req: AuthedRequest, res: Response): Promise<void> {
   const branchId = req.params.branchId;
   if (!branchId) {
     res.status(400).json({ error: 'branchId is required' });
+    return;
+  }
+
+  if (req.memberRole === 'branch_operator') {
+    if (req.branchId !== branchId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    const issued = await issueBranchQrToken(admin, branchId);
+    if (!issued) {
+      res.status(404).json({ error: 'Branch not found' });
+      return;
+    }
+    res.json(issued);
     return;
   }
 

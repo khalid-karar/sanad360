@@ -203,6 +203,26 @@ export interface PickupEvent {
   created_at: string;
 }
 
+/** CP5 (migration 026): a branch_operator's attestation of a pickup_event. */
+export interface PickupConfirmation {
+  id: string;
+  pickup_event_id: string;
+  branch_id: string;
+  company_id: string;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  method: 'in_app_confirm' | 'signature_on_driver_device' | 'unavailable';
+  signature_path: string | null;
+  signature_sha256: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  gps_accuracy_m: number | null;
+  status: 'confirmed' | 'disputed';
+  dispute_reason: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface AuditLog {
   id: string;
   user_id: string | null;
@@ -485,6 +505,7 @@ export interface Database {
       waste_stream_tolerances: TableShape<WasteStreamTolerance>;
       documents: TableShape<DocumentRow>;
       required_documents: TableShape<RequiredDocument>;
+      pickup_confirmations: TableShape<PickupConfirmation>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };

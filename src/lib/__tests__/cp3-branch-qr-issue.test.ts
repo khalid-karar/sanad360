@@ -13,6 +13,8 @@
  *   4. The issued token actually verifies server-side: inserting a
  *      pickup_event with it sets qr_verified=true
  *   5. A tampered token (flipped signature byte) fails verification
+ *   6. (CP5) A branch_operator scoped to this exact branch → 200
+ *   7. (CP5) A branch_operator scoped to a DIFFERENT branch → 403
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -78,6 +80,11 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   let outsiderJwt = '';
   let outsiderCompanyId = '';
   let outsiderUserId = '';
+  let branchOperatorJwt = '';
+  let branchOperatorUserId = '';
+  let otherBranchOperatorJwt = '';
+  let otherBranchOperatorUserId = '';
+  let otherBranchId = '';
   const cleanupEventIds: string[] = [];
 
   beforeAll(async () => {
@@ -107,6 +114,45 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
       company_id: outsiderCompanyId,
     });
     outsiderJwt = await signIn(`branch-qr-outsider-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A branch_operator scoped to SEED.branchId itself.
+    const { data: boCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-operator-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    branchOperatorUserId = boCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: branchOperatorUserId,
+      role: 'branch_operator',
+      company_id: SEED.companyId,
+      branch_id: SEED.branchId,
+    });
+    branchOperatorJwt = await signIn(`branch-qr-operator-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A SECOND branch_operator scoped to a DIFFERENT branch under the same
+    // company — proves the branch_operator carve-out is scoped to their own
+    // branch_id, not their company.
+    const { data: otherBranch } = await admin
+      .from('branches')
+      .insert({ company_id: SEED.companyId, name_ar: `فرع آخر ${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    otherBranchId = otherBranch!.id;
+
+    const { data: otherBoCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-other-operator-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    otherBranchOperatorUserId = otherBoCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: otherBranchOperatorUserId,
+      role: 'branch_operator',
+      company_id: SEED.companyId,
+      branch_id: otherBranchId,
+    });
+    otherBranchOperatorJwt = await signIn(`branch-qr-other-operator-${RUN}@company.sanad360.dev`, 'DevPass1234!');
   });
 
   afterAll(async () => {
@@ -117,6 +163,13 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
       await admin.auth.admin.deleteUser(outsiderUserId);
     }
     if (outsiderCompanyId) await admin.from('companies').delete().eq('id', outsiderCompanyId);
+    for (const uid of [branchOperatorUserId, otherBranchOperatorUserId]) {
+      if (!uid) continue;
+      await admin.from('memberships').delete().eq('user_id', uid);
+      await admin.from('profiles').delete().eq('id', uid);
+      await admin.auth.admin.deleteUser(uid).catch(() => {});
+    }
+    if (otherBranchId) await admin.from('branches').delete().eq('id', otherBranchId);
   });
 
   it('1. manager of the branch\'s own company gets a signed token', async () => {
@@ -207,5 +260,19 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
     cleanupEventIds.push(data!.id);
     expect(data!.qr_verified).toBe(false);
     expect(data!.risk_flags).toContain('qr_mismatch');
+  });
+
+  it('6. (CP5) a branch_operator scoped to this exact branch gets a signed token', async () => {
+    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
+    const res = await issueQr(branchOperatorJwt, SEED.branchId);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as IssuedBranchQr;
+    expect(body.token).toMatch(/^[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+$/);
+  });
+
+  it('7. (CP5) a branch_operator scoped to a DIFFERENT branch is rejected with 403', async () => {
+    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
+    const res = await issueQr(otherBranchOperatorJwt, SEED.branchId);
+    expect(res.status).toBe(403);
   });
 });

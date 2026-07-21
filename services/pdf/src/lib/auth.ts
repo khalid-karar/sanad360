@@ -43,7 +43,7 @@ export async function authMiddleware(
 
   let membershipQuery = admin
     .from('memberships')
-    .select('role, company_id, transport_company_id, facility_id')
+    .select('role, company_id, transport_company_id, facility_id, branch_id')
     .eq('user_id', user.id);
   if (active?.membership_id) {
     membershipQuery = membershipQuery.eq('id', active.membership_id);
@@ -64,6 +64,7 @@ export async function authMiddleware(
   authed.companyId = membership.company_id as string | null;
   authed.transportCompanyId = membership.transport_company_id as string | null;
   authed.facilityId = membership.facility_id as string | null;
+  authed.branchId = membership.branch_id as string | null;
   authed.memberRole = membership.role as string;
 
   next();

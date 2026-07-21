@@ -35,6 +35,7 @@ import RecyclerDashboard from './pages/RecyclerDashboard';
 import TransportTripsPage from './pages/TransportTripsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
+import BranchOperatorPage from './pages/BranchOperatorPage';
 import { homeRouteFor } from './lib/roleRouting';
 
 const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
@@ -389,8 +390,16 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
-        {/* /branch, /gov, /consultant routes are added alongside their pages
-            in the 4d/4f/4g commits, not speculatively here. */}
+        <Route
+          path="/branch"
+          element={
+            user?.role === 'branch_operator' && user.branch_id
+              ? <BranchOperatorPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        {/* /gov, /consultant routes are added alongside their pages in the
+            4f/4g commits, not speculatively here. */}
         <Route
           path="/"
           element={

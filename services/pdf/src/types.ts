@@ -36,6 +36,8 @@ export interface AuthedRequest extends Request {
   transportCompanyId: string | null;
   /** CP1 (migration 018): set when the active membership is facility-scoped. */
   facilityId: string | null;
+  /** CP5 (migration 025): set when the active membership is branch_operator. */
+  branchId: string | null;
   memberRole: string;
 }
 
