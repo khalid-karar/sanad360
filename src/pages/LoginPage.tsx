@@ -47,8 +47,9 @@ export default function LoginPage() {
   return (
     <PageTransition>
       <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background p-6 ${isRTL ? 'rtl' : 'ltr'}`}>
+        <div className="w-full max-w-md space-y-4">
         <FadeInUp delay={0.1}>
-          <div className="absolute top-4 start-4 z-10">
+          <div className="flex justify-start">
             <InteractiveButton
               variant="outline"
               size="sm"
@@ -63,7 +64,7 @@ export default function LoginPage() {
         </FadeInUp>
 
         <ScaleIn delay={0.2}>
-          <Card variant="elevated" className="w-full max-w-md bg-card/95 backdrop-blur-sm text-card-foreground border-border z-10 relative">
+          <Card variant="elevated" className="w-full bg-card/95 backdrop-blur-sm text-card-foreground border-border z-10 relative">
             <CardHeader className="text-center space-y-4">
               <FadeInUp delay={0.3}>
                 <div className="flex justify-center mb-6">
@@ -153,6 +154,7 @@ export default function LoginPage() {
             </CardContent>
           </Card>
         </ScaleIn>
+        </div>
       </div>
       {showFaq && <FAQModal onClose={() => setShowFaq(false)} />}
     </PageTransition>
