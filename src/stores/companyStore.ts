@@ -37,8 +37,10 @@ interface CompanyState {
   complianceData: ComplianceData;
   recentPickups: RecentPickup[];
   isLoadingPickups: boolean;
+  pickupsError: string | null;
   kpis: DashboardKpis | null;
   isLoadingKpis: boolean;
+  kpisError: string | null;
 
   loadKpis: (companyId: string) => Promise<void>;
   loadRecentPickups: () => Promise<void>;
@@ -78,11 +80,13 @@ export const useCompanyStore = create<CompanyState>((set) => ({
   },
   recentPickups: [],
   isLoadingPickups: false,
+  pickupsError: null,
   kpis: null,
   isLoadingKpis: false,
+  kpisError: null,
 
   loadKpis: async (companyId: string) => {
-    set({ isLoadingKpis: true });
+    set({ isLoadingKpis: true, kpisError: null });
     try {
       const kpis = await getDashboardKpis(companyId);
       set({
@@ -96,21 +100,26 @@ export const useCompanyStore = create<CompanyState>((set) => ({
           issues: [],
         },
       });
-    } catch {
-      set({ isLoadingKpis: false });
+    } catch (err) {
+      // CP7: this used to fail silently — isLoadingKpis reset to false with
+      // no error ever surfaced, so a failed fetch looked identical to "0
+      // pickups this month" (every KPI tile just showed 0). Real gap: a
+      // manager can't tell "genuinely no activity" from "the dashboard is
+      // broken right now."
+      set({ isLoadingKpis: false, kpisError: err instanceof Error ? err.message : 'Failed to load KPIs' });
     }
   },
 
   loadRecentPickups: async () => {
-    set({ isLoadingPickups: true });
+    set({ isLoadingPickups: true, pickupsError: null });
     try {
       const events = await listPickups({ limit: 10 });
       set({
         recentPickups: events.map(pickupEventToRecentPickup),
         isLoadingPickups: false,
       });
-    } catch {
-      set({ isLoadingPickups: false });
+    } catch (err) {
+      set({ isLoadingPickups: false, pickupsError: err instanceof Error ? err.message : 'Failed to load recent pickups' });
     }
   },
 

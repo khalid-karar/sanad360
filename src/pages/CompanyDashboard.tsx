@@ -12,8 +12,9 @@ import FadeInUp from '../components/animations/FadeInUp';
 import StaggeredList from '../components/animations/StaggeredList';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileTextIcon, Loader2Icon } from 'lucide-react';
+import { FileTextIcon, Loader2Icon, BarChart3Icon } from 'lucide-react';
 import RestrictionBanner from '../components/documents/RestrictionBanner';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 
 // Default to current year-month in Asia/Riyadh
 function currentMonth(): string {
@@ -22,7 +23,10 @@ function currentMonth(): string {
 
 export default function CompanyDashboard() {
   const { isRTL, user } = useAuthStore();
-  const { complianceData, recentPickups, loadRecentPickups, kpis, loadKpis } = useCompanyStore();
+  const {
+    complianceData, recentPickups, loadRecentPickups,
+    kpis, loadKpis, isLoadingKpis, kpisError,
+  } = useCompanyStore();
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
   const [generatingMonthly, setGeneratingMonthly] = useState(false);
@@ -44,7 +48,10 @@ export default function CompanyDashboard() {
       const result = await generateMonthlyCompanyPdf(selectedMonth);
       window.open(result.signed_url, '_blank', 'noopener');
     } catch (err) {
-      setMonthlyError(err instanceof Error ? err.message : 'فشل إنشاء التقرير');
+      // CP7: the fallback (non-Error-instance) message was Arabic-only,
+      // regardless of the current language — the same class of bug as an
+      // English-only fallback, just the other direction.
+      setMonthlyError(err instanceof Error ? err.message : (isRTL ? 'فشل إنشاء التقرير' : 'Failed to generate the report'));
     } finally {
       setGeneratingPack(false);
     }
@@ -61,7 +68,7 @@ export default function CompanyDashboard() {
       const result = await generateMonthlyPdf(user.branch_id, selectedMonth);
       window.open(result.signed_url, '_blank', 'noopener');
     } catch (err) {
-      setMonthlyError(err instanceof Error ? err.message : 'فشل إنشاء التقرير');
+      setMonthlyError(err instanceof Error ? err.message : (isRTL ? 'فشل إنشاء التقرير' : 'Failed to generate the report'));
     } finally {
       setGeneratingMonthly(false);
     }
@@ -92,25 +99,48 @@ export default function CompanyDashboard() {
             <ComplianceWidget data={complianceData} />
           </FadeInUp>
 
-          {/* Real KPIs — last 30 days */}
+          {/* Real KPIs — last 30 days.
+              CP7: this used to render the tile grid unconditionally, with
+              every value falling back to `?? 0` — a failed fetch and a
+              genuinely empty month looked IDENTICAL (both showed all-0
+              tiles), and there was no way to retry. Now: loading, error
+              (with retry), and empty are each their own explicit state. */}
           <FadeInUp delay={0.25}>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {[
-                { labelAr: 'إجمالي الالتقاطات', labelEn: 'Total Pickups', value: kpis?.totalPickups ?? 0, cls: 'text-foreground' },
-                { labelAr: 'الوزن الكلي (كجم)', labelEn: 'Total Weight (kg)', value: kpis?.totalWeightKg ?? 0, cls: 'text-foreground' },
-                { labelAr: 'ممتثلة', labelEn: 'Compliant', value: kpis?.compliantCount ?? 0, cls: 'text-success' },
-                { labelAr: 'غير ممتثلة', labelEn: 'Non-Compliant', value: kpis?.nonCompliantCount ?? 0, cls: 'text-destructive' },
-                // (CP5/030) Its own tile — never folded into compliant or non_compliant.
-                { labelAr: 'بانتظار تأكيد الفرع', labelEn: 'Pending Confirmation', value: kpis?.pendingConfirmationCount ?? 0, cls: 'text-secondary' },
-              ].map((k) => (
-                <Card key={k.labelEn} className="bg-card text-card-foreground border-border">
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground">{isRTL ? k.labelAr : k.labelEn}</p>
-                    <p className={`text-2xl font-bold ${k.cls}`}>{k.value}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {isLoadingKpis && !kpis ? (
+              <LoadingState label={isRTL ? 'جارٍ تحميل المؤشرات' : 'Loading KPIs'} />
+            ) : kpisError ? (
+              <ErrorState
+                message={kpisError}
+                retry={() => user?.company_id && loadKpis(user.company_id)}
+                retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'}
+              />
+            ) : kpis && kpis.totalPickups === 0 ? (
+              <EmptyState
+                icon={<BarChart3Icon />}
+                title={isRTL ? 'لا توجد عمليات التقاط بعد' : 'No pickups yet'}
+                hint={isRTL
+                  ? 'ستظهر مؤشرات الأداء هنا بمجرد تسجيل أول عملية التقاط'
+                  : 'Performance KPIs will appear here once the first pickup is recorded'}
+              />
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {[
+                  { labelAr: 'إجمالي الالتقاطات', labelEn: 'Total Pickups', value: kpis?.totalPickups ?? 0, cls: 'text-foreground' },
+                  { labelAr: 'الوزن الكلي (كجم)', labelEn: 'Total Weight (kg)', value: kpis?.totalWeightKg ?? 0, cls: 'text-foreground' },
+                  { labelAr: 'ممتثلة', labelEn: 'Compliant', value: kpis?.compliantCount ?? 0, cls: 'text-success' },
+                  { labelAr: 'غير ممتثلة', labelEn: 'Non-Compliant', value: kpis?.nonCompliantCount ?? 0, cls: 'text-destructive' },
+                  // (CP5/030) Its own tile — never folded into compliant or non_compliant.
+                  { labelAr: 'بانتظار تأكيد الفرع', labelEn: 'Pending Confirmation', value: kpis?.pendingConfirmationCount ?? 0, cls: 'text-secondary' },
+                ].map((k) => (
+                  <Card key={k.labelEn} className="bg-card text-card-foreground border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-muted-foreground">{isRTL ? k.labelAr : k.labelEn}</p>
+                      <p className={`text-2xl font-bold ${k.cls}`}>{k.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </FadeInUp>
 
           {/* Monthly Inspection Report */}
@@ -134,7 +164,8 @@ export default function CompanyDashboard() {
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
                     max={currentMonth()}
-                    className="border border-border rounded-md px-3 py-1.5 text-sm bg-background text-foreground"
+                    aria-label={isRTL ? 'اختر الشهر' : 'Select month'}
+                    className="border border-border rounded-md px-3 py-1.5 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     dir="ltr"
                   />
                   <Button
@@ -160,7 +191,7 @@ export default function CompanyDashboard() {
                   </Button>
                 </div>
                 {monthlyError && (
-                  <p className="text-sm text-destructive mt-2">{monthlyError}</p>
+                  <p className="text-sm text-destructive mt-2" role="alert">{monthlyError}</p>
                 )}
               </CardContent>
             </Card>
