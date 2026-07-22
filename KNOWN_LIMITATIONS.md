@@ -52,3 +52,41 @@ for things that already work correctly at pilot scale.
   to the test itself if the transient failure turns out to be inherent to the local dev stack rather
   than fixable server-side. Do not let this quietly become an ignored/skipped test without a recorded
   reason — track it here until resolved.
+
+## CP7 — UI/UX Overhaul
+
+- **Several admin/company dashboard widgets render hardcoded placeholder numbers, not real data —
+  must be wired to real queries or hidden before pilot.** Found while reskinning (tokens/a11y only;
+  the underlying mock-data wiring is out of CP7's scope):
+  - `src/components/transport/TransportKPIs.tsx` — all three metrics (`pendingTasks`,
+    `complianceRate`, `todayPickups`) come from hardcoded literals in `transportStore.ts`
+    (`complianceRate: 87.5`, `todayPickups: { planned: 8, completed: 6 }`, `pendingTasks` derived
+    from a static `mockAlerts` array dated 2024-03-15). Confirmed live via Playwright — the dashboard
+    renders exactly `87.5%` / `6/8` regardless of the signed-in transport company's real data.
+  - `src/components/admin/AdminKPIs.tsx` — all three metrics are literal strings (`'1,247'`,
+    `'87.3%'`, `'23'`) with no store, prop, or API call at all — not even wrong-shaped real data,
+    just static JSX.
+  - `src/components/admin/ComplianceMap.tsx` — the five city markers and their compliance
+    percentages (Riyadh 92%, Jeddah 85%, Dammam 78%, Mecca 88%, Medina 90%) are a hardcoded array
+    with no data fetch; the map never reflects real company/branch compliance data. The Leaflet
+    popup text (`` `<b>${city.name}</b><br/>الامتثال: ${city.compliance}%` ``) is also Arabic-only
+    regardless of `isRTL` — a bilingual bug, left as-is pending the real-data wiring since fixing the
+    copy of a popup for numbers that are about to be replaced wastes the string-review effort twice.
+  - `src/components/admin/CompaniesTable.tsx` — **partially real**: company name and registration
+    date (`created_at`) come from the real `listAllCompanies()` API. But the per-row "compliance
+    status" column is hardcoded to `'low'` for every single company (`status: 'low' as const` at
+    load time, never varies), and the expanded-row detail panel's "Registration Date: 2023-06-15" /
+    "Total Manifests: 156" are literal strings shown identically for every company regardless of
+    which row is expanded — not derived from `company.id` or any real field. The "View Full Details"
+    button in that panel has no `onClick` at all.
+  **Why this matters:** these are exactly the kind of thing a pilot user or auditor takes at face
+  value — a KPI card or map doesn't visually announce "this number is fake." Shipping them to a real
+  admin/gov/transport-manager user without fixing or hiding them risks someone acting on stale/wrong
+  numbers.
+  **Where this resurfaces:** before any external pilot user gets an admin, gov_viewer, or transport
+  manager account, each of the four widgets above needs either (a) a real query wired in (compliance
+  rate from `pickup_events`/`compliance_status` aggregates, city markers from `branches`/`companies`
+  geolocation + compliance rollup, per-row company status from real risk data, expanded-row stats
+  from real `pickup_events`/document counts), or (b) to be hidden/removed from the dashboard until
+  that query exists. Do not let a future pass reskin around these again without addressing the
+  underlying data gap.

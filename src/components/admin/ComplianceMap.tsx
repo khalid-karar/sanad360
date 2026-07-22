@@ -72,7 +72,14 @@ export default function ComplianceMap() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div ref={mapRef} className="h-[500px] rounded-lg overflow-hidden" />
+        <div
+          ref={mapRef}
+          className="h-[500px] rounded-lg overflow-hidden"
+          role="img"
+          aria-label={isRTL
+            ? 'خريطة تفاعلية للامتثال حسب المدينة — غير قابلة للقراءة بواسطة قارئ الشاشة'
+            : 'Interactive compliance map by city — not screen-reader accessible'}
+        />
       </CardContent>
     </Card>
   );

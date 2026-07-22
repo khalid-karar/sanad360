@@ -5,8 +5,9 @@ import type { Company as DbCompany } from '../../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { SearchIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon } from 'lucide-react';
+import { SearchIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon, Building2Icon } from 'lucide-react';
 import OnboardCompanyForm from './OnboardCompanyForm';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 
 interface Company {
   id: string;
@@ -21,8 +22,12 @@ export default function CompaniesTable() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [showOnboard, setShowOnboard] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadCompanies = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
     listAllCompanies()
       .then((rows: DbCompany[]) =>
         setCompanies(
@@ -34,7 +39,11 @@ export default function CompaniesTable() {
           }))
         )
       )
-      .catch(() => setCompanies([]));
+      .catch((err) => {
+        setCompanies([]);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load');
+      })
+      .finally(() => setLoading(false));
   }, [isRTL]);
 
   useEffect(() => {
@@ -97,9 +106,10 @@ export default function CompaniesTable() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative">
-          <SearchIcon className="absolute start-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <SearchIcon className="absolute start-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
           <Input
             type="text"
+            aria-label={isRTL ? 'البحث عن منشأة' : 'Search companies'}
             placeholder={isRTL ? 'البحث عن منشأة...' : 'Search companies...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -107,6 +117,17 @@ export default function CompaniesTable() {
           />
         </div>
 
+        {loading ? (
+          <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+        ) : loadError ? (
+          <ErrorState message={loadError} retry={loadCompanies} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        ) : filteredCompanies.length === 0 ? (
+          <EmptyState
+            icon={<Building2Icon />}
+            title={isRTL ? 'لا توجد منشآت' : 'No companies'}
+            hint={searchTerm ? (isRTL ? 'جرّب كلمة بحث مختلفة' : 'Try a different search term') : undefined}
+          />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -124,14 +145,21 @@ export default function CompaniesTable() {
               </tr>
             </thead>
             <tbody>
-              {filteredCompanies.map((company) => (
+              {filteredCompanies.map((company) => {
+                const isExpanded = expandedRow === company.id;
+                const toggle = () => setExpandedRow(isExpanded ? null : company.id);
+                return (
                 <>
                   <tr
                     key={company.id}
-                    className="border-b border-border hover:bg-accent cursor-pointer"
-                    onClick={() =>
-                      setExpandedRow(expandedRow === company.id ? null : company.id)
-                    }
+                    className="border-b border-border hover:bg-accent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                    onClick={toggle}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+                    }}
                   >
                     <td className="p-3 text-sm text-foreground">{company.name}</td>
                     <td className="p-3 text-sm text-foreground">{company.lastSubmission}</td>
@@ -139,14 +167,14 @@ export default function CompaniesTable() {
                       {getStatusLabel(company.status)}
                     </td>
                     <td className="p-3 text-sm text-foreground">
-                      {expandedRow === company.id ? (
-                        <ChevronUpIcon className="w-4 h-4" />
+                      {isExpanded ? (
+                        <ChevronUpIcon className="w-4 h-4" aria-hidden="true" />
                       ) : (
-                        <ChevronDownIcon className="w-4 h-4" />
+                        <ChevronDownIcon className="w-4 h-4" aria-hidden="true" />
                       )}
                     </td>
                   </tr>
-                  {expandedRow === company.id && (
+                  {isExpanded && (
                     <tr>
                       <td colSpan={4} className="p-6 bg-muted">
                         <div className="space-y-3">
@@ -171,10 +199,12 @@ export default function CompaniesTable() {
                     </tr>
                   )}
                 </>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
+        )}
       </CardContent>
     </Card>
   );
