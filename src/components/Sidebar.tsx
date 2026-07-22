@@ -11,7 +11,7 @@ import Logo from './Logo';
 
 interface SidebarProps {
   role: 'driver' | 'company' | 'admin' | 'transport' | 'recycler' | 'reviewer'
-    | 'branch' | 'consultant' | 'gov';
+    | 'branch' | 'consultant' | 'gov' | 'applicant';
 }
 
 export default function Sidebar({ role }: SidebarProps) {
@@ -100,6 +100,13 @@ export default function Sidebar({ role }: SidebarProps) {
 
   const reviewerLinks = [
     { icon: ClipboardCheckIcon, label: isRTL ? 'قائمة مراجعة المستندات' : 'Document Review Queue', path: '/reviewer' },
+    { icon: FileCheckIcon, label: isRTL ? 'قائمة مراجعة الطلبات' : 'Applications Review Queue', path: '/reviewer/applications' },
+  ];
+
+  // CP5.5: the only thing an applicant can ever see or do — track their own
+  // pending application. No tenant nav applies (every tenant ID is NULL).
+  const applicantLinks = [
+    { icon: FileCheckIcon, label: isRTL ? 'حالة الطلب' : 'Application Status', path: '/application-status' },
   ];
 
   const branchLinks = [
@@ -123,6 +130,7 @@ export default function Sidebar({ role }: SidebarProps) {
     : role === 'branch' ? branchLinks
     : role === 'consultant' ? consultantLinks
     : role === 'gov' ? govLinks
+    : role === 'applicant' ? applicantLinks
     // Admin shell: explicit per-actual-role nav, keyed by the real MemberRole
     // (not the shell-role prop, which is just 'admin' for all 5 Maya-side
     // roles). Falls closed to the most restrictive nav (Dashboard-only) if
@@ -154,6 +162,7 @@ export default function Sidebar({ role }: SidebarProps) {
               {role === 'branch' && (isRTL ? 'مشغل فرع' : 'Branch Operator')}
               {role === 'consultant' && (isRTL ? 'مستشار' : 'Consultant')}
               {role === 'gov' && (isRTL ? 'جهة حكومية' : 'Government')}
+              {role === 'applicant' && (isRTL ? 'مقدّم طلب' : 'Applicant')}
             </p>
           </div>
         </div>

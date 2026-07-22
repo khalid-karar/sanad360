@@ -11,7 +11,11 @@ export type MemberRole =
   // grant/modify any of these — enforced in the DB, migration 029).
   | 'super_admin' | 'system_admin' | 'support_agent' | 'billing_accountant'
   // CP5 (migration 024): tenant-side roles.
-  | 'branch_operator' | 'consultant' | 'gov_viewer';
+  | 'branch_operator' | 'consultant' | 'gov_viewer'
+  // CP5.5 (migration 035): tenant-less self-signup applicant — every tenant
+  // ID is NULL for this role (see the one_tenant CHECK), until
+  // review_pending_application() promotes it to a real 'owner' membership.
+  | 'applicant';
 export type WasteType = 'industrial' | 'plastic' | 'chemical' | 'organic' | 'electronic' | 'medical';
 export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant' | 'pending_confirmation';
 
@@ -440,7 +444,11 @@ export type CreateDisposalConfirmationInput = {
 // ─── CP2: onboarding & compliance document gating (migrations 020/021) ─────
 
 export type DocumentOwnerType =
-  | 'company' | 'branch' | 'transport_company' | 'driver' | 'vehicle' | 'facility';
+  | 'company' | 'branch' | 'transport_company' | 'driver' | 'vehicle' | 'facility'
+  // CP5.5 (migration 035): documents uploaded during the pending-application
+  // phase, before a real tenant exists. Re-parented onto the real tenant by
+  // review_pending_application() on approval — never re-uploaded.
+  | 'pending_application';
 
 export type DocumentStatus = 'pending' | 'verified' | 'rejected';
 
@@ -505,6 +513,39 @@ export interface OwnerDocumentStatus {
   expiring_soon: ExpiringSoonDoc[];
 }
 
+// ─── CP5.5: self-service onboarding (migrations 034-041) ───────────────────
+
+export type PendingApplicationStatus =
+  | 'pending_email_verification'
+  | 'pending_documents'
+  | 'pending_review'
+  | 'approved'
+  | 'rejected';
+
+// Row shape as visible to `authenticated` (RLS column-level GRANT, migration
+// 035): email_verification_token_hash/email_verification_expires_at are
+// deliberately omitted — never client-visible, service_role only.
+export interface PendingApplication {
+  id: string;
+  applicant_user_id: string;
+  tenant_type: 'company' | 'transport_company';
+  name_ar: string;
+  name_en: string | null;
+  commercial_registration: string;
+  vat_number: string | null;
+  industry_code: string | null;
+  contact_email: string;
+  contact_phone: string | null;
+  status: PendingApplicationStatus;
+  email_verified_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reject_reason: string | null;
+  resulting_company_id: string | null;
+  resulting_transport_company_id: string | null;
+  created_at: string;
+}
+
 // Each table exposes Row (full read shape), Insert (write shape — server-set
 // columns optional), and Update (all columns optional). supabase-js uses Insert
 // for `.insert()` and Update for `.update()`. We model Insert/Update as
@@ -553,6 +594,7 @@ export interface Database {
       pickup_confirmations: TableShape<PickupConfirmation>;
       industries: TableShape<Industry>;
       regions: TableShape<Region>;
+      pending_applications: TableShape<PendingApplication>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };
@@ -577,6 +619,25 @@ export interface Database {
       gov_rollup: {
         Args: { p_region_code: string | null; p_industry_code: string | null; p_facility_id: string | null };
         Returns: GovRollupRow[];
+      };
+      // migration 035 — the ONLY path pending_review -> approved/rejected.
+      // Caller must be document_reviewer/system_admin/admin/super_admin AND
+      // not the applicant themself (enforced inside the function).
+      review_pending_application: {
+        Args: { p_application_id: string; p_decision: 'approved' | 'rejected'; p_reject_reason?: string | null };
+        Returns: {
+          status: string;
+          resulting_company_id: string | null;
+          resulting_transport_company_id: string | null;
+        }[];
+      };
+      // migration 041 — the ONLY path pending_documents -> pending_review.
+      // Caller must be the applicant who owns the row; server re-validates
+      // document completeness against the application's OWN tenant_type
+      // (never the pending_application union) before allowing the flip.
+      submit_application_for_review: {
+        Args: { p_application_id: string };
+        Returns: { status: string }[];
       };
     };
     Enums: Record<string, never>;

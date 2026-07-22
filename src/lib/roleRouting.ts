@@ -36,6 +36,11 @@ export function homeRouteFor(user: RoutableUser): string {
   if (user.role === 'branch_operator') return '/branch';
   if (user.role === 'consultant') return '/consultant';
   if (user.role === 'gov_viewer') return '/gov';
+  // CP5.5: an applicant has every tenant ID NULL (one_tenant CHECK, 035) —
+  // it must NEVER fall through to the transport/company branch below (that
+  // would route them into a tenant dashboard they have zero access to).
+  // Explicit case, not a default.
+  if (user.role === 'applicant') return '/application-status';
   return user.transport_company_id ? '/transport' : '/company';
 }
 
