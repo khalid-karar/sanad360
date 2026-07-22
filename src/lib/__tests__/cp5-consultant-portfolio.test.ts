@@ -13,6 +13,11 @@
  *      no membership in at all
  *   2. A plain 'owner' membership held by a DIFFERENT user in company A is
  *      never returned by this consultant's query (RLS: own row only)
+ *   3. That same consultant CANNOT see or query company C's data at all —
+ *      not the company row, not its branches, not its pickup_events — since
+ *      they hold no membership in C whatsoever (consultant has no
+ *      cross-company RLS bypass; migration 025's header explicitly defers
+ *      that, see KNOWN_LIMITATIONS.md)
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -44,7 +49,8 @@ async function sessionClient(email: string): Promise<SupabaseClient> {
 describe('Consultant portfolio query (CP5 4g)', () => {
   let companyAId = '';
   let companyBId = '';
-  let unrelatedCompanyId = '';
+  let unrelatedCompanyId = ''; // "company C" — the consultant holds NO membership here
+  let companyCBranchId = '';
   let consultantUserId = '';
   let ownerUserId = '';
   let consultantClient: SupabaseClient;
@@ -64,6 +70,11 @@ describe('Consultant portfolio query (CP5 4g)', () => {
       .from('companies').insert({ name_ar: `شركة غير مرتبطة ${RUN}`, commercial_registration: `PORT-U-${RUN}` })
       .select('id').single<{ id: string }>();
     unrelatedCompanyId = unrelated!.id;
+
+    const { data: companyCBranch } = await admin
+      .from('branches').insert({ company_id: unrelatedCompanyId, name_ar: `فرع شركة سي ${RUN}` })
+      .select('id').single<{ id: string }>();
+    companyCBranchId = companyCBranch!.id;
 
     const { data: consultantCreated } = await admin.auth.admin.createUser({
       email: `portfolio-consultant-${RUN}@sanad360.dev`, password: PASSWORD, email_confirm: true,
@@ -91,6 +102,7 @@ describe('Consultant portfolio query (CP5 4g)', () => {
       await admin.from('profiles').delete().eq('id', uid);
       await admin.auth.admin.deleteUser(uid).catch(() => {});
     }
+    if (companyCBranchId) await admin.from('branches').delete().eq('id', companyCBranchId);
     for (const id of [companyAId, companyBId, unrelatedCompanyId]) {
       if (id) await admin.from('companies').delete().eq('id', id);
     }
@@ -108,5 +120,23 @@ describe('Consultant portfolio query (CP5 4g)', () => {
     expect(companyIds).toEqual([companyAId, companyBId].sort());
     expect(companyIds).not.toContain(unrelatedCompanyId);
     expect((data ?? []).every((m) => m.user_id === consultantUserId)).toBe(true);
+  });
+
+  it('3. cannot see or query company C\'s data at all (no membership there)', async () => {
+    const [{ data: cCompany }, { data: cBranches }, { data: cPickups }] = await Promise.all([
+      consultantClient.from('companies').select('id').eq('id', unrelatedCompanyId),
+      consultantClient.from('branches').select('id').eq('company_id', unrelatedCompanyId),
+      consultantClient.from('pickup_events').select('id').eq('company_id', unrelatedCompanyId),
+    ]);
+    expect(cCompany ?? []).toHaveLength(0);
+    expect(cBranches ?? []).toHaveLength(0);
+    expect(cPickups ?? []).toHaveLength(0);
+
+    // Not even by branch id directly, bypassing the company_id filter.
+    const { data: cBranchDirect } = await consultantClient
+      .from('branches')
+      .select('id')
+      .eq('id', companyCBranchId);
+    expect(cBranchDirect ?? []).toHaveLength(0);
   });
 });

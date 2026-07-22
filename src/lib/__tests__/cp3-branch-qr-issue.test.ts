@@ -85,6 +85,10 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   let otherBranchOperatorJwt = '';
   let otherBranchOperatorUserId = '';
   let otherBranchId = '';
+  let dispatcherJwt = '';
+  let dispatcherUserId = '';
+  let consultantJwt = '';
+  let consultantUserId = '';
   const cleanupEventIds: string[] = [];
 
   beforeAll(async () => {
@@ -153,6 +157,37 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
       branch_id: otherBranchId,
     });
     otherBranchOperatorJwt = await signIn(`branch-qr-other-operator-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A dispatcher of the SAME company (a role that DOES get write access to
+    // other branch-adjacent resources, e.g. pickup scheduling — proving it
+    // is NOT also admitted here matters more than an arbitrary role).
+    const { data: dispatcherCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-dispatcher-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    dispatcherUserId = dispatcherCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: dispatcherUserId,
+      role: 'dispatcher',
+      company_id: SEED.companyId,
+    });
+    dispatcherJwt = await signIn(`branch-qr-dispatcher-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A consultant (CP5) engaged with the SAME company — read-adjacent role,
+    // not a signing authority for this endpoint.
+    const { data: consultantCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-consultant-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    consultantUserId = consultantCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: consultantUserId,
+      role: 'consultant',
+      company_id: SEED.companyId,
+    });
+    consultantJwt = await signIn(`branch-qr-consultant-${RUN}@company.sanad360.dev`, 'DevPass1234!');
   });
 
   afterAll(async () => {
@@ -163,7 +198,7 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
       await admin.auth.admin.deleteUser(outsiderUserId);
     }
     if (outsiderCompanyId) await admin.from('companies').delete().eq('id', outsiderCompanyId);
-    for (const uid of [branchOperatorUserId, otherBranchOperatorUserId]) {
+    for (const uid of [branchOperatorUserId, otherBranchOperatorUserId, dispatcherUserId, consultantUserId]) {
       if (!uid) continue;
       await admin.from('memberships').delete().eq('user_id', uid);
       await admin.from('profiles').delete().eq('id', uid);
@@ -273,6 +308,18 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   it('7. (CP5) a branch_operator scoped to a DIFFERENT branch is rejected with 403', async () => {
     if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(otherBranchOperatorJwt, SEED.branchId);
+    expect(res.status).toBe(403);
+  });
+
+  it('8. (CP5) a dispatcher of the SAME company is rejected with 403 — only owner/manager/admin or the branch\'s own branch_operator may issue', async () => {
+    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
+    const res = await issueQr(dispatcherJwt, SEED.branchId);
+    expect(res.status).toBe(403);
+  });
+
+  it('9. (CP5) a consultant engaged with the SAME company is rejected with 403', async () => {
+    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
+    const res = await issueQr(consultantJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });
 });

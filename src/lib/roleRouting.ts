@@ -38,3 +38,19 @@ export function homeRouteFor(user: RoutableUser): string {
   if (user.role === 'gov_viewer') return '/gov';
   return user.transport_company_id ? '/transport' : '/company';
 }
+
+/**
+ * A bare Saudi mobile number (only digits, optionally with a leading 0 or
+ * +966) is treated as a driver phone login and converted to the synthetic
+ * email format used in auth. Anything containing "@" is passed straight
+ * through as an email. This one form now serves every role — the server
+ * resolves the membership and its role; there is no client-side role
+ * picker to get out of sync. Lives here (not LoginPage.tsx) so it's testable
+ * without importing the component tree into a non-DOM test environment.
+ */
+export function resolveLoginEmail(identifier: string): string {
+  const trimmed = identifier.trim();
+  if (trimmed.includes('@')) return trimmed;
+  const digits = trimmed.replace(/\D/g, '');
+  return `${digits}@driver.sanad360.com`;
+}

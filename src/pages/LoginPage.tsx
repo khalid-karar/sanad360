@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { homeRouteFor } from '../lib/roleRouting';
+import { homeRouteFor, resolveLoginEmail } from '../lib/roleRouting';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,22 +12,6 @@ import ScaleIn from '../components/animations/ScaleIn';
 import InteractiveButton from '../components/animations/InteractiveButton';
 import FAQModal from '../components/FAQModal';
 import Logo from '../components/Logo';
-
-/**
- * A bare Saudi mobile number (only digits, optionally with a leading 0 or
- * +966) is treated as a driver phone login and converted to the synthetic
- * email format used in auth. Anything containing "@" is passed straight
- * through as an email. This one form now serves every role — the server
- * resolves the membership and its role; there is no client-side role
- * picker to get out of sync (previously 3 separate tabs plus a duplicated
- * role→route map in 3 files, see src/lib/roleRouting.ts).
- */
-function resolveLoginEmail(identifier: string): string {
-  const trimmed = identifier.trim();
-  if (trimmed.includes('@')) return trimmed;
-  const digits = trimmed.replace(/\D/g, '');
-  return `${digits}@driver.sanad360.com`;
-}
 
 export default function LoginPage() {
   const navigate = useNavigate();
