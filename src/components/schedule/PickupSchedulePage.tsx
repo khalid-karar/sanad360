@@ -12,10 +12,12 @@ import { listBranches } from '../../lib/api/branches';
 import type { PickupAssignment, Branch, Driver, Vehicle } from '../../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2Icon, PlusIcon, XIcon, TruckIcon, MessageCircleIcon } from 'lucide-react';
+import { Loader2Icon, PlusIcon, TruckIcon, MessageCircleIcon, CalendarClockIcon } from 'lucide-react';
 import { StatusBadge } from './statusBadge';
 import { DatePicker, DateTimePicker } from '@/components/ui/date-picker';
 import { formatDateTime } from '../../lib/format';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
+import { Modal } from '@/components/ui/modal';
 
 export default function PickupSchedulePage() {
   const navigate = useNavigate();
@@ -153,10 +155,12 @@ export default function PickupSchedulePage() {
           )}
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {!loading && error && (
+          <ErrorState message={error} retry={reload} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        )}
 
         {/* No active transporter linked → block scheduling and guide the user. */}
-        {!loading && !hasTransporter ? (
+        {!error && (!loading && !hasTransporter ? (
           <Card className="bg-card text-card-foreground border-border">
             <CardContent className="py-12 flex flex-col items-center text-center gap-4">
               <TruckIcon className="w-10 h-10 text-muted-foreground" />
@@ -176,13 +180,15 @@ export default function PickupSchedulePage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2Icon className="w-6 h-6 animate-spin text-primary" />
-              </div>
+              <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
             ) : assignments.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-6 text-center">
-                {isRTL ? 'لا توجد التقاطات مجدولة' : 'No scheduled pickups yet'}
-              </p>
+              <EmptyState
+                icon={<CalendarClockIcon />}
+                title={isRTL ? 'لا توجد التقاطات مجدولة' : 'No scheduled pickups yet'}
+                hint={isRTL
+                  ? 'اطلب التقاطاً جديداً باستخدام الزر أعلاه'
+                  : 'Request a new pickup using the button above'}
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -250,28 +256,23 @@ export default function PickupSchedulePage() {
             )}
           </CardContent>
         </Card>
-        )}
+        ))}
       </div>
 
-      {/* Schedule form modal */}
+      {/* Schedule form modal — CP7: was a hand-rolled `fixed inset-0` overlay
+          (no focus trap, no Escape handling); converted to the shared Modal
+          (Radix Dialog), same as every other dialog in this app. */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-md bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{isRTL ? 'طلب التقاط' : 'Request Pickup'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
-                <XIcon className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent>
+        <Modal open onClose={() => setShowForm(false)} isRTL={isRTL} maxWidth="max-w-md" title={isRTL ? 'طلب التقاط' : 'Request Pickup'}>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'الفرع' : 'Branch'} *</label>
+                  <label className="text-sm font-medium text-foreground" htmlFor="schedule-branch">{isRTL ? 'الفرع' : 'Branch'} *</label>
                   <select
+                    id="schedule-branch"
                     value={branchId}
                     onChange={(e) => setBranchId(e.target.value)}
                     required
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <option value="">{isRTL ? 'اختر الفرع' : 'Select branch'}</option>
                     {branches.map((b) => (
@@ -283,12 +284,13 @@ export default function PickupSchedulePage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'السائق' : 'Driver'} *</label>
+                  <label className="text-sm font-medium text-foreground" htmlFor="schedule-driver">{isRTL ? 'السائق' : 'Driver'} *</label>
                   <select
+                    id="schedule-driver"
                     value={driverId}
                     onChange={(e) => setDriverId(e.target.value)}
                     required
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <option value="">{isRTL ? 'اختر السائق' : 'Select driver'}</option>
                     {drivers.map((d) => (
@@ -300,12 +302,13 @@ export default function PickupSchedulePage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'المركبة' : 'Vehicle'} *</label>
+                  <label className="text-sm font-medium text-foreground" htmlFor="schedule-vehicle">{isRTL ? 'المركبة' : 'Vehicle'} *</label>
                   <select
+                    id="schedule-vehicle"
                     value={vehicleId}
                     onChange={(e) => setVehicleId(e.target.value)}
                     required
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <option value="">{isRTL ? 'اختر المركبة' : 'Select vehicle'}</option>
                     {vehicles.map((v) => (
@@ -327,13 +330,14 @@ export default function PickupSchedulePage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium text-foreground">
+                    <label className="text-sm font-medium text-foreground" htmlFor="schedule-recurrence">
                       {isRTL ? 'التكرار' : 'Recurrence'}
                     </label>
                     <select
+                      id="schedule-recurrence"
                       value={recurrence}
                       onChange={(e) => setRecurrence(e.target.value as 'none' | 'daily' | 'weekly')}
-                      className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                      className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       <option value="none">{isRTL ? 'بدون تكرار' : 'One-time'}</option>
                       <option value="daily">{isRTL ? 'يومي' : 'Daily'}</option>
@@ -353,16 +357,17 @@ export default function PickupSchedulePage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'ملاحظات' : 'Notes'}</label>
+                  <label className="text-sm font-medium text-foreground" htmlFor="schedule-notes">{isRTL ? 'ملاحظات' : 'Notes'}</label>
                   <textarea
+                    id="schedule-notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   />
                 </div>
 
-                {error && <p className="text-sm text-destructive">{error}</p>}
+                {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
 
                 <div className="flex gap-3">
                   <Button type="submit" disabled={submitting} className="gap-2">
@@ -374,9 +379,7 @@ export default function PickupSchedulePage() {
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        </div>
+        </Modal>
       )}
     </AppShell>
   );
