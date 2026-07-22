@@ -164,7 +164,11 @@ export default function BranchOperatorPage() {
   return (
     <AppShell role="branch">
       <div className={`space-y-8 ${isRTL ? 'rtl' : 'ltr'}`}>
-        <div className="flex items-center justify-between">
+        {/* CP7: was a rigid flex-row justify-between — the title/description
+            and the QR button competed for space at 375px. Stacks on narrow
+            screens (one-handed: button lands full-width, thumb-reachable),
+            row layout returns at sm+. */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">
               {isRTL ? 'تأكيدات الفرع' : 'Branch Confirmations'}
@@ -174,7 +178,7 @@ export default function BranchOperatorPage() {
             </p>
           </div>
           {branchId && (
-            <Button onClick={openQr} variant="outline">
+            <Button onClick={openQr} variant="outline" className="w-full sm:w-auto h-12">
               <QrCodeIcon className="w-4 h-4 me-2" />
               {isRTL ? 'عرض رمز QR' : 'Show QR'}
             </Button>
@@ -213,21 +217,26 @@ export default function BranchOperatorPage() {
                     </p>
                   </div>
                 </div>
+                {/* CP7: was size="sm" (h-9, 36px) — below the 44px minimum
+                    touch-target guidance, and this button is tapped at a
+                    waste point, possibly one-handed/gloved. h-12 (48px)
+                    matches the field-sized buttons already used in
+                    SignaturePad/DigitalManifest. */}
                 <div className="flex gap-2">
                   <Button
-                    size="sm"
-                    className="flex-1 bg-success text-success-foreground hover:bg-success/90"
+                    className="flex-1 h-12 bg-success text-success-foreground hover:bg-success/90"
                     disabled={busyId === p.id}
+                    aria-busy={busyId === p.id}
                     onClick={() => handleConfirm(p)}
                   >
                     <CheckCircle2Icon className="w-4 h-4 me-2" />
                     {isRTL ? 'تأكيد' : 'Confirm'}
                   </Button>
                   <Button
-                    size="sm"
                     variant="outline"
-                    className="flex-1 text-destructive border-destructive/40"
+                    className="flex-1 h-12 text-destructive border-destructive/40"
                     disabled={busyId === p.id}
+                    aria-busy={busyId === p.id}
                     onClick={() => openDispute(p)}
                   >
                     <XCircleIcon className="w-4 h-4 me-2" />
@@ -257,11 +266,14 @@ export default function BranchOperatorPage() {
             {qrDataUrl ? (
               <img src={qrDataUrl} alt="Branch QR" className="mx-auto w-56 h-56 rounded-md border border-border bg-white p-2" />
             ) : (
-              <div className="mx-auto w-56 h-56 rounded-md border border-border bg-muted flex items-center justify-center text-sm text-muted-foreground">
+              <div
+                className="mx-auto w-56 h-56 rounded-md border border-border bg-muted flex items-center justify-center text-sm text-muted-foreground"
+                role="status"
+              >
                 {isRTL ? 'جارٍ التحميل...' : 'Loading...'}
               </div>
             )}
-            {qrError && <p className="text-xs text-destructive">{qrError}</p>}
+            {qrError && <p className="text-xs text-destructive" role="alert">{qrError}</p>}
             <p className="text-xs text-muted-foreground">
               {isRTL
                 ? 'اترك هذا الجهاز ظاهراً عند نقطة تسليم النفايات — الرمز يتجدد تلقائياً ويمسحه السائق'
@@ -283,6 +295,7 @@ export default function BranchOperatorPage() {
               value={disputeReason}
               onChange={(e) => setDisputeReason(e.target.value)}
               placeholder={isRTL ? 'صف سبب الاعتراض على هذا الاستلام...' : 'Describe why this pickup is being disputed...'}
+              aria-label={isRTL ? 'سبب الاعتراض' : 'Dispute reason'}
               rows={4}
             />
             <div className="flex gap-3">
