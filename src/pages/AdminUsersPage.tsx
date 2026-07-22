@@ -1,7 +1,11 @@
 import { useAuthStore } from '../stores/authStore';
 import AppShell from '../components/AppShell';
 import { UsersIcon } from 'lucide-react';
+import { EmptyState } from '@/components/ui/states';
 
+// Deliberately a reskinned "not built yet" stub, not a real user-management
+// screen — that's separately-scoped feature work (see KNOWN_LIMITATIONS.md
+// backlog), not part of CP7's reskin pass.
 export default function AdminUsersPage() {
   const { isRTL } = useAuthStore();
 
@@ -17,10 +21,13 @@ export default function AdminUsersPage() {
           </p>
         </div>
 
-        <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-          <UsersIcon className="w-12 h-12 mb-4 opacity-40" />
-          <p className="text-lg font-medium">{isRTL ? 'قريباً' : 'Coming Soon'}</p>
-        </div>
+        <EmptyState
+          icon={<UsersIcon />}
+          title={isRTL ? 'قريباً' : 'Coming Soon'}
+          hint={isRTL
+            ? 'إدارة المستخدمين ميزة قيد التطوير ولم تُبنَ بعد'
+            : 'User management is under development and has not been built yet'}
+        />
       </div>
     </AppShell>
   );

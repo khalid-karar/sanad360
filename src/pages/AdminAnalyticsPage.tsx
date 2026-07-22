@@ -1,6 +1,7 @@
 import { useAuthStore } from '../stores/authStore';
 import AppShell from '../components/AppShell';
 import { BarChart3Icon } from 'lucide-react';
+import { EmptyState } from '@/components/ui/states';
 
 export default function AdminAnalyticsPage() {
   const { isRTL } = useAuthStore();
@@ -17,10 +18,13 @@ export default function AdminAnalyticsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-          <BarChart3Icon className="w-12 h-12 mb-4 opacity-40" />
-          <p className="text-lg font-medium">{isRTL ? 'قريباً' : 'Coming Soon'}</p>
-        </div>
+        <EmptyState
+          icon={<BarChart3Icon />}
+          title={isRTL ? 'قريباً' : 'Coming Soon'}
+          hint={isRTL
+            ? 'هذه الميزة قيد التطوير وستتوفر في إصدار قادم'
+            : 'This feature is under development and will be available in a future release'}
+        />
       </div>
     </AppShell>
   );
