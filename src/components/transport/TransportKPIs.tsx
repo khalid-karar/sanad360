@@ -38,12 +38,12 @@ export default function TransportKPIs({ pendingTasks, complianceRate, todayPicku
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {kpis.map((kpi) => (
-        <Card key={kpi.title} className={`border-2 ${kpi.bgColor}`}>
+        <Card key={kpi.title} className={`border-2 ${kpi.bgColor}`} role="group" aria-label={`${kpi.title}: ${kpi.value}`}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {kpi.title}
             </CardTitle>
-            <kpi.icon className={`w-5 h-5 ${kpi.color}`} />
+            <kpi.icon className={`w-5 h-5 ${kpi.color}`} aria-hidden="true" />
           </CardHeader>
           <CardContent>
             <div className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</div>

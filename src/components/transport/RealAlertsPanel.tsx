@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AlertTriangleIcon, XCircleIcon, CheckIcon } from 'lucide-react';
+import { AlertTriangleIcon, XCircleIcon, CheckIcon, BellOffIcon } from 'lucide-react';
+import { LoadingState, EmptyState } from '@/components/ui/states';
 
 /**
  * Real, derived alerts panel.
@@ -49,11 +50,14 @@ export default function RealAlertsPanel({ companyId }: { companyId: string | nul
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[500px] pe-4">
+        <ScrollArea className="h-[500px] pe-4" role="region" aria-label={isRTL ? 'التنبيهات' : 'Alerts'}>
           <div className="space-y-4">
-            {loading && <div className="text-center py-8 text-muted-foreground">{isRTL ? 'جارٍ التحميل...' : 'Loading...'}</div>}
+            {loading && <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />}
             {!loading && alerts.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">{isRTL ? 'لا توجد تنبيهات نشطة' : 'No active alerts'}</div>
+              <EmptyState
+                icon={<BellOffIcon />}
+                title={isRTL ? 'لا توجد تنبيهات نشطة' : 'No active alerts'}
+              />
             )}
             {alerts.map((a) => (
               <Card key={a.key} className={`border-2 ${a.severity === 'critical' ? 'bg-destructive/5 border-destructive/20' : 'bg-warning/5 border-warning/20'}`}>
