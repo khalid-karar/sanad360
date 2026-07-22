@@ -19,8 +19,7 @@ export default function AppShell({ children, role }: AppShellProps) {
       <div className="flex">
         <Sidebar role={role} />
         <div className="flex-1 flex flex-col min-h-screen">
-          {/* Field mode: the driver's topbar drops non-field controls */}
-          <Topbar minimal={isDriver} />
+          <Topbar />
           <main className={`flex-1 container-padding ${isDriver ? 'pb-24 lg:pb-0' : ''}`}>
             <div className="max-w-7xl mx-auto animate-fade-in">
               {children}
