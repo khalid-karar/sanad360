@@ -114,6 +114,7 @@ export default function DigitalManifest() {
                 key={type.id}
                 variant={manifestData.wasteType?.includes(type.id) ? 'default' : 'outline'}
                 onClick={() => toggleWasteType(type.id)}
+                aria-pressed={manifestData.wasteType?.includes(type.id) ?? false}
                 className={
                   manifestData.wasteType?.includes(type.id)
                     ? 'bg-primary text-primary-foreground hover:bg-primary/90'
@@ -136,7 +137,9 @@ export default function DigitalManifest() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-center p-6 bg-muted rounded-lg">
-            <p className="text-4xl font-bold text-foreground">{weight || '0'}</p>
+            <p className="text-4xl font-bold text-foreground" aria-live="polite">
+              {weight || '0'}
+            </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {['1','2','3','4','5','6','7','8','9','clear','0','backspace'].map((num) => (
@@ -144,6 +147,9 @@ export default function DigitalManifest() {
                 key={num}
                 variant="outline"
                 onClick={() => handleNumberInput(num)}
+                // Only the backspace key is icon-only (⌫, no accessible visible
+                // text) — digits and "Clear" already render real text.
+                aria-label={num === 'backspace' ? (isRTL ? 'حذف آخر رقم' : 'Backspace') : undefined}
                 className="h-16 text-lg bg-background text-foreground border-border hover:bg-accent hover:text-accent-foreground"
               >
                 {num === 'clear'
