@@ -186,7 +186,7 @@ export default function DriverManagementPage() {
                 </div>
                 <div>
                   <Label htmlFor="driver-license-expiry">{isRTL ? 'تاريخ انتهاء الرخصة' : 'License Expiry'}</Label>
-                  <Input id="driver-license-expiry" type="date" value={form.license_expiry} onChange={(e) => setForm({ ...form, license_expiry: e.target.value })} className="mt-2" dir="ltr" />
+                  <Input id="driver-license-expiry" type="date" value={form.license_expiry} onChange={(e) => setForm({ ...form, license_expiry: e.target.value })} className="mt-2" dir="ltr" lang={isRTL ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB'} />
                 </div>
                 <div className="flex items-center gap-2 pt-8">
                   <input type="checkbox" id="absher" checked={form.absher_verified} onChange={(e) => setForm({ ...form, absher_verified: e.target.checked })} />

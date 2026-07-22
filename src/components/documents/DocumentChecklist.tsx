@@ -181,12 +181,12 @@ export default function DocumentChecklist({
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-xs text-muted-foreground" htmlFor={`${rd.doc_type}-issue`}>{isRTL ? 'تاريخ الإصدار' : 'Issue date'}</Label>
-                      <Input id={`${rd.doc_type}-issue`} type="date" dir="ltr" className="mt-1"
+                      <Input id={`${rd.doc_type}-issue`} type="date" dir="ltr" lang={isRTL ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB'} className="mt-1"
                         onChange={(e) => setDate(rd.doc_type, 'issue', e.target.value)} />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground" htmlFor={`${rd.doc_type}-expiry`}>{isRTL ? 'تاريخ الانتهاء' : 'Expiry date'}</Label>
-                      <Input id={`${rd.doc_type}-expiry`} type="date" dir="ltr" className="mt-1"
+                      <Input id={`${rd.doc_type}-expiry`} type="date" dir="ltr" lang={isRTL ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB'} className="mt-1"
                         onChange={(e) => setDate(rd.doc_type, 'expiry', e.target.value)} />
                     </div>
                   </div>

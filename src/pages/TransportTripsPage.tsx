@@ -345,6 +345,7 @@ export default function TransportTripsPage() {
                   onChange={(e) => setTripDate(e.target.value)}
                   className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   dir="ltr"
+                  lang={isRTL ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB'}
                 />
               </div>
 

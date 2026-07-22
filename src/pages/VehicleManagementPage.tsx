@@ -170,7 +170,7 @@ export default function VehicleManagementPage() {
                 </div>
                 <div>
                   <Label htmlFor="vehicle-ncwm-expiry">{isRTL ? 'تاريخ انتهاء ترخيص NCWM' : 'NCWM License Expiry'}</Label>
-                  <Input id="vehicle-ncwm-expiry" type="date" value={form.ncwm_license_expiry} onChange={(e) => setForm({ ...form, ncwm_license_expiry: e.target.value })} className="mt-2" dir="ltr" />
+                  <Input id="vehicle-ncwm-expiry" type="date" value={form.ncwm_license_expiry} onChange={(e) => setForm({ ...form, ncwm_license_expiry: e.target.value })} className="mt-2" dir="ltr" lang={isRTL ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB'} />
                 </div>
               </div>
               <div className="flex gap-3 pt-4">

@@ -90,3 +90,15 @@ for things that already work correctly at pilot scale.
   from real `pickup_events`/document counts), or (b) to be hidden/removed from the dashboard until
   that query exists. Do not let a future pass reskin around these again without addressing the
   underlying data gap.
+
+- **A real bilingual date picker (`src/components/ui/date-picker.tsx`) exists and is used in
+  PickupSchedulePage.tsx, but 5 remaining native `<input type="date">` fields (`DocumentChecklist.tsx`
+  ×2, `DriverManagementPage.tsx`, `VehicleManagementPage.tsx`, `TransportTripsPage.tsx`'s New Trip
+  form) were deliberately left as native inputs this pass** (decided: defer full migration) — only
+  pinned their `lang` attribute to `ar-SA-u-ca-gregory-nu-latn`/`en-GB` for calendar/digit consistency
+  with the rest of the app, since native date-input CHROME (the actual calendar popup) is controlled
+  by the browser/OS locale and cannot be fully forced to match the page language from HTML/CSS alone —
+  the same limitation that motivated building the custom picker in the first place.
+  **Where this resurfaces:** if these 5 fields need the same fully-controlled bilingual UX as
+  PickupSchedulePage.tsx (numeric field order independent of OS locale, in-app calendar), migrate them
+  onto `DatePicker`/`DateTimePicker` — same component, no new build needed.
