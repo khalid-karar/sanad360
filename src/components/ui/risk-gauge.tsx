@@ -18,10 +18,12 @@ export function RiskGauge({
   score,
   size = 44,
   complianceStatus,
+  isRTL,
 }: {
   score: number;
   size?: number;
   complianceStatus?: 'compliant' | 'warning' | 'non_compliant' | 'pending_confirmation';
+  isRTL?: boolean;
 }) {
   const clamped = Math.max(0, Math.min(100, score));
   const color =
@@ -41,7 +43,7 @@ export function RiskGauge({
       className="relative inline-flex items-center justify-center flex-shrink-0"
       style={{ width: size, height: size }}
       role="img"
-      aria-label={`Risk ${clamped}/100`}
+      aria-label={isRTL ? `المخاطر ${clamped}/100` : `Risk ${clamped}/100`}
       title={`${clamped}/100`}
     >
       <svg width={size} height={size} className="-rotate-90" aria-hidden>

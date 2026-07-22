@@ -201,7 +201,7 @@ export default function ReviewQueuePage() {
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-start justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
-                      <RiskGauge score={r.event.risk_score} complianceStatus={r.event.compliance_status} />
+                      <RiskGauge score={r.event.risk_score} complianceStatus={r.event.compliance_status} isRTL={isRTL} />
                       <div>
                         <p className="text-sm text-foreground" dir="ltr">
                           {formatDateTime(r.event.created_at, isRTL)}
