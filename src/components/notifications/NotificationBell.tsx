@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useAuthStore } from '../../stores/authStore';
 import { listNotifications, markAllRead } from '../../lib/api/notifications';
 import type { NotificationRow } from '../../lib/database.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BellIcon, XIcon, CheckIcon } from 'lucide-react';
 
@@ -52,12 +53,11 @@ export default function NotificationBell() {
   }
 
   return (
-    <>
-      <div className="relative">
+    <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog.Trigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setIsOpen(true)}
           className="relative text-foreground hover:text-foreground hover:bg-accent"
           aria-label={isRTL ? 'الإشعارات' : 'Notifications'}
         >
@@ -65,37 +65,42 @@ export default function NotificationBell() {
           {unread > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs p-0 min-w-[20px]"
+              className="absolute -top-1 -end-1 h-5 w-5 flex items-center justify-center text-xs p-0 min-w-[20px]"
             >
               {unread > 99 ? '99+' : unread}
             </Badge>
           )}
         </Button>
-      </div>
+      </Dialog.Trigger>
 
-      {isOpen && (
-        <div className="fixed inset-0 bg-gray-900/50 z-50 flex items-start justify-end p-4">
-          <Card className="w-full max-w-md bg-card text-card-foreground border-border max-h-[90vh] flex flex-col mt-16">
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-gray-900/50 z-50" />
+        <Dialog.Content
+          dir={isRTL ? 'rtl' : 'ltr'}
+          className="fixed z-50 inset-x-4 top-16 sm:inset-x-auto sm:end-4 sm:w-full sm:max-w-md max-h-[80vh] flex flex-col"
+        >
+          <Card className="bg-card text-card-foreground border-border max-h-[80vh] flex flex-col">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <BellIcon className="w-6 h-6 text-primary" />
-                  <CardTitle className="text-xl text-foreground">
+                  <BellIcon className="w-6 h-6 text-primary" aria-hidden="true" />
+                  <Dialog.Title className="text-xl font-semibold text-foreground">
                     {isRTL ? 'الإشعارات' : 'Notifications'}
-                  </CardTitle>
+                  </Dialog.Title>
                   {unread > 0 && (
                     <Badge variant="destructive" className="text-xs">{unread}</Badge>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsOpen(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={isRTL ? 'إغلاق' : 'Close'}
-                >
-                  <XIcon className="w-5 h-5" />
-                </Button>
+                <Dialog.Close asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={isRTL ? 'إغلاق' : 'Close'}
+                  >
+                    <XIcon className="w-5 h-5" />
+                  </Button>
+                </Dialog.Close>
               </div>
               {items.length > 0 && (
                 <div className="flex gap-2 mt-4">
@@ -111,7 +116,7 @@ export default function NotificationBell() {
                 <div className="p-6 pt-0 space-y-3">
                   {items.length === 0 ? (
                     <div className="text-center py-12">
-                      <BellIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <BellIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" aria-hidden="true" />
                       <p className="text-muted-foreground">
                         {isRTL ? 'لا توجد إشعارات' : 'No notifications'}
                       </p>
@@ -145,8 +150,8 @@ export default function NotificationBell() {
               </ScrollArea>
             </CardContent>
           </Card>
-        </div>
-      )}
-    </>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
