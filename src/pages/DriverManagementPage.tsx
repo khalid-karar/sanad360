@@ -16,10 +16,11 @@ import { PlusIcon, SearchIcon, UserIcon, CalendarIcon, ShieldCheckIcon, AlertTri
 import FadeInUp from '../components/animations/FadeInUp';
 import { Modal } from '@/components/ui/modal';
 import DocumentChecklist from '../components/documents/DocumentChecklist';
+import { LoadingState, EmptyState } from '@/components/ui/states';
 
 export default function DriverManagementPage() {
   const { isRTL, user } = useAuthStore();
-  const { drivers, loadDrivers, addDriver, editDriver } = useTransportStore();
+  const { drivers, isLoadingDrivers, loadDrivers, addDriver, editDriver } = useTransportStore();
   const [docsFor, setDocsFor] = useState<Driver | null>(null);
   // drivers_insert RLS allows owner/manager/dispatcher — mirror it explicitly
   // (was previously ungated, which happened to match today's route roles but
@@ -139,7 +140,7 @@ export default function DriverManagementPage() {
     <AppShell role="transport">
       <div className={`space-y-8 ${isRTL ? 'rtl' : 'ltr'}`}>
         <FadeInUp>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">{isRTL ? 'إدارة السائقين' : 'Driver Management'}</h1>
               <p className="text-muted-foreground">{isRTL ? 'إدارة وتتبع السائقين ورخصهم' : 'Manage and track drivers and their licenses'}</p>
@@ -155,8 +156,15 @@ export default function DriverManagementPage() {
         <Card className="bg-card text-card-foreground border-border">
           <CardContent className="pt-6">
             <div className="relative">
-              <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="text" placeholder={isRTL ? 'البحث عن سائق...' : 'Search drivers...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="ps-10" />
+              <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+              <Input
+                type="text"
+                aria-label={isRTL ? 'البحث عن سائق' : 'Search drivers'}
+                placeholder={isRTL ? 'البحث عن سائق...' : 'Search drivers...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="ps-10"
+              />
             </div>
           </CardContent>
         </Card>
@@ -169,16 +177,16 @@ export default function DriverManagementPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>{isRTL ? 'اسم السائق' : 'Driver Name'}</Label>
-                  <Input value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className="mt-2" />
+                  <Label htmlFor="driver-name">{isRTL ? 'اسم السائق' : 'Driver Name'}</Label>
+                  <Input id="driver-name" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className="mt-2" />
                 </div>
                 <div>
-                  <Label>{isRTL ? 'رقم الرخصة' : 'License Number'}</Label>
-                  <Input value={form.license_number} onChange={(e) => setForm({ ...form, license_number: e.target.value })} className="mt-2" />
+                  <Label htmlFor="driver-license-number">{isRTL ? 'رقم الرخصة' : 'License Number'}</Label>
+                  <Input id="driver-license-number" value={form.license_number} onChange={(e) => setForm({ ...form, license_number: e.target.value })} className="mt-2" />
                 </div>
                 <div>
-                  <Label>{isRTL ? 'تاريخ انتهاء الرخصة' : 'License Expiry'}</Label>
-                  <Input type="date" value={form.license_expiry} onChange={(e) => setForm({ ...form, license_expiry: e.target.value })} className="mt-2" dir="ltr" />
+                  <Label htmlFor="driver-license-expiry">{isRTL ? 'تاريخ انتهاء الرخصة' : 'License Expiry'}</Label>
+                  <Input id="driver-license-expiry" type="date" value={form.license_expiry} onChange={(e) => setForm({ ...form, license_expiry: e.target.value })} className="mt-2" dir="ltr" />
                 </div>
                 <div className="flex items-center gap-2 pt-8">
                   <input type="checkbox" id="absher" checked={form.absher_verified} onChange={(e) => setForm({ ...form, absher_verified: e.target.checked })} />
@@ -198,20 +206,23 @@ export default function DriverManagementPage() {
             <CardTitle>{isRTL ? 'قائمة السائقين' : 'Drivers List'} ({filtered.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px] pe-4">
+            {isLoadingDrivers ? (
+              <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+            ) : (
+            <ScrollArea className="h-[600px] pe-4" role="region" aria-label={isRTL ? 'قائمة السائقين' : 'Drivers List'}>
               <div className="space-y-4">
                 {filtered.map((d) => (
                   <Card key={d.id} className={`border-2 ${d.status !== 'active' ? 'opacity-60 border-border' : 'border-border'}`}>
                     <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-primary" /></div>
+                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><UserIcon className="w-6 h-6 text-primary" /></div>
                           <div>
                             <h3 className="font-semibold text-foreground text-lg">{d.name_ar}</h3>
                             <p className="text-sm text-muted-foreground">{d.license_number}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center flex-wrap gap-3">
                           {badge(d.license_expiry)}
                           <Button size="sm" variant="outline" onClick={() => setDocsFor(d)} title={isRTL ? 'المستندات' : 'Documents'}>
                             <FileCheckIcon className="w-4 h-4 me-1" />{isRTL ? 'المستندات' : 'Documents'}
@@ -249,9 +260,18 @@ export default function DriverManagementPage() {
                     </CardContent>
                   </Card>
                 ))}
-                {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">{isRTL ? 'لا يوجد سائقون' : 'No drivers'}</div>}
+                {filtered.length === 0 && (
+                  <EmptyState
+                    icon={<UserIcon />}
+                    title={isRTL ? 'لا يوجد سائقون' : 'No drivers'}
+                    hint={searchTerm
+                      ? (isRTL ? 'جرّب كلمة بحث مختلفة' : 'Try a different search term')
+                      : (canAdd ? (isRTL ? 'أضف سائقاً جديداً باستخدام الزر أعلاه' : 'Add a new driver using the button above') : undefined)}
+                  />
+                )}
               </div>
             </ScrollArea>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -286,8 +306,9 @@ export default function DriverManagementPage() {
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label>{isRTL ? 'رقم جوال السائق' : 'Driver Mobile Number'}</Label>
+                    <Label htmlFor="invite-phone">{isRTL ? 'رقم جوال السائق' : 'Driver Mobile Number'}</Label>
                     <Input
+                      id="invite-phone"
                       value={invitePhone}
                       onChange={(e) => setInvitePhone(e.target.value)}
                       placeholder="05xxxxxxxx"
@@ -299,8 +320,9 @@ export default function DriverManagementPage() {
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label>{isRTL ? 'كلمة مرور مؤقتة (10+ أحرف)' : 'Temp Password (10+ chars)'}</Label>
+                    <Label htmlFor="invite-password">{isRTL ? 'كلمة مرور مؤقتة (10+ أحرف)' : 'Temp Password (10+ chars)'}</Label>
                     <Input
+                      id="invite-password"
                       value={invitePassword}
                       onChange={(e) => setInvitePassword(e.target.value)}
                       dir="ltr"
