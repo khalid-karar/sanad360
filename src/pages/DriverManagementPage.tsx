@@ -155,8 +155,8 @@ export default function DriverManagementPage() {
         <Card className="bg-card text-card-foreground border-border">
           <CardContent className="pt-6">
             <div className="relative">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="text" placeholder={isRTL ? 'البحث عن سائق...' : 'Search drivers...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+              <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="text" placeholder={isRTL ? 'البحث عن سائق...' : 'Search drivers...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="ps-10" />
             </div>
           </CardContent>
         </Card>
@@ -198,7 +198,7 @@ export default function DriverManagementPage() {
             <CardTitle>{isRTL ? 'قائمة السائقين' : 'Drivers List'} ({filtered.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px] pr-4">
+            <ScrollArea className="h-[600px] pe-4">
               <div className="space-y-4">
                 {filtered.map((d) => (
                   <Card key={d.id} className={`border-2 ${d.status !== 'active' ? 'opacity-60 border-border' : 'border-border'}`}>

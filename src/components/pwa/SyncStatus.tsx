@@ -30,9 +30,9 @@ export default function SyncStatus() {
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           {issyncing ? (
-            <LoadingSpinner size="sm" className="mr-2" />
+            <LoadingSpinner size="sm" className="me-2" />
           ) : (
-            <RefreshCwIcon className="w-4 h-4 mr-2" />
+            <RefreshCwIcon className="w-4 h-4 me-2" />
           )}
           {issyncing 
             ? (isRTL ? 'جاري المزامنة...' : 'Syncing...')

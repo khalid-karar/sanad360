@@ -97,13 +97,13 @@ export default function CompaniesTable() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <SearchIcon className="absolute start-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder={isRTL ? 'البحث عن منشأة...' : 'Search companies...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-background text-foreground border-input"
+            className="ps-10 bg-background text-foreground border-input"
           />
         </div>
 
@@ -111,16 +111,16 @@ export default function CompaniesTable() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-right p-3 text-sm font-medium text-muted-foreground">
+                <th className="text-start p-3 text-sm font-medium text-muted-foreground">
                   {isRTL ? 'اسم المنشأة' : 'Company Name'}
                 </th>
-                <th className="text-right p-3 text-sm font-medium text-muted-foreground">
+                <th className="text-start p-3 text-sm font-medium text-muted-foreground">
                   {isRTL ? 'آخر تقديم' : 'Last Submission'}
                 </th>
-                <th className="text-right p-3 text-sm font-medium text-muted-foreground">
+                <th className="text-start p-3 text-sm font-medium text-muted-foreground">
                   {isRTL ? 'الحالة' : 'Status'}
                 </th>
-                <th className="text-right p-3 text-sm font-medium text-muted-foreground"></th>
+                <th className="text-start p-3 text-sm font-medium text-muted-foreground"></th>
               </tr>
             </thead>
             <tbody>

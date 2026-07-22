@@ -109,7 +109,7 @@ export default function ComplianceReviewPanel({ data, onClose }: ComplianceRevie
         </CardHeader>
 
         <CardContent className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full pr-4">
+          <ScrollArea className="h-full pe-4">
             <div className="space-y-6">
               {/* Compliance Score Display */}
               <div className="text-center p-6 bg-muted rounded-lg">

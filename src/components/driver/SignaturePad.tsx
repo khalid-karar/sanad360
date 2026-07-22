@@ -42,6 +42,10 @@ export default function SignaturePad() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.scale(dpr, dpr);
+    // Intentionally fixed black ink, not a theme token: Canvas 2D can't
+    // resolve CSS custom properties, and a signature should read as black
+    // ink on the printed/PDF evidence regardless of the app's light/dark
+    // mode — the same reasoning as the fixed pen-black convention on paper.
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';

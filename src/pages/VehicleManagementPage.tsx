@@ -121,7 +121,7 @@ export default function VehicleManagementPage() {
           </div>
           {canManage && (
             <Button onClick={() => setShowAddForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <PlusIcon className="w-4 h-4 mr-2" />{isRTL ? 'إضافة مركبة' : 'Add Vehicle'}
+              <PlusIcon className="w-4 h-4 me-2" />{isRTL ? 'إضافة مركبة' : 'Add Vehicle'}
             </Button>
           )}
         </div>
@@ -129,8 +129,8 @@ export default function VehicleManagementPage() {
         <Card className="bg-card text-card-foreground border-border">
           <CardContent className="pt-6">
             <div className="relative">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="text" placeholder={isRTL ? 'البحث عن مركبة...' : 'Search vehicles...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+              <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="text" placeholder={isRTL ? 'البحث عن مركبة...' : 'Search vehicles...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="ps-10" />
             </div>
           </CardContent>
         </Card>
@@ -176,7 +176,7 @@ export default function VehicleManagementPage() {
         <Card className="bg-card text-card-foreground border-border">
           <CardHeader><CardTitle>{isRTL ? 'قائمة المركبات' : 'Vehicles List'} ({filtered.length})</CardTitle></CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px] pr-4">
+            <ScrollArea className="h-[600px] pe-4">
               <div className="space-y-4">
                 {filtered.map((v) => (
                   <Card key={v.id} className={`border-2 ${v.status !== 'active' ? 'opacity-60 border-border' : 'border-border'}`}>

@@ -49,7 +49,7 @@ export default function RealAlertsPanel({ companyId }: { companyId: string | nul
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[500px] pr-4">
+        <ScrollArea className="h-[500px] pe-4">
           <div className="space-y-4">
             {loading && <div className="text-center py-8 text-muted-foreground">{isRTL ? 'جارٍ التحميل...' : 'Loading...'}</div>}
             {!loading && alerts.length === 0 && (
@@ -75,7 +75,7 @@ export default function RealAlertsPanel({ companyId }: { companyId: string | nul
                   {companyId && (
                     <div className="mt-3 flex justify-end">
                       <Button size="sm" variant="outline" onClick={() => handleAck(a.key)}>
-                        <CheckIcon className="w-4 h-4 mr-2" />
+                        <CheckIcon className="w-4 h-4 me-2" />
                         {isRTL ? 'تم الاطلاع' : 'Acknowledge'}
                       </Button>
                     </div>

@@ -49,7 +49,7 @@ export default function LoadingStates({
           />
         ))}
         {text && (
-          <span className="ml-3 text-sm text-muted-foreground">{text}</span>
+          <span className="ms-3 text-sm text-muted-foreground">{text}</span>
         )}
       </div>
     );
@@ -66,7 +66,7 @@ export default function LoadingStates({
           <div className="w-8 h-8 bg-primary rounded-full" />
         </div>
         {text && (
-          <span className="ml-3 text-sm text-muted-foreground">{text}</span>
+          <span className="ms-3 text-sm text-muted-foreground">{text}</span>
         )}
       </motion.div>
     );

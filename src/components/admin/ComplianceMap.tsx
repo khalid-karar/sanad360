@@ -27,11 +27,24 @@ export default function ComplianceMap() {
     ];
 
     cities.forEach((city) => {
-      const color = city.compliance >= 90 ? '#22C55E' : city.compliance >= 80 ? '#F59E0B' : '#EF4444';
-      
+      // CP7 design-system pass: these were raw hex (#22C55E/#F59E0B/#EF4444)
+      // matching NOTHING in the token file — a coincidental near-match to
+      // success/warning/destructive at best. `hsl(var(--x))` is a valid CSS
+      // color string Leaflet's SVG path renderer accepts directly (it sets
+      // it as the path's style.fill/stroke, which resolves CSS custom
+      // properties same as any other CSS), so the map now tracks the actual
+      // theme tokens instead of a frozen copy of them.
+      const color =
+        city.compliance >= 90 ? 'hsl(var(--success))'
+        : city.compliance >= 80 ? 'hsl(var(--warning))'
+        : 'hsl(var(--destructive))';
+
       L.circleMarker(city.coords as [number, number], {
         radius: 12,
         fillColor: color,
+        // Fixed white border regardless of theme — a map tile layer is
+        // always light, independent of the app's light/dark mode, so a
+        // theme-reactive border would look wrong against it either way.
         color: '#fff',
         weight: 2,
         opacity: 1,

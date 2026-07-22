@@ -181,7 +181,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
             onClick={markAllAsRead}
             className="flex-1"
           >
-            <CheckIcon className="w-4 h-4 mr-2" />
+            <CheckIcon className="w-4 h-4 me-2" />
             {isRTL ? 'تحديد الكل كمقروء' : 'Mark All Read'}
           </Button>
           <Button
@@ -190,7 +190,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
             onClick={clearAll}
             className="flex-1 text-destructive hover:text-destructive"
           >
-            <XIcon className="w-4 h-4 mr-2" />
+            <XIcon className="w-4 h-4 me-2" />
             {isRTL ? 'مسح الكل' : 'Clear All'}
           </Button>
         </div>
@@ -230,7 +230,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
                             <h4 className="font-medium text-foreground text-sm truncate">
                               {isRTL ? notification.title : notification.titleEn}
                             </h4>
-                            <div className="flex items-center gap-2 ml-2">
+                            <div className="flex items-center gap-2 ms-2">
                               {getPriorityBadge(notification.priority)}
                               {!notification.read && (
                                 <div className="w-2 h-2 bg-primary rounded-full" />

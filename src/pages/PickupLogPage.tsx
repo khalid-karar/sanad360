@@ -208,7 +208,7 @@ export default function PickupLogPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px] pr-4">
+            <ScrollArea className="h-[600px] pe-4">
               <div className="space-y-4">
                 {loading && (
                   <div className="text-center py-12 text-muted-foreground">{isRTL ? 'جارٍ التحميل...' : 'Loading...'}</div>
@@ -279,7 +279,7 @@ export default function PickupLogPage() {
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4 border-b border-border py-1.5">
                   <span className="text-muted-foreground">{k}</span>
-                  <span className="text-foreground text-right break-all">{v}</span>
+                  <span className="text-foreground text-end break-all">{v}</span>
                 </div>
               ))}
             </CardContent>

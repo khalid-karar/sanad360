@@ -73,7 +73,14 @@ export default function RecentPickups({ pickups }: RecentPickupsProps) {
           <span className="font-medium text-sm">
             {isRTL ? 'عرض الكل' : 'View All'}
           </span>
-          <ArrowRightIcon className={`w-4 h-4 ${isRTL ? 'mr-2' : 'ml-2'}`} />
+          {/* ms-2 (logical) instead of the previous manual mr-2/ml-2 ternary —
+              this icon TRAILS the text, so the gap is on the icon's
+              INLINE-START side (the side facing the text before it); ms-2
+              already resolves to ml-2 in LTR / mr-2 in RTL, exactly what
+              the ternary did manually. rotate-180 in RTL: the arrow should
+              point toward "continue reading" (start-to-end), which is
+              visually leftward in RTL. */}
+          <ArrowRightIcon className={`w-4 h-4 ms-2 ${isRTL ? 'rotate-180' : ''}`} />
         </InteractiveButton>
       </CardHeader>
       <CardContent>

@@ -68,7 +68,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
             onClick={() => handleAction(alert, 'assign')}
             className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            <UserCheckIcon className="w-4 h-4 mr-2" />
+            <UserCheckIcon className="w-4 h-4 me-2" />
             {isRTL ? 'تعيين سائق/مركبة بديلة' : 'Assign Alternate'}
           </Button>
           <Button
@@ -77,7 +77,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
             onClick={() => handleAction(alert, 'message')}
             className="flex-1"
           >
-            <MessageSquareIcon className="w-4 h-4 mr-2" />
+            <MessageSquareIcon className="w-4 h-4 me-2" />
             {isRTL ? 'إرسال رسالة' : 'Send Message'}
           </Button>
         </div>
@@ -91,7 +91,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
           onClick={() => handleAction(alert, 'upload')}
           className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
         >
-          <UploadIcon className="w-4 h-4 mr-2" />
+          <UploadIcon className="w-4 h-4 me-2" />
           {isRTL ? 'إضافة وثيقة' : 'Upload Document'}
         </Button>
         <Button
@@ -100,7 +100,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
           onClick={() => handleAction(alert, 'message')}
           className="flex-1"
         >
-          <MessageSquareIcon className="w-4 h-4 mr-2" />
+          <MessageSquareIcon className="w-4 h-4 me-2" />
           {isRTL ? 'إرسال رسالة' : 'Send Message'}
         </Button>
       </div>
@@ -117,7 +117,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[600px] pr-4">
+          <ScrollArea className="h-[600px] pe-4">
             <div className="space-y-4">
               {alerts.map((alert) => (
                 <Card

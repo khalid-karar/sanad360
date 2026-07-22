@@ -102,7 +102,7 @@ export default function PWAUpdatePrompt() {
               className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               size="sm"
             >
-              <RefreshCwIcon className="w-4 h-4 mr-2" />
+              <RefreshCwIcon className="w-4 h-4 me-2" />
               {isRTL ? 'تحديث الآن' : 'Update Now'}
             </Button>
           </div>

@@ -40,6 +40,14 @@ module.exports = {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        // CP7: one warm accent (gold/highlight) distinct from `warning` —
+        // for "worth noticing" states that aren't errors or cautions, e.g.
+        // a highlighted/new item. Never raw hex in components — always
+        // bg-warm/text-warm-foreground etc.
+        warm: {
+          DEFAULT: "hsl(var(--warm))",
+          foreground: "hsl(var(--warm-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",

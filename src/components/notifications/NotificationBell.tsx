@@ -100,7 +100,7 @@ export default function NotificationBell() {
               {items.length > 0 && (
                 <div className="flex gap-2 mt-4">
                   <Button variant="outline" size="sm" onClick={handleMarkAll} className="flex-1">
-                    <CheckIcon className="w-4 h-4 mr-2" />
+                    <CheckIcon className="w-4 h-4 me-2" />
                     {isRTL ? 'تحديد الكل كمقروء' : 'Mark All Read'}
                   </Button>
                 </div>

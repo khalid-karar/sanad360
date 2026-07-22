@@ -128,8 +128,12 @@ export default function Sidebar({ role }: SidebarProps) {
     // the actual role is somehow unmapped — never opens to the full nav.
     : (adminShellLinksByActualRole[user?.role ?? ''] ?? dashboardOnlyLinks);
 
+  // border-e (logical), not border-l: the sidebar sits at the START side
+  // (left LTR / right RTL, via flex-row reversal on its parent) — the
+  // border must be on whichever side actually FACES the content, which is
+  // the END side either way.
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-card border-l border-border shadow-soft">
+    <div className="flex flex-col h-full bg-card border-e border-border shadow-soft">
       <div className="p-8 border-b border-border">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-gradient-primary rounded-2xl flex items-center justify-center shadow-medium p-1">
@@ -215,7 +219,13 @@ export default function Sidebar({ role }: SidebarProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="lg:hidden fixed top-4 right-4 z-50 bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
+        // CP7: was `right-4` unconditionally — the desktop sidebar sits at
+        // the START side (left in LTR, right in RTL, via natural flex-row
+        // reversal on its parent, no logical utility needed there). This
+        // mobile toggle+drawer are a separate, hardcoded-right pair that
+        // never matched that in LTR mode. `start-4` aligns it with wherever
+        // the sidebar itself actually is, in either language.
+        className="lg:hidden fixed top-4 start-4 z-50 bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
         onClick={() => setIsOpen(!isOpen)}
         aria-label={isRTL ? 'القائمة' : 'Menu'}
       >
@@ -230,7 +240,7 @@ export default function Sidebar({ role }: SidebarProps) {
             className="lg:hidden fixed inset-0 bg-gray-900/50 z-40"
             onClick={() => setIsOpen(false)}
           />
-          <aside className="lg:hidden fixed top-0 right-0 w-64 h-screen z-50">{sidebarContent}</aside>
+          <aside className="lg:hidden fixed top-0 start-0 w-64 h-screen z-50">{sidebarContent}</aside>
         </>
       )}
     </>
