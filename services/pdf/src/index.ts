@@ -1,5 +1,6 @@
 // Load .env into process.env BEFORE any module that reads Supabase config.
 import './lib/env.js';
+import { pathToFileURL } from 'node:url';
 import * as Sentry from '@sentry/node';
 import express from 'express';
 
@@ -20,11 +21,16 @@ import { handleMonthly } from './routes/monthly.js';
 import { handleMonthlyCompany } from './routes/monthly-company.js';
 import { handleOnboardCompany } from './routes/onboard.js';
 import { handleSweepExpiredConfirmations } from './routes/admin-sweep-confirmations.js';
+import { handleSweepStaleApplications } from './routes/admin-sweep-applications.js';
 import { handleInviteDriver } from './routes/invite-driver.js';
 import { handleRevokeMembership } from './routes/revoke-membership.js';
 import { handleInviteRecycler, handleCreateFacility } from './routes/invite-recycler.js';
 import { handleIssueTripQr, handleValidateTripQr } from './routes/trip-qr.js';
 import { handleIssueBranchQr } from './routes/branch-qr.js';
+import { handlePublicSignup } from './routes/public-signup.js';
+import { handlePublicVerifyEmail } from './routes/public-verify-email.js';
+import { handleNotifyApplicationDecision } from './routes/admin-notify-application-decision.js';
+import { createRateLimiter } from './lib/rateLimit.js';
 import type { AuthedRequest } from './types.js';
 
 const app = express();
@@ -81,6 +87,33 @@ setInterval(() => {
     if (now >= b.resetAt) rateBuckets.delete(ip);
   }
 }, 60_000).unref();
+
+// ── Dedicated limits for the two unauthenticated CP5.5 routes ───────────────
+// Layered ON TOP of the global per-IP limiter above — these are tighter and
+// specific to the abuse shape of each route (signup: an attacker probing
+// emails/CRs; verify: token brute force, though the 256-bit token space
+// already makes that infeasible on its own).
+const signupIpLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  keyFn: (req) => req.ip ?? null,
+  message: 'Too many signup attempts from this address — try again in an hour',
+});
+const signupCrLimiter = createRateLimiter({
+  windowMs: 24 * 60 * 60 * 1000,
+  limit: 3,
+  keyFn: (req) => {
+    const cr = (req.body as { commercial_registration?: unknown } | undefined)?.commercial_registration;
+    return typeof cr === 'string' && cr.trim() ? `cr:${cr.trim()}` : null;
+  },
+  message: 'Too many signup attempts for this commercial registration — try again tomorrow',
+});
+const verifyEmailIpLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  keyFn: (req) => req.ip ?? null,
+  message: 'Too many verification attempts — try again later',
+});
 
 // ── Request timeout: two-pass renders take seconds, not minutes ─────────────
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS ?? '90000', 10);
@@ -156,6 +189,16 @@ app.post(
   asyncHandler((req, res) => handleSweepExpiredConfirmations(req, res))
 );
 
+// CP5.5 (migration 036): manual invocation of
+// sweep_stale_unverified_applications() — same posture as the confirmations
+// sweep above.
+app.post(
+  '/admin/sweep-stale-applications',
+  rateLimiter,
+  requestTimeout,
+  asyncHandler((req, res) => handleSweepStaleApplications(req, res))
+);
+
 // Transport-side driver invitation (creates the driver's auth account +
 // membership; role-checked inside the handler on top of authMiddleware).
 app.post(
@@ -225,27 +268,71 @@ app.post(
   asyncHandler((req, res) => handleIssueBranchQr(req as AuthedRequest, res))
 );
 
-const server = app.listen(PORT, () => {
-  console.log(`[pdf-service] Listening on http://localhost:${PORT}`);
-  console.log(`[pdf-service] CORS origin: ${CORS_ORIGIN}`);
-});
+// CP5.5 (migration 041): public self-service signup — unauthenticated,
+// info-only (no file upload; documents come later during pending_documents).
+// Dedicated per-IP + per-CR limits layered on top of the global limiter.
+app.post(
+  '/public/signup',
+  rateLimiter,
+  signupIpLimiter,
+  signupCrLimiter,
+  requestTimeout,
+  asyncHandler((req, res) => handlePublicSignup(req, res))
+);
 
-// ── Graceful shutdown (container/supervisor friendly) ───────────────────────
-// SIGTERM (docker stop / orchestrator) and SIGINT drain in-flight requests
-// before exit so a deploy never truncates a PDF mid-render.
-function shutdown(signal: string): void {
-  console.log(`[pdf-service] ${signal} received — draining...`);
-  server.close(() => {
-    console.log('[pdf-service] drained, exiting.');
-    process.exit(0);
+// CP5.5 (migration 041): email verification — unauthenticated. Body carries
+// the raw token (not a query string) to keep it out of access logs.
+app.post(
+  '/public/verify-email',
+  rateLimiter,
+  verifyEmailIpLimiter,
+  requestTimeout,
+  asyncHandler((req, res) => handlePublicVerifyEmail(req, res))
+);
+
+// CP5.5: sends the approval/rejection email AFTER review_pending_application()
+// (called directly by the frontend) has already committed the decision.
+// Reviewer-role-gated on top of authMiddleware.
+app.post(
+  '/admin/notify-application-decision',
+  rateLimiter,
+  requestTimeout,
+  authMiddleware,
+  asyncHandler((req, res) => handleNotifyApplicationDecision(req as AuthedRequest, res))
+);
+
+// Only bind a real port + wire process-level signal/rejection handlers when
+// this module is actually run as the server entrypoint (`tsx src/index.ts` /
+// `node dist/index.js`). When imported (e.g. by an HTTP-level test driving
+// `app` via supertest, which binds its own ephemeral port), none of this
+// runs — the exported `app` is inert until something else listens on it.
+const isMainModule = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+
+if (isMainModule) {
+  const server = app.listen(PORT, () => {
+    console.log(`[pdf-service] Listening on http://localhost:${PORT}`);
+    console.log(`[pdf-service] CORS origin: ${CORS_ORIGIN}`);
   });
-  // Hard stop if a hung render blocks the drain.
-  setTimeout(() => process.exit(1), 30_000).unref();
-}
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
 
-process.on('unhandledRejection', (err) => {
-  console.error('[pdf-service] unhandledRejection:', err);
-  if (process.env.SENTRY_DSN) Sentry.captureException(err);
-});
+  // ── Graceful shutdown (container/supervisor friendly) ─────────────────────
+  // SIGTERM (docker stop / orchestrator) and SIGINT drain in-flight requests
+  // before exit so a deploy never truncates a PDF mid-render.
+  const shutdown = (signal: string): void => {
+    console.log(`[pdf-service] ${signal} received — draining...`);
+    server.close(() => {
+      console.log('[pdf-service] drained, exiting.');
+      process.exit(0);
+    });
+    // Hard stop if a hung render blocks the drain.
+    setTimeout(() => process.exit(1), 30_000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
+  process.on('unhandledRejection', (err) => {
+    console.error('[pdf-service] unhandledRejection:', err);
+    if (process.env.SENTRY_DSN) Sentry.captureException(err);
+  });
+}
+
+export { app };
