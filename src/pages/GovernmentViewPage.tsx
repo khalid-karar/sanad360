@@ -100,7 +100,7 @@ export default function GovernmentViewPage() {
         </div>
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-1 text-sm flex-wrap">
+        <nav aria-label={isRTL ? 'مسار التصفح' : 'Breadcrumb'} className="flex items-center gap-1 text-sm flex-wrap">
           <button
             className={`px-2 py-1 rounded-md hover:bg-accent ${trail.length === 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
             onClick={() => goToBreadcrumb(-1)}
@@ -109,7 +109,7 @@ export default function GovernmentViewPage() {
           </button>
           {trail.map((t, i) => (
             <span key={i} className="flex items-center gap-1">
-              {isRTL ? <ChevronLeftIcon className="w-4 h-4 text-muted-foreground" /> : <ChevronRightIcon className="w-4 h-4 text-muted-foreground" />}
+              {isRTL ? <ChevronLeftIcon className="w-4 h-4 text-muted-foreground" aria-hidden="true" /> : <ChevronRightIcon className="w-4 h-4 text-muted-foreground" aria-hidden="true" />}
               <button
                 className={`px-2 py-1 rounded-md hover:bg-accent ${i === trail.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
                 onClick={() => goToBreadcrumb(i)}
@@ -118,7 +118,7 @@ export default function GovernmentViewPage() {
               </button>
             </span>
           ))}
-        </div>
+        </nav>
 
         <h2 className="text-lg font-semibold text-foreground">
           {isRTL ? LEVEL_TITLE[currentLevel].ar : LEVEL_TITLE[currentLevel].en}
@@ -139,31 +139,41 @@ export default function GovernmentViewPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {rows.map((row) => {
             const clickable = !row.is_suppressed && row.group_key !== null && row.level !== 'transporter';
+            const rowLabel = row.group_key === null
+              ? (isRTL ? 'غير مصنّف' : 'Unassigned')
+              : (isRTL ? row.label_ar : row.label_en);
             return (
               <Card
                 key={row.group_key ?? 'unassigned'}
-                className={`border-2 border-border ${clickable ? 'cursor-pointer hover:border-primary/40 transition-colors' : ''}`}
+                className={`border-2 border-border ${clickable ? 'cursor-pointer hover:border-primary/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background' : ''}`}
                 onClick={() => clickable && drillInto(row)}
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                aria-label={clickable ? (isRTL ? `عرض تفاصيل ${rowLabel}` : `View details for ${rowLabel}`) : undefined}
+                onKeyDown={clickable ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillInto(row); }
+                } : undefined}
               >
                 <CardContent className="pt-6 space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold text-foreground text-lg">
-                        {row.group_key === null
-                          ? (isRTL ? 'غير مصنّف' : 'Unassigned')
-                          : (isRTL ? row.label_ar : row.label_en)}
+                        {rowLabel}
                       </h3>
                     </div>
                     {row.is_suppressed && (
                       <Badge variant="secondary" className="flex items-center gap-1">
-                        <LockIcon className="w-3 h-3" />
+                        <LockIcon className="w-3 h-3" aria-hidden="true" />
                         {isRTL ? 'محمي' : 'Protected'}
                       </Badge>
                     )}
                   </div>
 
                   {row.is_suppressed ? (
-                    <p className="text-sm text-muted-foreground italic">{insufficientLabel}</p>
+                    <div className="rounded-lg bg-muted p-3 flex items-center gap-2" role="status">
+                      <LockIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                      <p className="text-sm font-medium text-foreground">{insufficientLabel}</p>
+                    </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
