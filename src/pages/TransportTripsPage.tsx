@@ -10,11 +10,11 @@ import {
   linkAssignmentToTrip, unlinkAssignmentFromTrip,
 } from '../lib/api/assignments';
 import type { Trip, Facility, Driver, Vehicle, WasteType, PickupAssignment } from '../lib/database.types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2Icon, PlusIcon, FactoryIcon, XIcon, LinkIcon, Link2OffIcon, ListChecksIcon } from 'lucide-react';
+import { Loader2Icon, PlusIcon, FactoryIcon, LinkIcon, Link2OffIcon, ListChecksIcon } from 'lucide-react';
 import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import { Modal } from '@/components/ui/modal';
 import { formatDateTime } from '../lib/format';
@@ -210,7 +210,7 @@ export default function TransportTripsPage() {
   return (
     <AppShell role="transport">
       <div className={`space-y-6 ${isRTL ? 'rtl' : 'ltr'}`}>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-1">{isRTL ? 'الرحلات' : 'Trips'}</h1>
             <p className="text-muted-foreground">
@@ -281,43 +281,39 @@ export default function TransportTripsPage() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-md bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{isRTL ? 'رحلة جديدة' : 'New Trip'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setShowCreate(false)}>
-                <XIcon className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <Modal open onClose={() => setShowCreate(false)} isRTL={isRTL} maxWidth="max-w-md" title={isRTL ? 'رحلة جديدة' : 'New Trip'}>
+          <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-foreground">{isRTL ? 'السائق' : 'Driver'} *</label>
+                <label className="text-sm font-medium text-foreground" htmlFor="trip-driver">{isRTL ? 'السائق' : 'Driver'} *</label>
                 <select
+                  id="trip-driver"
                   value={driverId}
                   onChange={(e) => setDriverId(e.target.value)}
-                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <option value="">{isRTL ? 'اختر سائقاً' : 'Select a driver'}</option>
                   {drivers.map((d) => <option key={d.id} value={d.id}>{d.name_ar}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground">{isRTL ? 'المركبة' : 'Vehicle'} *</label>
+                <label className="text-sm font-medium text-foreground" htmlFor="trip-vehicle">{isRTL ? 'المركبة' : 'Vehicle'} *</label>
                 <select
+                  id="trip-vehicle"
                   value={vehicleId}
                   onChange={(e) => setVehicleId(e.target.value)}
-                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <option value="">{isRTL ? 'اختر مركبة' : 'Select a vehicle'}</option>
                   {vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate_number}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground">{isRTL ? 'منشأة الاستلام' : 'Receiving Facility'} *</label>
+                <label className="text-sm font-medium text-foreground" htmlFor="trip-facility">{isRTL ? 'منشأة الاستلام' : 'Receiving Facility'} *</label>
                 <select
+                  id="trip-facility"
                   value={facilityId}
                   onChange={(e) => setFacilityId(e.target.value)}
-                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <option value="">{isRTL ? 'اختر منشأة' : 'Select a facility'}</option>
                   {facilities.map((f) => <option key={f.id} value={f.id}>{f.name_ar}</option>)}
@@ -329,33 +325,36 @@ export default function TransportTripsPage() {
                 )}
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground">{isRTL ? 'نوع النفايات' : 'Waste Stream'} *</label>
+                <label className="text-sm font-medium text-foreground" htmlFor="trip-waste-stream">{isRTL ? 'نوع النفايات' : 'Waste Stream'} *</label>
                 <select
+                  id="trip-waste-stream"
                   value={wasteStream}
                   onChange={(e) => setWasteStream(e.target.value)}
-                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <option value="">{isRTL ? 'اختر نوعاً' : 'Select a stream'}</option>
                   {WASTE_STREAMS.map((w) => <option key={w} value={w}>{w}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground">{isRTL ? 'تاريخ الرحلة' : 'Trip Date'} *</label>
+                <label className="text-sm font-medium text-foreground" htmlFor="trip-date">{isRTL ? 'تاريخ الرحلة' : 'Trip Date'} *</label>
                 <input
+                  id="trip-date"
                   type="date"
                   value={tripDate}
                   onChange={(e) => setTripDate(e.target.value)}
-                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                  className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   dir="ltr"
                 />
               </div>
 
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {formError && <p className="text-sm text-destructive" role="alert">{formError}</p>}
 
               <div className="flex gap-3">
                 <Button
                   onClick={handleCreate}
                   disabled={!driverId || !vehicleId || !facilityId || !wasteStream || saving}
+                  aria-busy={saving}
                   className="gap-2"
                 >
                   {saving && <Loader2Icon className="w-4 h-4 animate-spin" />}
@@ -365,9 +364,8 @@ export default function TransportTripsPage() {
                   {isRTL ? 'إلغاء' : 'Cancel'}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+          </div>
+        </Modal>
       )}
 
       {managingTrip && (
