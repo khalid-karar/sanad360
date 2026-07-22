@@ -144,7 +144,7 @@ export default function DocumentReviewQueuePage() {
                       <ExternalLinkIcon className="w-4 h-4" />
                       {isRTL ? 'عرض الملف' : 'View file'}
                     </Button>
-                    <Button size="sm" className="gap-1 bg-success text-success-foreground hover:bg-success/90" disabled={busyId === doc.id} onClick={() => handleVerify(doc)}>
+                    <Button size="sm" className="gap-1 bg-success text-success-foreground hover:bg-success/90" disabled={busyId === doc.id} aria-busy={busyId === doc.id} onClick={() => handleVerify(doc)}>
                       {busyId === doc.id ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <CheckCircle2Icon className="w-4 h-4" />}
                       {isRTL ? 'توثيق' : 'Verify'}
                     </Button>
@@ -163,7 +163,7 @@ export default function DocumentReviewQueuePage() {
       {previewUrl && (
         <Modal open onClose={() => setPreviewUrl(null)} isRTL={isRTL} title={isRTL ? 'معاينة الملف' : 'File Preview'}>
           <div className="space-y-4">
-            <iframe src={previewUrl} className="w-full h-[70vh] rounded-md border border-border" title="document-preview" />
+            <iframe src={previewUrl} className="w-full h-[70vh] rounded-md border border-border" title={isRTL ? 'معاينة المستند' : 'Document preview'} />
             <Button variant="outline" className="w-full" onClick={() => setPreviewUrl(null)}>{isRTL ? 'إغلاق' : 'Close'}</Button>
           </div>
         </Modal>
@@ -172,10 +172,10 @@ export default function DocumentReviewQueuePage() {
       {rejecting && (
         <Modal open onClose={() => setRejecting(null)} isRTL={isRTL} title={isRTL ? 'سبب الرفض' : 'Reject Reason'}>
           <div className="space-y-4">
-            <Label className="text-foreground">{isRTL ? 'السبب (إلزامي)' : 'Reason (required)'} *</Label>
-            <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="bg-background text-foreground border-input" />
+            <Label className="text-foreground" htmlFor="reject-reason">{isRTL ? 'السبب (إلزامي)' : 'Reason (required)'} *</Label>
+            <Input id="reject-reason" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="bg-background text-foreground border-input" />
             <div className="flex gap-3">
-              <Button variant="destructive" disabled={!rejectReason.trim() || busyId === rejecting.id} onClick={handleReject} className="gap-2">
+              <Button variant="destructive" disabled={!rejectReason.trim() || busyId === rejecting.id} aria-busy={busyId === rejecting.id} onClick={handleReject} className="gap-2">
                 {busyId === rejecting.id && <Loader2Icon className="w-4 h-4 animate-spin" />}
                 {isRTL ? 'تأكيد الرفض' : 'Confirm Reject'}
               </Button>
