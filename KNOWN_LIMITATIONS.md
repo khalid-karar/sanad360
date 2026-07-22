@@ -102,3 +102,29 @@ for things that already work correctly at pilot scale.
   **Where this resurfaces:** if these 5 fields need the same fully-controlled bilingual UX as
   PickupSchedulePage.tsx (numeric field order independent of OS locale, in-app calendar), migrate them
   onto `DatePicker`/`DateTimePicker` — same component, no new build needed.
+
+- **`--primary`/`--secondary`/`--success`/`--tertiary` fail AA as plain TEXT color in dark mode
+  (`.dark.theme-default`), even though they pass cleanly as button-fill backgrounds.** Confirmed dark
+  mode is genuinely reachable in production — `themeStore.ts` defaults `theme: 'system'` and applies
+  automatically from the OS's `prefers-color-scheme`, independent of the in-app toggle removed this
+  phase (see the theme-picker-removal entry above). Computed via the WCAG relative-luminance formula
+  for each token used directly as `text-*` (not through its own `*-foreground` pairing, which is
+  separately verified and fine):
+  - `text-primary` on `--card`: 3.16:1 (large-text only)
+  - `text-secondary` on `--card`: 2.33:1 (fails even the 3:1 large-text floor)
+  - `text-success` on `--card`: 3.16:1 (large-text only)
+  - `text-tertiary` on `--card`: 4.09:1 (large-text only, marginal)
+  All four pass cleanly in light mode (6.32:1 / 8.57:1 / 6.32:1 / 4.88:1) — this is a dark-mode-only
+  gap. One concrete instance was found and fixed this phase: `StatusPill`'s `compliant`/
+  `pending_confirmation` tones (which use `--success`/`--secondary` as text) — see the CP7 commit
+  fixing `status-pill.tsx`. A grep found roughly 65 other `text-primary`/`text-secondary`/
+  `text-success`/`text-tertiary` usages across the app; most are colored icons (non-text, governed by
+  the lower 3:1 non-text-contrast rule, which primary/success/tertiary already pass) rather than actual
+  text, but a full per-usage audit to separate icon color from real body/label text — and fix any
+  further real hits — was not completed this pass given the size of that sweep.
+  **Where this resurfaces:** before shipping dark mode as a fully-supported, audited experience (rather
+  than "happens to work because the underlying tokens are close"), grep every remaining `text-primary`/
+  `text-secondary`/`text-success`/`text-tertiary` usage, classify icon vs. real text, and apply the same
+  StatusPill-style scoped dark-mode override (explicit HSL, not a global token change — the shared
+  tokens' button-fill pairings are already correct and a global lightness change would risk breaking
+  those) to any real text usage that fails.
