@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PlusIcon, SearchIcon, TruckIcon, CalendarIcon, AlertTriangleIcon, PowerIcon, FileTextIcon, FileCheckIcon } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import DocumentChecklist from '../components/documents/DocumentChecklist';
+import { LoadingState, EmptyState } from '@/components/ui/states';
 
 const vehicleTypes = [
   { value: 'small_truck', labelAr: 'شاحنة صغيرة', labelEn: 'Small Truck' },
@@ -33,7 +34,7 @@ const licenseTypes = [
 
 export default function VehicleManagementPage() {
   const { isRTL, user } = useAuthStore();
-  const { vehicles, loadVehicles, addVehicle, editVehicle } = useTransportStore();
+  const { vehicles, isLoadingVehicles, loadVehicles, addVehicle, editVehicle } = useTransportStore();
   // Route now also admits 'dispatcher' (read access matches RLS SELECT), but
   // only owner/manager may add/deactivate vehicles — RLS enforces this at the
   // DB layer too; hiding the actions here avoids a dispatcher hitting a
@@ -114,7 +115,7 @@ export default function VehicleManagementPage() {
   return (
     <AppShell role="transport">
       <div className={`space-y-8 ${isRTL ? 'rtl' : 'ltr'}`}>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">{isRTL ? 'إدارة المركبات' : 'Vehicle Management'}</h1>
             <p className="text-muted-foreground">{isRTL ? 'إدارة وتتبع المركبات وتراخيص NCWM' : 'Manage and track vehicles and NCWM licenses'}</p>
@@ -129,8 +130,15 @@ export default function VehicleManagementPage() {
         <Card className="bg-card text-card-foreground border-border">
           <CardContent className="pt-6">
             <div className="relative">
-              <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="text" placeholder={isRTL ? 'البحث عن مركبة...' : 'Search vehicles...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="ps-10" />
+              <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+              <Input
+                type="text"
+                aria-label={isRTL ? 'البحث عن مركبة' : 'Search vehicles'}
+                placeholder={isRTL ? 'البحث عن مركبة...' : 'Search vehicles...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="ps-10"
+              />
             </div>
           </CardContent>
         </Card>
@@ -143,26 +151,26 @@ export default function VehicleManagementPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>{isRTL ? 'رقم اللوحة' : 'Plate Number'}</Label>
-                  <Input value={form.plate_number} onChange={(e) => setForm({ ...form, plate_number: e.target.value })} className="mt-2" placeholder="ABC-1234" />
+                  <Label htmlFor="vehicle-plate">{isRTL ? 'رقم اللوحة' : 'Plate Number'}</Label>
+                  <Input id="vehicle-plate" value={form.plate_number} onChange={(e) => setForm({ ...form, plate_number: e.target.value })} className="mt-2" placeholder="ABC-1234" />
                 </div>
                 <div>
-                  <Label>{isRTL ? 'نوع المركبة' : 'Vehicle Type'}</Label>
+                  <Label htmlFor="vehicle-type">{isRTL ? 'نوع المركبة' : 'Vehicle Type'}</Label>
                   <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-                    <SelectTrigger className="mt-2"><SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select type'} /></SelectTrigger>
+                    <SelectTrigger id="vehicle-type" className="mt-2"><SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select type'} /></SelectTrigger>
                     <SelectContent>{vehicleTypes.map((t) => <SelectItem key={t.value} value={t.value}>{isRTL ? t.labelAr : t.labelEn}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>{isRTL ? 'نوع ترخيص النفايات' : 'Waste License Type'}</Label>
+                  <Label htmlFor="vehicle-waste-license">{isRTL ? 'نوع ترخيص النفايات' : 'Waste License Type'}</Label>
                   <Select value={form.waste_license_type} onValueChange={(v) => setForm({ ...form, waste_license_type: v })}>
-                    <SelectTrigger className="mt-2"><SelectValue placeholder={isRTL ? 'اختر الترخيص' : 'Select license'} /></SelectTrigger>
+                    <SelectTrigger id="vehicle-waste-license" className="mt-2"><SelectValue placeholder={isRTL ? 'اختر الترخيص' : 'Select license'} /></SelectTrigger>
                     <SelectContent>{licenseTypes.map((t) => <SelectItem key={t.value} value={t.value}>{isRTL ? t.labelAr : t.labelEn}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>{isRTL ? 'تاريخ انتهاء ترخيص NCWM' : 'NCWM License Expiry'}</Label>
-                  <Input type="date" value={form.ncwm_license_expiry} onChange={(e) => setForm({ ...form, ncwm_license_expiry: e.target.value })} className="mt-2" dir="ltr" />
+                  <Label htmlFor="vehicle-ncwm-expiry">{isRTL ? 'تاريخ انتهاء ترخيص NCWM' : 'NCWM License Expiry'}</Label>
+                  <Input id="vehicle-ncwm-expiry" type="date" value={form.ncwm_license_expiry} onChange={(e) => setForm({ ...form, ncwm_license_expiry: e.target.value })} className="mt-2" dir="ltr" />
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
@@ -176,20 +184,23 @@ export default function VehicleManagementPage() {
         <Card className="bg-card text-card-foreground border-border">
           <CardHeader><CardTitle>{isRTL ? 'قائمة المركبات' : 'Vehicles List'} ({filtered.length})</CardTitle></CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px] pe-4">
+            {isLoadingVehicles ? (
+              <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+            ) : (
+            <ScrollArea className="h-[600px] pe-4" role="region" aria-label={isRTL ? 'قائمة المركبات' : 'Vehicles List'}>
               <div className="space-y-4">
                 {filtered.map((v) => (
                   <Card key={v.id} className={`border-2 ${v.status !== 'active' ? 'opacity-60 border-border' : 'border-border'}`}>
                     <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center"><TruckIcon className="w-6 h-6 text-primary" /></div>
+                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><TruckIcon className="w-6 h-6 text-primary" /></div>
                           <div>
                             <h3 className="font-semibold text-foreground text-lg">{v.plate_number}</h3>
                             <p className="text-sm text-muted-foreground">{typeLabel(v.type)}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center flex-wrap gap-3">
                           {badge(v.ncwm_license_expiry)}
                           <Button size="sm" variant="outline" onClick={() => setDocsFor(v)} title={isRTL ? 'المستندات' : 'Documents'}>
                             <FileCheckIcon className="w-4 h-4 me-1" />{isRTL ? 'المستندات' : 'Documents'}
@@ -222,9 +233,18 @@ export default function VehicleManagementPage() {
                     </CardContent>
                   </Card>
                 ))}
-                {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">{isRTL ? 'لا توجد مركبات' : 'No vehicles'}</div>}
+                {filtered.length === 0 && (
+                  <EmptyState
+                    icon={<TruckIcon />}
+                    title={isRTL ? 'لا توجد مركبات' : 'No vehicles'}
+                    hint={searchTerm
+                      ? (isRTL ? 'جرّب كلمة بحث مختلفة' : 'Try a different search term')
+                      : (canManage ? (isRTL ? 'أضف مركبة جديدة باستخدام الزر أعلاه' : 'Add a new vehicle using the button above') : undefined)}
+                  />
+                )}
               </div>
             </ScrollArea>
+            )}
           </CardContent>
         </Card>
       </div>
