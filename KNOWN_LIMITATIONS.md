@@ -32,3 +32,23 @@ for things that already work correctly at pilot scale.
   here since it's an operational hardening item with a concrete task, not a scope boundary.
   **Where this resurfaces:** before onboarding more than a handful of `gov_viewer` accounts, or before
   any external/regulatory party gets standing query access to `gov_rollup()`.
+
+## CP6 — P0/P1 Fixes
+
+- **`cp3-branch-qr-issue.test.ts` test 3 ("a driver-role caller is rejected with 403") is a
+  concurrency/isolation flake, not a code defect.** Passes reliably in isolation (confirmed across
+  multiple standalone runs); fails under full-suite concurrent load with `401` instead of the expected
+  `403` — the PDF service's `authMiddleware` calls `admin.auth.getUser(jwt)` to validate the bearer
+  token, and any error from that call (including a transient one under load, not just a genuinely
+  invalid/expired token) is conflated into a blanket 401 (`services/pdf/src/lib/auth.ts`). Under the
+  full suite's concurrent load against the local GoTrue/auth stack, this occasionally surfaces as a
+  false 401 for a token that is actually still valid.
+  **Why it matters now:** the growing test suite (CP5 alone added ~8 files) increases concurrent load
+  on the local auth service, and this is exactly the kind of test that will read as a random,
+  unreproducible failure in CI once one exists — which erodes trust in the whole suite.
+  **MUST be fixed or quarantined-with-reason before CP8's zero-skip CI gate** — either (a) make
+  `authMiddleware` distinguish a genuinely invalid/expired token from a transient validation error
+  (e.g. retry once, or surface a 5xx instead of a 401 for non-auth errors), or (b) add a bounded retry
+  to the test itself if the transient failure turns out to be inherent to the local dev stack rather
+  than fixable server-side. Do not let this quietly become an ignored/skipped test without a recorded
+  reason — track it here until resolved.
