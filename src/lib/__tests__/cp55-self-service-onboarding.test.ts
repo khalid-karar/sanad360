@@ -1,11 +1,18 @@
 /**
- * CP5.5 self-service onboarding — RLS + review flow (Migrations 034-040)
+ * CP5.5 self-service onboarding — RLS + review flow (Migrations 034-041)
  *
- * No Express endpoint exists yet (deferred) — every fixture below is built
- * directly via the service-role client, mirroring exactly what the future
- * signup endpoint will do (createUser -> profiles upsert -> pending_applications
- * insert -> 'applicant' membership insert), and every assertion runs as a
- * REAL signed-in user against RLS / the two RPCs, never service_role.
+ * The signup/verify/notify Express endpoints now exist (services/pdf) and
+ * are tested at the HTTP layer over there — this file stays at the DB/RLS/
+ * RPC layer, with fixtures built directly via the service-role client
+ * mirroring what those endpoints do (createUser -> profiles upsert ->
+ * pending_applications insert -> 'applicant' membership insert). Every
+ * assertion runs as a REAL signed-in user against RLS / the RPCs, never
+ * service_role.
+ *
+ * State machine as of migration 041: pending_email_verification ->
+ * (verify_application_email) -> pending_documents ->
+ * (submit_application_for_review) -> pending_review ->
+ * (review_pending_application) -> approved | rejected.
  *
  * Assertions:
  *   1. An applicant sees only their OWN pending_applications row — cannot
@@ -26,8 +33,8 @@
  *      revoked anon/authenticated EXECUTE — verification now routes through
  *      the service-role endpoint only); the RPC's own logic still works
  *      correctly when called via service_role: a valid unexpired token
- *      verifies and flips status to pending_review, a wrong or expired
- *      token does not
+ *      verifies and flips status to pending_documents (migration 041 moved
+ *      this target off pending_review), a wrong or expired token does not
  *   7. CR dedupe: a second non-rejected application for the same CR is
  *      blocked by the partial unique index; an application for a CR that's
  *      already a real company is blocked by the BEFORE INSERT trigger
@@ -42,6 +49,18 @@
  *   9. Re-parenting inside review_pending_application() only touches THAT
  *      application's own documents — a second, unrelated pending
  *      application's document is untouched by approving a different one
+ *   10. (Migration 041) submit_application_for_review()'s completeness gate
+ *       is scoped to the application's OWN tenant_type — a company
+ *       applicant is blocked while missing vat_certificate but is NEVER
+ *       asked for transport_company's ncwm_license, and vice versa; a
+ *       rejected upload does not count toward completeness, a re-upload
+ *       does; only the owning applicant may call it, and only from
+ *       pending_documents
+ *   11. The reviewer queue's own status='pending_review' filter excludes a
+ *       pending_documents application (RLS grants reviewers visibility into
+ *       every status; the queue's OWN query is what scopes it — this proves
+ *       that filter actually excludes other statuses rather than silently
+ *       returning everything)
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -76,7 +95,11 @@ function sha256Hex(raw: string): string {
 }
 
 /** Mirrors the future signup endpoint's fixture-creation sequence exactly. */
-async function createApplicant(emailPrefix: string, cr: string): Promise<{
+async function createApplicant(
+  emailPrefix: string,
+  cr: string,
+  tenantType: 'company' | 'transport_company' = 'company'
+): Promise<{
   userId: string;
   applicationId: string;
   rawToken: string;
@@ -96,7 +119,7 @@ async function createApplicant(emailPrefix: string, cr: string): Promise<{
     .from('pending_applications')
     .insert({
       applicant_user_id: userId,
-      tenant_type: 'company',
+      tenant_type: tenantType,
       name_ar: `شركة تجريبية ${emailPrefix}`,
       commercial_registration: cr,
       contact_email: email,
@@ -123,7 +146,7 @@ async function createReviewer(emailPrefix: string): Promise<{ userId: string; cl
   return { userId, client };
 }
 
-describe('CP5.5 self-service onboarding — RLS + review flow (Migrations 034-036)', () => {
+describe('CP5.5 self-service onboarding — RLS + review flow (Migrations 034-041)', () => {
   const cleanupUserIds: string[] = [];
   const cleanupCompanyIds: string[] = [];
   const cleanupApplicationIds: string[] = [];
@@ -375,7 +398,9 @@ describe('CP5.5 self-service onboarding — RLS + review flow (Migrations 034-03
 
     // Happy path: crDedupeFixture was never touched by any review action —
     // still genuinely 'pending_email_verification' — so its real token
-    // should verify successfully and flip status to 'pending_review'.
+    // should verify successfully and flip status to 'pending_documents'
+    // (migration 041 moved this target off 'pending_review' — documents are
+    // now collected AFTER verification, not at signup time).
     const { data: happyResult, error: happyErr } = await admin.rpc('verify_application_email', {
       p_token: crDedupeFixture.rawToken,
     });
@@ -388,7 +413,7 @@ describe('CP5.5 self-service onboarding — RLS + review flow (Migrations 034-03
       .select('status, email_verified_at, email_verification_token_hash')
       .eq('id', crDedupeFixture.applicationId)
       .single<{ status: string; email_verified_at: string | null; email_verification_token_hash: string | null }>();
-    expect(appRow!.status).toBe('pending_review');
+    expect(appRow!.status).toBe('pending_documents');
     expect(appRow!.email_verified_at).not.toBeNull();
     expect(appRow!.email_verification_token_hash).toBeNull();
   });
@@ -535,5 +560,178 @@ describe('CP5.5 self-service onboarding — RLS + review flow (Migrations 034-03
       .single<{ owner_type: string; owner_id: string }>();
     expect(bystanderDoc!.owner_type).toBe('pending_application');
     expect(bystanderDoc!.owner_id).toBe(bystander.applicationId);
+  });
+
+  it('10. submit_application_for_review: tenant-scoped completeness gate, auth gate, status gate', async () => {
+    // ── Company applicant: required = {commercial_registration, vat_certificate} ──
+    const companyApp = await createApplicant('submit-company', `CP55-SUBMITCO-${RUN}`, 'company');
+    cleanupUserIds.push(companyApp.userId);
+    cleanupApplicationIds.push(companyApp.applicationId);
+    await admin.from('pending_applications')
+      .update({ status: 'pending_documents', email_verified_at: new Date().toISOString() })
+      .eq('id', companyApp.applicationId);
+    const companyClient = await signIn(`submit-company-${RUN}@applicant.sanad360.dev`);
+
+    // Auth gate: another applicant cannot submit THIS application.
+    const { error: wrongOwnerErr } = await applicantAClient.rpc('submit_application_for_review', {
+      p_application_id: companyApp.applicationId,
+    });
+    expect(wrongOwnerErr).not.toBeNull();
+    expect(wrongOwnerErr!.message).toMatch(/FORBIDDEN/i);
+
+    // Status gate: a genuinely-owned application that's already past
+    // pending_documents must reject submit, even for its rightful owner.
+    const wrongStageApp = await createApplicant('submit-wrongstage', `CP55-WRONGSTAGE-${RUN}`, 'company');
+    cleanupUserIds.push(wrongStageApp.userId);
+    cleanupApplicationIds.push(wrongStageApp.applicationId);
+    await admin.from('pending_applications')
+      .update({ status: 'pending_review', email_verified_at: new Date().toISOString() })
+      .eq('id', wrongStageApp.applicationId);
+    const wrongStageClient = await signIn(`submit-wrongstage-${RUN}@applicant.sanad360.dev`);
+    const { error: wrongStatusErr } = await wrongStageClient.rpc('submit_application_for_review', {
+      p_application_id: wrongStageApp.applicationId,
+    });
+    expect(wrongStatusErr).not.toBeNull();
+    expect(wrongStatusErr!.message).toMatch(/not awaiting document submission/i);
+
+    // Missing vat_certificate -> INCOMPLETE_DOCUMENTS, naming the missing type.
+    await companyClient.from('documents').insert({
+      owner_type: 'pending_application',
+      owner_id: companyApp.applicationId,
+      doc_type: 'commercial_registration',
+      file_path: `pending_application/${companyApp.applicationId}/cr.pdf`,
+      file_sha256: sha256Hex(`submit-company-cr-${RUN}`),
+      uploaded_by: companyApp.userId,
+    });
+    const { error: incompleteErr } = await companyClient.rpc('submit_application_for_review', {
+      p_application_id: companyApp.applicationId,
+    });
+    expect(incompleteErr).not.toBeNull();
+    expect(incompleteErr!.message).toMatch(/INCOMPLETE_DOCUMENTS/);
+    expect(incompleteErr!.message).toMatch(/vat_certificate/);
+    // Tenant-scoping proof: the gate must NEVER ask a company applicant for
+    // transport_company's ncwm_license — it isn't in company's own required
+    // list, unlike the 'pending_application' union (037) which would wrongly
+    // include it.
+    expect(incompleteErr!.message).not.toMatch(/ncwm_license/);
+
+    let { data: stillDocuments } = await admin
+      .from('pending_applications').select('status').eq('id', companyApp.applicationId).single<{ status: string }>();
+    expect(stillDocuments!.status).toBe('pending_documents');
+
+    // Upload vat_certificate too -> now complete -> submit succeeds.
+    await companyClient.from('documents').insert({
+      owner_type: 'pending_application',
+      owner_id: companyApp.applicationId,
+      doc_type: 'vat_certificate',
+      file_path: `pending_application/${companyApp.applicationId}/vat.pdf`,
+      file_sha256: sha256Hex(`submit-company-vat-${RUN}`),
+      uploaded_by: companyApp.userId,
+    });
+    const { data: submitOk, error: submitErr } = await companyClient.rpc('submit_application_for_review', {
+      p_application_id: companyApp.applicationId,
+    });
+    expect(submitErr).toBeNull();
+    expect(submitOk?.[0]?.status).toBe('pending_review');
+
+    const { data: afterSubmit } = await admin
+      .from('pending_applications').select('status').eq('id', companyApp.applicationId).single<{ status: string }>();
+    expect(afterSubmit!.status).toBe('pending_review');
+
+    // ── Transport applicant: required = {commercial_registration, ncwm_license} ──
+    // never vat_certificate, which is company-only — proves the same gate
+    // correctly scopes to whichever tenant_type this application actually is.
+    const transportApp = await createApplicant('submit-transport', `CP55-SUBMITTR-${RUN}`, 'transport_company');
+    cleanupUserIds.push(transportApp.userId);
+    cleanupApplicationIds.push(transportApp.applicationId);
+    await admin.from('pending_applications')
+      .update({ status: 'pending_documents', email_verified_at: new Date().toISOString() })
+      .eq('id', transportApp.applicationId);
+    const transportClient = await signIn(`submit-transport-${RUN}@applicant.sanad360.dev`);
+
+    await transportClient.from('documents').insert({
+      owner_type: 'pending_application',
+      owner_id: transportApp.applicationId,
+      doc_type: 'commercial_registration',
+      file_path: `pending_application/${transportApp.applicationId}/cr.pdf`,
+      file_sha256: sha256Hex(`submit-transport-cr-${RUN}`),
+      uploaded_by: transportApp.userId,
+    });
+    await transportClient.from('documents').insert({
+      owner_type: 'pending_application',
+      owner_id: transportApp.applicationId,
+      doc_type: 'ncwm_license',
+      file_path: `pending_application/${transportApp.applicationId}/ncwm.pdf`,
+      file_sha256: sha256Hex(`submit-transport-ncwm-${RUN}`),
+      uploaded_by: transportApp.userId,
+    });
+    const { data: transportSubmitOk, error: transportSubmitErr } = await transportClient.rpc('submit_application_for_review', {
+      p_application_id: transportApp.applicationId,
+    });
+    expect(transportSubmitErr).toBeNull();
+    expect(transportSubmitOk?.[0]?.status).toBe('pending_review');
+  });
+
+  it('11. a rejected upload does not satisfy completeness; re-upload does', async () => {
+    const app = await createApplicant('submit-reupload', `CP55-REUP-${RUN}`, 'company');
+    cleanupUserIds.push(app.userId);
+    cleanupApplicationIds.push(app.applicationId);
+    await admin.from('pending_applications')
+      .update({ status: 'pending_documents', email_verified_at: new Date().toISOString() })
+      .eq('id', app.applicationId);
+    const client = await signIn(`submit-reupload-${RUN}@applicant.sanad360.dev`);
+
+    await client.from('documents').insert({
+      owner_type: 'pending_application', owner_id: app.applicationId, doc_type: 'vat_certificate',
+      file_path: `pending_application/${app.applicationId}/vat.pdf`, file_sha256: sha256Hex(`reup-vat-${RUN}`), uploaded_by: app.userId,
+    });
+    const { data: crDoc } = await client.from('documents').insert({
+      owner_type: 'pending_application', owner_id: app.applicationId, doc_type: 'commercial_registration',
+      file_path: `pending_application/${app.applicationId}/cr-v1.pdf`, file_sha256: sha256Hex(`reup-cr-v1-${RUN}`), uploaded_by: app.userId,
+    }).select('id').single<{ id: string }>();
+
+    // Reviewer rejects the CR upload.
+    await reviewerX.client.from('documents')
+      .update({ status: 'rejected', reject_reason: 'Illegible scan' })
+      .eq('id', crDoc!.id);
+
+    const { error: stillIncompleteErr } = await client.rpc('submit_application_for_review', {
+      p_application_id: app.applicationId,
+    });
+    expect(stillIncompleteErr).not.toBeNull();
+    expect(stillIncompleteErr!.message).toMatch(/INCOMPLETE_DOCUMENTS/);
+    expect(stillIncompleteErr!.message).toMatch(/commercial_registration/);
+
+    // Re-upload (newer row, same doc_type) -> latest is 'pending' again -> complete.
+    await client.from('documents').insert({
+      owner_type: 'pending_application', owner_id: app.applicationId, doc_type: 'commercial_registration',
+      file_path: `pending_application/${app.applicationId}/cr-v2.pdf`, file_sha256: sha256Hex(`reup-cr-v2-${RUN}`), uploaded_by: app.userId,
+    });
+    const { data: ok, error: okErr } = await client.rpc('submit_application_for_review', {
+      p_application_id: app.applicationId,
+    });
+    expect(okErr).toBeNull();
+    expect(ok?.[0]?.status).toBe('pending_review');
+  });
+
+  it('12. the reviewer queue\'s status=pending_review filter excludes a pending_documents application', async () => {
+    const stillPendingDocs = await createApplicant('queue-filter', `CP55-QFILTER-${RUN}`, 'company');
+    cleanupUserIds.push(stillPendingDocs.userId);
+    cleanupApplicationIds.push(stillPendingDocs.applicationId);
+    await admin.from('pending_applications')
+      .update({ status: 'pending_documents', email_verified_at: new Date().toISOString() })
+      .eq('id', stillPendingDocs.applicationId);
+
+    // Same query shape as listApplicationsPendingReview() (src/lib/api/applications.ts).
+    const { data: queue } = await reviewerX.client
+      .from('pending_applications')
+      .select('id')
+      .eq('status', 'pending_review');
+    const queueIds = (queue ?? []).map((r: { id: string }) => r.id);
+    expect(queueIds).not.toContain(stillPendingDocs.applicationId);
+    // selfApplicationId was seeded straight into 'pending_review' in beforeAll
+    // and never decided by any test — sanity check the filter isn't just
+    // returning an empty set for the wrong reason.
+    expect(queueIds).toContain(selfApplicationId);
   });
 });
