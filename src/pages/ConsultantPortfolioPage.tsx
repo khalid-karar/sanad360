@@ -96,6 +96,7 @@ export default function ConsultantPortfolioPage() {
                   size="sm"
                   variant="outline"
                   disabled={switching === e.membership.id}
+                  aria-busy={switching === e.membership.id}
                   onClick={() => openEngagement(e.membership.id)}
                 >
                   {isRTL ? 'فتح' : 'Open'}
