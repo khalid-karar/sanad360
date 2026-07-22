@@ -24,15 +24,33 @@ export default function QRScanner() {
   const { updateManifestData, setPickupState } = useDriverStore();
 
   const [scannerReady, setScannerReady] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
+  // 3 distinct camera-failure reasons the field can actually hit — a single
+  // generic "could not start camera" message left the driver guessing
+  // whether to retry, check phone settings, or just give up and use manual
+  // entry (which is always available regardless, but a specific reason
+  // helps them decide faster).
+  const [scanError, setScanError] = useState<'denied' | 'not_found' | 'timeout' | 'other' | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [showSkipReasons, setShowSkipReasons] = useState(false);
   const [skipReason, setSkipReason] = useState<QrSkipReason | null>(null);
   const [skipNotes, setSkipNotes] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerReadyRef = useRef(false);
 
   useEffect(() => {
+    // The camera can hang (permission prompt left unanswered, camera stuck
+    // initializing) — neither html5-qrcode's success nor failure callback
+    // ever fires in that case, leaving "Starting camera..." on screen
+    // forever with no way forward. This soft timeout surfaces the
+    // manual-entry fallback instead of a silent dead end.
+    const startTimeout = setTimeout(() => {
+      if (!scannerReadyRef.current) {
+        setScanError('timeout');
+        setShowManual(true);
+      }
+    }, 10_000);
+
     // Small delay so the DOM element is mounted before Html5Qrcode tries to find it
     const timer = setTimeout(() => {
       const scanner = new Html5Qrcode(QR_ELEMENT_ID, { verbose: false });
@@ -49,16 +67,29 @@ export default function QRScanner() {
             // scan error (frame without QR) — ignore, not a failure
           }
         )
-        .then(() => setScannerReady(true))
+        .then(() => {
+          clearTimeout(startTimeout);
+          scannerReadyRef.current = true;
+          setScannerReady(true);
+        })
         .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          setScanError(msg);
+          clearTimeout(startTimeout);
+          // getUserMedia rejects with a standard DOMException name — this is
+          // the one reliable signal for WHY the camera didn't start (permission
+          // vs no hardware vs anything else), across browsers.
+          const name = err instanceof DOMException ? err.name : '';
+          setScanError(
+            name === 'NotAllowedError' || name === 'PermissionDeniedError' ? 'denied'
+            : name === 'NotFoundError' || name === 'DevicesNotFoundError' ? 'not_found'
+            : 'other'
+          );
           setShowManual(true);
         });
     }, 100);
 
     return () => {
       clearTimeout(timer);
+      clearTimeout(startTimeout);
       try {
         scannerRef.current?.stop().catch(() => null);
       } catch {
@@ -134,15 +165,12 @@ export default function QRScanner() {
               id={QR_ELEMENT_ID}
               className="w-full rounded-lg overflow-hidden bg-muted"
               style={{ minHeight: 300 }}
+              aria-label={isRTL ? 'عرض كاميرا مسح رمز QR' : 'QR scanner camera view'}
+              role="img"
             />
             {!scannerReady && !scanError && (
-              <p className="text-sm text-muted-foreground text-center mt-4">
+              <p className="text-sm text-muted-foreground text-center mt-4" role="status">
                 {isRTL ? 'جارٍ تشغيل الكاميرا...' : 'Starting camera...'}
-              </p>
-            )}
-            {scanError && (
-              <p className="text-sm text-destructive text-center mt-4">
-                {isRTL ? 'تعذّر تشغيل الكاميرا.' : 'Could not start camera.'}
               </p>
             )}
           </CardContent>
@@ -159,6 +187,30 @@ export default function QRScanner() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Only shown when manual entry was forced by a camera failure
+                (not when the driver proactively chose it) — explains WHY.
+                The camera card (which used to show this message) unmounts
+                in the same render that showManual flips true, so showing
+                it there was dead code — it could never actually be seen. */}
+            {scanError && (
+              <p className="text-sm text-destructive" role="alert">
+                {scanError === 'denied'
+                  ? (isRTL
+                      ? 'تم رفض إذن الكاميرا. فعّل إذن الكاميرا لهذا المتصفح من إعدادات الجهاز، أو استخدم الإدخال اليدوي أدناه.'
+                      : 'Camera permission was denied. Enable camera access for this browser in your device settings, or use manual entry below.')
+                  : scanError === 'not_found'
+                  ? (isRTL
+                      ? 'لم يتم العثور على كاميرا في هذا الجهاز. استخدم الإدخال اليدوي أدناه.'
+                      : 'No camera was found on this device. Use manual entry below.')
+                  : scanError === 'timeout'
+                  ? (isRTL
+                      ? 'استغرق تشغيل الكاميرا وقتاً طويلاً. استخدم الإدخال اليدوي أدناه.'
+                      : 'The camera took too long to start. Use manual entry below.')
+                  : (isRTL
+                      ? 'تعذّر تشغيل الكاميرا. استخدم الإدخال اليدوي أدناه.'
+                      : 'Could not start the camera. Use manual entry below.')}
+              </p>
+            )}
             <div className="space-y-2">
               <Label className="text-foreground">
                 {isRTL ? 'رمز المنشأة' : 'Facility Code'}
