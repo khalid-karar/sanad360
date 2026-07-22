@@ -44,7 +44,7 @@ const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
 const MAYA_ADMIN_SHELL_ROLES = ['admin', 'super_admin', 'system_admin', 'support_agent', 'billing_accountant'];
 
 function App() {
-  const { user, hydrate } = useAuthStore();
+  const { user, isRTL, hydrate } = useAuthStore();
   const { initializeTheme } = useThemeStore();
   // true while we're checking if an existing session exists on first load
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -52,6 +52,18 @@ function App() {
   useEffect(() => {
     initializeTheme();
   }, [initializeTheme]);
+
+  // index.html hardcodes <html lang="ar" dir="rtl"> once, before any JS
+  // runs — toggleLanguage() only ever flipped the in-memory `isRTL` boolean,
+  // so the root <html> attributes went stale the moment a user switched
+  // language (every component re-renders correctly off isRTL, but native
+  // browser behavior keyed off the DOCUMENT's lang/dir — spell-check
+  // dictionary, date-picker direction, screen-reader language, :dir() CSS —
+  // did not). Keep both in sync on every change, not just on mount.
+  useEffect(() => {
+    document.documentElement.lang = isRTL ? 'ar' : 'en';
+    document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+  }, [isRTL]);
 
   // Offline disposal queue: replay pending custody confirmations (same
   // triggers as the pickup queue below).
