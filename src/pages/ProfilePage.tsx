@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { UserIcon } from 'lucide-react';
+import { LoadingState, ErrorState } from '@/components/ui/states';
 
 type AppRole = 'company' | 'transport' | 'driver' | 'admin';
 
@@ -26,14 +27,26 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const [form, setForm] = useState({ name_ar: '', name_en: '', phone: '' });
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     if (!user?.id) return;
+    setLoading(true);
+    setLoadError(null);
     getMyProfile(user.id)
       .then((p) => {
         if (p) setForm({ name_ar: p.name_ar ?? '', name_en: p.name_en ?? '', phone: p.phone ?? '' });
       })
-      .catch(() => {});
+      .catch((err) => {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   async function handleSave() {
@@ -65,21 +78,29 @@ export default function ProfilePage() {
             <CardTitle className="flex items-center gap-3"><UserIcon className="w-6 h-6 text-primary" />{isRTL ? 'المعلومات الشخصية' : 'Personal Information'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label>{isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}</Label>
-              <Input value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className="mt-2" />
-            </div>
-            <div>
-              <Label>{isRTL ? 'الاسم (إنجليزي)' : 'Name (English)'}</Label>
-              <Input value={form.name_en} onChange={(e) => setForm({ ...form, name_en: e.target.value })} className="mt-2" />
-            </div>
-            <div>
-              <Label>{isRTL ? 'رقم الهاتف' : 'Phone'}</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="mt-2" dir="ltr" />
-            </div>
-            <Button onClick={handleSave} disabled={saving} className="bg-primary text-primary-foreground">
-              {isRTL ? 'حفظ التغييرات' : 'Save Changes'}
-            </Button>
+            {loading ? (
+              <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+            ) : loadError ? (
+              <ErrorState message={loadError} retry={load} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+            ) : (
+              <>
+                <div>
+                  <Label htmlFor="profile-name-ar">{isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}</Label>
+                  <Input id="profile-name-ar" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className="mt-2" />
+                </div>
+                <div>
+                  <Label htmlFor="profile-name-en">{isRTL ? 'الاسم (إنجليزي)' : 'Name (English)'}</Label>
+                  <Input id="profile-name-en" value={form.name_en} onChange={(e) => setForm({ ...form, name_en: e.target.value })} className="mt-2" />
+                </div>
+                <div>
+                  <Label htmlFor="profile-phone">{isRTL ? 'رقم الهاتف' : 'Phone'}</Label>
+                  <Input id="profile-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="mt-2" dir="ltr" />
+                </div>
+                <Button onClick={handleSave} disabled={saving} aria-busy={saving} className="bg-primary text-primary-foreground">
+                  {isRTL ? 'حفظ التغييرات' : 'Save Changes'}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
