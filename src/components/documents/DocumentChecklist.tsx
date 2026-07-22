@@ -111,7 +111,14 @@ export default function DocumentChecklist({
             </span>
             <span className="text-sm font-semibold text-foreground" dir="ltr">{status.completion_pct}%</span>
           </div>
-          <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
+          <div
+            className="w-full h-2.5 rounded-full bg-muted overflow-hidden"
+            role="progressbar"
+            aria-valuenow={status.completion_pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={isRTL ? 'نسبة الاكتمال' : 'Completion'}
+          >
             <div className={`h-full ${barColor} transition-all`} style={{ width: `${status.completion_pct}%` }} />
           </div>
           <div>
@@ -154,7 +161,7 @@ export default function DocumentChecklist({
               </CardHeader>
               <CardContent className="space-y-3">
                 {doc?.status === 'rejected' && doc.reject_reason && (
-                  <p className="text-sm text-destructive">{isRTL ? 'سبب الرفض: ' : 'Reject reason: '}{doc.reject_reason}</p>
+                  <p className="text-sm text-destructive" role="alert">{isRTL ? 'سبب الرفض: ' : 'Reject reason: '}{doc.reject_reason}</p>
                 )}
                 {expiring && (
                   <p className={`text-sm flex items-center gap-2 ${expiring.level === 'critical' ? 'text-destructive' : 'text-warning'}`}>
@@ -173,13 +180,13 @@ export default function DocumentChecklist({
                 {(!doc || doc.status === 'rejected') && (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-xs text-muted-foreground">{isRTL ? 'تاريخ الإصدار' : 'Issue date'}</Label>
-                      <Input type="date" dir="ltr" className="mt-1"
+                      <Label className="text-xs text-muted-foreground" htmlFor={`${rd.doc_type}-issue`}>{isRTL ? 'تاريخ الإصدار' : 'Issue date'}</Label>
+                      <Input id={`${rd.doc_type}-issue`} type="date" dir="ltr" className="mt-1"
                         onChange={(e) => setDate(rd.doc_type, 'issue', e.target.value)} />
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">{isRTL ? 'تاريخ الانتهاء' : 'Expiry date'}</Label>
-                      <Input type="date" dir="ltr" className="mt-1"
+                      <Label className="text-xs text-muted-foreground" htmlFor={`${rd.doc_type}-expiry`}>{isRTL ? 'تاريخ الانتهاء' : 'Expiry date'}</Label>
+                      <Input id={`${rd.doc_type}-expiry`} type="date" dir="ltr" className="mt-1"
                         onChange={(e) => setDate(rd.doc_type, 'expiry', e.target.value)} />
                     </div>
                   </div>
@@ -192,6 +199,7 @@ export default function DocumentChecklist({
                       type="file"
                       accept="image/*,application/pdf"
                       className="hidden"
+                      aria-label={isRTL ? rd.label_ar : rd.label_en}
                       onChange={(e) => handleUpload(rd.doc_type, e.target.files?.[0])}
                     />
                     <Button

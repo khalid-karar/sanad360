@@ -70,7 +70,10 @@ export default function RestrictionBanner({
 
   return (
     <>
-      <div className={`rounded-lg border p-4 flex flex-wrap items-start gap-3 ${isRestricted ? 'bg-destructive/10 border-destructive/30' : 'bg-warning/10 border-warning/30'}`}>
+      <div
+        role="alert"
+        className={`rounded-lg border p-4 flex flex-wrap items-start gap-3 ${isRestricted ? 'bg-destructive/10 border-destructive/30' : 'bg-warning/10 border-warning/30'}`}
+      >
         <AlertTriangleIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isRestricted ? 'text-destructive' : 'text-warning'}`} />
         <div className="flex-1 min-w-[200px]">
           <p className={`text-sm font-semibold ${isRestricted ? 'text-destructive' : 'text-warning'}`}>
@@ -79,7 +82,7 @@ export default function RestrictionBanner({
               : (isRTL ? 'قيد التأسيس — بعض المستندات المطلوبة غير مكتملة' : 'Onboarding — some required documents are incomplete')}
           </p>
           {problems.length > 0 && (
-            <p className="text-sm text-foreground mt-1">{problems.join('، ')}</p>
+            <p className="text-sm text-foreground mt-1">{problems.join(isRTL ? '، ' : ', ')}</p>
           )}
         </div>
         <Button size="sm" variant="outline" onClick={() => setShowResolve(true)}>
