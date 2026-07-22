@@ -214,27 +214,40 @@ export default function Sidebar({ role }: SidebarProps) {
     </div>
   );
 
+  // CP7 field-mode fix: the driver role already gets its own mobile nav
+  // (DriverBottomNav, rendered by AppShell) — the hamburger toggle + slide-in
+  // drawer below were still rendering on top of it for role="driver" too,
+  // giving a driver on mobile TWO different navigation affordances (bottom
+  // tabs AND a hamburger drawer with a third, overlapping set of links),
+  // exactly the "full app chrome increases mis-tap risk" gap the CP7 field-
+  // role inventory flagged. Mobile-only (desktop still gets the same
+  // <aside> as every other role — this isn't a driver-specific concern
+  // there, since there's no bottom nav rendered on desktop either).
+  const showMobileDrawer = role !== 'driver';
+
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        // CP7: was `right-4` unconditionally — the desktop sidebar sits at
-        // the START side (left in LTR, right in RTL, via natural flex-row
-        // reversal on its parent, no logical utility needed there). This
-        // mobile toggle+drawer are a separate, hardcoded-right pair that
-        // never matched that in LTR mode. `start-4` aligns it with wherever
-        // the sidebar itself actually is, in either language.
-        className="lg:hidden fixed top-4 start-4 z-50 bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label={isRTL ? 'القائمة' : 'Menu'}
-      >
-        {isOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
-      </Button>
+      {showMobileDrawer && (
+        <Button
+          variant="ghost"
+          size="icon"
+          // CP7: was `right-4` unconditionally — the desktop sidebar sits at
+          // the START side (left in LTR, right in RTL, via natural flex-row
+          // reversal on its parent, no logical utility needed there). This
+          // mobile toggle+drawer are a separate, hardcoded-right pair that
+          // never matched that in LTR mode. `start-4` aligns it with wherever
+          // the sidebar itself actually is, in either language.
+          className="lg:hidden fixed top-4 start-4 z-50 bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label={isRTL ? 'القائمة' : 'Menu'}
+        >
+          {isOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
+        </Button>
+      )}
 
       <aside className="hidden lg:block w-64 h-screen sticky top-0">{sidebarContent}</aside>
 
-      {isOpen && (
+      {showMobileDrawer && isOpen && (
         <>
           <div
             className="lg:hidden fixed inset-0 bg-gray-900/50 z-40"
