@@ -38,6 +38,10 @@ import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
 import BranchOperatorPage from './pages/BranchOperatorPage';
 import GovernmentViewPage from './pages/GovernmentViewPage';
 import ConsultantPortfolioPage from './pages/ConsultantPortfolioPage';
+import SignupPage from './pages/SignupPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import ApplicationStatusPage from './pages/ApplicationStatusPage';
+import ApplicationReviewQueuePage from './pages/ApplicationReviewQueuePage';
 import { homeRouteFor } from './lib/roleRouting';
 
 const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
@@ -185,6 +189,34 @@ function App() {
             user
               ? <Navigate to={homeRouteFor(user)} replace />
               : <LoginPage />
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            user
+              ? <Navigate to={homeRouteFor(user)} replace />
+              : <SignupPage />
+          }
+        />
+        {/* CP5.5: reachable regardless of session state — an applicant
+            clicking their emailed link is normally logged OUT (email_confirm
+            only flips true once this page's own POST succeeds). */}
+        <Route path="/verify" element={<VerifyEmailPage />} />
+        <Route
+          path="/application-status"
+          element={
+            user?.role === 'applicant'
+              ? <ApplicationStatusPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/reviewer/applications"
+          element={
+            user && ['document_reviewer', 'admin', 'super_admin', 'system_admin'].includes(user.role)
+              ? <ApplicationReviewQueuePage />
+              : <Navigate to="/login" replace />
           }
         />
         <Route

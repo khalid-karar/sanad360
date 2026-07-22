@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { homeRouteFor, resolveLoginEmail } from '../lib/roleRouting';
 import { Input } from '@/components/ui/input';
@@ -133,6 +133,12 @@ export default function LoginPage() {
 
               <FadeInUp delay={0.8}>
                 <div className="text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {isRTL ? 'منشأة جديدة؟' : 'New organization?'}{' '}
+                    <Link to="/signup" className="text-primary hover:text-primary/80 transition-colors duration-200">
+                      {isRTL ? 'قدّم طلب انضمام' : 'Apply to join'}
+                    </Link>
+                  </p>
                   <button
                     onClick={() => setShowFaq(true)}
                     className="text-sm text-primary hover:text-primary/80 transition-colors duration-200 block w-full"
