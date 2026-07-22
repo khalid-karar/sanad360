@@ -144,8 +144,8 @@ export default function ReviewQueuePage() {
     }
   }
 
-  const visible = records.filter((r) => showReviewed || !r.reviewed);
-  const pendingCount = records.filter((r) => !r.reviewed).length;
+  const visible = records.filter((r) => showReviewed || r.needsAttention);
+  const pendingCount = records.filter((r) => r.needsAttention).length;
 
   return (
     <AppShell role="company">
@@ -186,7 +186,7 @@ export default function ReviewQueuePage() {
             {visible.map((r) => (
               <Card
                 key={r.event.id}
-                className={`bg-card text-card-foreground border-border ${r.reviewed ? 'opacity-60' : ''}`}
+                className={`bg-card text-card-foreground border-border ${!r.needsAttention ? 'opacity-60' : ''}`}
               >
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-start justify-between flex-wrap gap-3">
@@ -221,7 +221,11 @@ export default function ReviewQueuePage() {
                       ))}
                       {r.reviewed && (
                         <Badge variant="outline" className="text-[10px]">
-                          {isRTL ? '✓ مُراجَع' : '✓ Reviewed'}
+                          {r.custodyConfirmed
+                            ? (isRTL ? '✓ مُراجَع' : '✓ Reviewed')
+                            // Other flags were acknowledged, but custody is
+                            // still open — never claim full "reviewed" here.
+                            : (isRTL ? '✓ باقي البنود مُراجَعة' : '✓ Other flags reviewed')}
                         </Badge>
                       )}
                     </div>
@@ -244,9 +248,21 @@ export default function ReviewQueuePage() {
                         : <FileTextIcon className="w-4 h-4 me-1" />}
                       {isRTL ? 'ملف التفتيش' : 'Inspection PDF'}
                     </Button>
-                    {!r.reviewed && (
+                    {/* Mark Reviewed only ever acknowledges otherReasons — it
+                        is never offered as a way to clear custody_missing.
+                        A record with ONLY custody_missing gets a disabled,
+                        explanatory chip instead; one with other reasons too
+                        keeps the normal button for those, independent of
+                        custody. */}
+                    {r.otherReasons.length > 0 && !r.reviewed && (
                       <Button size="sm" disabled={busyId !== null} onClick={() => acknowledge(r)}>
                         <CheckIcon className="w-4 h-4 me-1" />{isRTL ? 'تمت المراجعة' : 'Mark Reviewed'}
+                      </Button>
+                    )}
+                    {!r.custodyConfirmed && (
+                      <Button size="sm" variant="outline" disabled className="cursor-not-allowed opacity-70">
+                        <CheckIcon className="w-4 h-4 me-1" />
+                        {isRTL ? 'بانتظار تأكيد إعادة التدوير' : 'Awaiting recycler confirmation'}
                       </Button>
                     )}
                   </div>
