@@ -22,7 +22,7 @@ export default function Topbar() {
           onClick={toggleLanguage}
           className="bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground rounded-xl transition-all duration-200"
         >
-          <GlobeIcon className="w-4 h-4 me-2" />
+          <GlobeIcon className="w-4 h-4 me-2" aria-hidden="true" />
           <span className="font-medium">{isRTL ? 'English' : 'العربية'}</span>
         </Button>
         <TenantSwitcher />

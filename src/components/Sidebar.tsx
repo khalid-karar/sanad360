@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, XIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon, FactoryIcon, ScaleIcon, FileCheckIcon, ClipboardCheckIcon } from 'lucide-react';
+import { TruckIcon, LayoutDashboardIcon, ClipboardListIcon, SettingsIcon, LogOutIcon, MenuIcon, Building2Icon, BarChart3Icon, UsersIcon, MapPinIcon, AlertTriangleIcon, CalendarClockIcon, FactoryIcon, ScaleIcon, FileCheckIcon, ClipboardCheckIcon } from 'lucide-react';
 // TruckIcon reused for the company "Approved Transporters" link.
 import Logo from './Logo';
 
@@ -228,34 +229,50 @@ export default function Sidebar({ role }: SidebarProps) {
   return (
     <>
       {showMobileDrawer && (
-        <Button
-          variant="ghost"
-          size="icon"
-          // CP7: was `right-4` unconditionally — the desktop sidebar sits at
-          // the START side (left in LTR, right in RTL, via natural flex-row
-          // reversal on its parent, no logical utility needed there). This
-          // mobile toggle+drawer are a separate, hardcoded-right pair that
-          // never matched that in LTR mode. `start-4` aligns it with wherever
-          // the sidebar itself actually is, in either language.
-          className="lg:hidden fixed top-4 start-4 z-50 bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
-          onClick={() => setIsOpen(!isOpen)}
-          aria-label={isRTL ? 'القائمة' : 'Menu'}
-        >
-          {isOpen ? <XIcon className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
-        </Button>
+        // CP7: was a hand-rolled fixed overlay + <aside> with no Escape
+        // handling, no focus trap, and no focus-restore to the hamburger on
+        // close. Radix Dialog gives all three for free. Note: Radix ARIA-
+        // hides the rest of the app (`aria-hidden` + `pointer-events: none`
+        // on #root) while a true modal dialog is open — correct a11y
+        // behavior, but it also means this trigger button itself becomes
+        // inert while the drawer is open (confirmed via Playwright: even a
+        // raw native click at its exact coordinates does nothing once
+        // open). The icon no longer swaps to X for that reason — showing a
+        // "close" affordance that can't actually be clicked would be worse
+        // than no affordance; Escape, the backdrop, and clicking any nav
+        // link all still close the drawer correctly.
+        <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+          <Dialog.Trigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              // CP7: was `right-4` unconditionally — the desktop sidebar sits
+              // at the START side (left in LTR, right in RTL, via natural
+              // flex-row reversal on its parent, no logical utility needed
+              // there). This mobile toggle+drawer are a separate,
+              // hardcoded-right pair that never matched that in LTR mode.
+              // `start-4` aligns it with wherever the sidebar itself actually
+              // is, in either language.
+              className="lg:hidden fixed top-4 start-4 z-50 bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
+              aria-label={isRTL ? 'القائمة' : 'Menu'}
+            >
+              <MenuIcon className="w-6 h-6" />
+            </Button>
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay className="lg:hidden fixed inset-0 bg-gray-900/50 z-40" />
+            <Dialog.Content
+              dir={isRTL ? 'rtl' : 'ltr'}
+              aria-label={isRTL ? 'القائمة' : 'Menu'}
+              className="lg:hidden fixed top-0 start-0 w-64 h-screen z-50 focus:outline-none"
+            >
+              {sidebarContent}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
       )}
 
       <aside className="hidden lg:block w-64 h-screen sticky top-0">{sidebarContent}</aside>
-
-      {showMobileDrawer && isOpen && (
-        <>
-          <div
-            className="lg:hidden fixed inset-0 bg-gray-900/50 z-40"
-            onClick={() => setIsOpen(false)}
-          />
-          <aside className="lg:hidden fixed top-0 start-0 w-64 h-screen z-50">{sidebarContent}</aside>
-        </>
-      )}
     </>
   );
 }
