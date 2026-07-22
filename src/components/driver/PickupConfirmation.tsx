@@ -41,7 +41,7 @@ export default function PickupConfirmation() {
                   <LoaderIcon className="w-16 h-16 text-primary animate-spin" />
                 </div>
               </div>
-              <div className="text-center space-y-2">
+              <div className="text-center space-y-2" role="status">
                 <h2 className="text-2xl font-bold text-foreground">
                   {isRTL ? 'جارٍ الحفظ...' : 'Saving...'}
                 </h2>
@@ -60,7 +60,7 @@ export default function PickupConfirmation() {
                   <AlertTriangleIcon className="w-16 h-16 text-destructive" />
                 </div>
               </div>
-              <div className="text-center space-y-4">
+              <div className="text-center space-y-4" role="alert">
                 <h2 className="text-2xl font-bold text-foreground">
                   {isRTL ? 'حدث خطأ' : 'Submission Failed'}
                 </h2>
@@ -92,7 +92,7 @@ export default function PickupConfirmation() {
                   <CheckCircle2Icon className={`w-16 h-16 ${queuedOffline ? 'text-warning' : 'text-success'}`} />
                 </div>
               </div>
-              <div className="text-center space-y-4">
+              <div className="text-center space-y-4" role="status">
                 <h2 className="text-3xl font-bold text-foreground">
                   {queuedOffline
                     ? (isRTL ? 'تم الحفظ محلياً' : 'Saved Offline')
