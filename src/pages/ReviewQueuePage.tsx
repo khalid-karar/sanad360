@@ -14,8 +14,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import {
-  Loader2Icon, ImageIcon, PenLineIcon, FileTextIcon, CheckIcon, EyeIcon,
+  Loader2Icon, ImageIcon, PenLineIcon, FileTextIcon, CheckIcon, EyeIcon, ClipboardCheckIcon,
 } from 'lucide-react';
 
 const REASON_LABELS: Record<string, { ar: string; en: string }> = {
@@ -33,6 +34,9 @@ const REASON_LABELS: Record<string, { ar: string; en: string }> = {
   qr_skipped_with_reason:   { ar: 'تخطي QR بسبب مُسجَّل',       en: 'QR skipped with reason' },
   reduced_verification:     { ar: 'تحقق مخفَّض (QR إلزامي متخطى)', en: 'Reduced verification' },
   missing_required_evidence: { ar: 'دليل إلزامي مفقود',        en: 'Missing required evidence' },
+  // CP7: found rendering raw/untranslated during the review-queue audit —
+  // migration 030 (CP5) added this flag but it was never given a label.
+  awaiting_branch_confirmation: { ar: 'بانتظار تأكيد الفرع', en: 'Awaiting branch confirmation' },
 };
 
 // Per-item labels for the dynamic `missing_required:<item>` flag (022) — one
@@ -44,6 +48,10 @@ const REQUIRED_ITEM_LABELS: Record<string, { ar: string; en: string }> = {
   signature:      { ar: 'التوقيع',        en: 'Signature' },
   receipt:        { ar: 'الإيصال',        en: 'Receipt' },
   scale_photo:    { ar: 'صورة الميزان',    en: 'Scale photo' },
+  // CP7: found rendering as the raw item id ("branch_confirmation") during
+  // the review-queue audit — migration 026 (CP5) added this required-item
+  // value but it was never added here.
+  branch_confirmation: { ar: 'تأكيد الفرع', en: 'Branch confirmation' },
 };
 
 const MISSING_REQUIRED_PREFIX = 'missing_required:';
@@ -169,18 +177,20 @@ export default function ReviewQueuePage() {
           </Button>
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {!loading && error && (
+          <ErrorState message={error} retry={reload} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        )}
 
         {loading ? (
-          <div className="flex justify-center py-10">
-            <Loader2Icon className="w-6 h-6 animate-spin text-primary" />
-          </div>
-        ) : visible.length === 0 ? (
-          <Card className="bg-card text-card-foreground border-border">
-            <CardContent className="pt-8 pb-8 text-center text-muted-foreground">
-              {isRTL ? '✓ لا توجد عمليات بانتظار المراجعة' : '✓ Nothing awaiting review'}
-            </CardContent>
-          </Card>
+          <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+        ) : error ? null : visible.length === 0 ? (
+          <EmptyState
+            icon={<ClipboardCheckIcon />}
+            title={isRTL ? 'لا توجد عمليات بانتظار المراجعة' : 'Nothing awaiting review'}
+            hint={isRTL
+              ? 'كل السجلات مراجَعة أو لا تحتاج انتباهاً حالياً'
+              : 'Everything is reviewed or doesn’t currently need attention'}
+          />
         ) : (
           <div className="space-y-3">
             {visible.map((r) => (
