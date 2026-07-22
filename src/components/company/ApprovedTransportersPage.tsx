@@ -13,7 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2Icon, PlusIcon, TruckIcon, XIcon } from 'lucide-react';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
+import { Modal } from '@/components/ui/modal';
+import { Loader2Icon, PlusIcon, TruckIcon } from 'lucide-react';
 
 export default function ApprovedTransportersPage() {
   const { isRTL, user } = useAuthStore();
@@ -127,7 +129,9 @@ export default function ApprovedTransportersPage() {
           </Button>
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {!loading && error && (
+          <ErrorState message={error} retry={load} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        )}
 
         <Card className="bg-card text-card-foreground border-border">
           <CardHeader>
@@ -135,16 +139,16 @@ export default function ApprovedTransportersPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2Icon className="w-6 h-6 animate-spin text-primary" />
-              </div>
-            ) : links.length === 0 ? (
-              <div className="py-10 flex flex-col items-center text-center gap-3">
-                <TruckIcon className="w-10 h-10 text-muted-foreground" />
-                <p className="text-muted-foreground text-sm">
-                  {isRTL ? 'لا يوجد ناقلون مرتبطون' : 'No transporters linked yet'}
-                </p>
-              </div>
+              <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+            ) : error ? null : links.length === 0 ? (
+              <EmptyState
+                icon={<TruckIcon />}
+                title={isRTL ? 'لا يوجد ناقلون مرتبطون' : 'No transporters linked yet'}
+                hint={isRTL
+                  ? 'أضف شركة نقل معتمدة لتتمكن من جدولة الالتقاطات معها'
+                  : 'Add an approved transport company to start scheduling pickups with them'}
+                action={{ label: isRTL ? 'إضافة ناقل' : 'Add Transporter', onClick: openAdd }}
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -180,6 +184,7 @@ export default function ApprovedTransportersPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => setConfirmId(link.id)}
+                              aria-label={isRTL ? `إلغاء تفعيل ${tcName(link)}` : `Deactivate ${tcName(link)}`}
                             >
                               {isRTL ? 'إلغاء التفعيل' : 'Deactivate'}
                             </Button>
@@ -195,89 +200,80 @@ export default function ApprovedTransportersPage() {
         </Card>
       </div>
 
-      {/* Add transporter modal */}
+      {/* Add transporter modal — CP7: was a hand-rolled `fixed inset-0`
+          overlay (no focus trap, no Escape handling); converted to the
+          shared Modal (Radix Dialog), same as every other dialog in this
+          app. */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-md bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{isRTL ? 'إضافة ناقل' : 'Add Transporter'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setShowAdd(false)}>
-                <XIcon className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {available.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
-                  {isRTL
-                    ? 'لا توجد شركات نقل إضافية متاحة للربط'
-                    : 'No additional transport companies available to link'}
-                </p>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-sm font-medium text-foreground">
-                      {isRTL ? 'شركة النقل' : 'Transport Company'} *
-                    </label>
-                    <select
-                      value={selectedTc}
-                      onChange={(e) => setSelectedTc(e.target.value)}
-                      className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
-                    >
-                      <option value="">{isRTL ? 'اختر شركة نقل' : 'Select a transport company'}</option>
-                      {available.map((tc) => (
-                        <option key={tc.id} value={tc.id}>
-                          {tc.name_ar}
-                          {tc.name_en ? ` — ${tc.name_en}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button onClick={handleAdd} disabled={!selectedTc || saving} className="gap-2">
-                      {saving && <Loader2Icon className="w-4 h-4 animate-spin" />}
-                      {isRTL ? 'ربط' : 'Link'}
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowAdd(false)}>
-                      {isRTL ? 'إلغاء' : 'Cancel'}
-                    </Button>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <Modal open onClose={() => setShowAdd(false)} isRTL={isRTL} maxWidth="max-w-md" title={isRTL ? 'إضافة ناقل' : 'Add Transporter'}>
+          <div className="space-y-4">
+            {available.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4">
+                {isRTL
+                  ? 'لا توجد شركات نقل إضافية متاحة للربط'
+                  : 'No additional transport companies available to link'}
+              </p>
+            ) : (
+              <>
+                <div>
+                  <label className="text-sm font-medium text-foreground" htmlFor="tc-select">
+                    {isRTL ? 'شركة النقل' : 'Transport Company'} *
+                  </label>
+                  <select
+                    id="tc-select"
+                    value={selectedTc}
+                    onChange={(e) => setSelectedTc(e.target.value)}
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    <option value="">{isRTL ? 'اختر شركة نقل' : 'Select a transport company'}</option>
+                    {available.map((tc) => (
+                      <option key={tc.id} value={tc.id}>
+                        {tc.name_ar}
+                        {tc.name_en ? ` — ${tc.name_en}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={handleAdd} disabled={!selectedTc || saving} className="gap-2">
+                    {saving && <Loader2Icon className="w-4 h-4 animate-spin" />}
+                    {isRTL ? 'ربط' : 'Link'}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowAdd(false)}>
+                    {isRTL ? 'إلغاء' : 'Cancel'}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
       )}
 
-      {/* Deactivate confirmation */}
+      {/* Deactivate confirmation — same conversion. */}
       {confirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-sm bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader>
-              <CardTitle>{isRTL ? 'تأكيد إلغاء التفعيل' : 'Confirm Deactivation'}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {isRTL
-                  ? 'سيتم إلغاء تفعيل هذا الناقل ولن يكون متاحًا للجدولة. هل أنت متأكد؟'
-                  : 'This transporter will be deactivated and unavailable for scheduling. Are you sure?'}
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  variant="destructive"
-                  onClick={() => handleDeactivate(confirmId)}
-                  disabled={saving}
-                  className="gap-2"
-                >
-                  {saving && <Loader2Icon className="w-4 h-4 animate-spin" />}
-                  {isRTL ? 'إلغاء التفعيل' : 'Deactivate'}
-                </Button>
-                <Button variant="outline" onClick={() => setConfirmId(null)}>
-                  {isRTL ? 'تراجع' : 'Cancel'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <Modal open onClose={() => setConfirmId(null)} isRTL={isRTL} maxWidth="max-w-sm" title={isRTL ? 'تأكيد إلغاء التفعيل' : 'Confirm Deactivation'}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {isRTL
+                ? 'سيتم إلغاء تفعيل هذا الناقل ولن يكون متاحًا للجدولة. هل أنت متأكد؟'
+                : 'This transporter will be deactivated and unavailable for scheduling. Are you sure?'}
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="destructive"
+                onClick={() => handleDeactivate(confirmId)}
+                disabled={saving}
+                className="gap-2"
+              >
+                {saving && <Loader2Icon className="w-4 h-4 animate-spin" />}
+                {isRTL ? 'إلغاء التفعيل' : 'Deactivate'}
+              </Button>
+              <Button variant="outline" onClick={() => setConfirmId(null)}>
+                {isRTL ? 'تراجع' : 'Cancel'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </AppShell>
   );
