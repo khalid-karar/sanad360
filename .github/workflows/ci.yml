@@ -45,6 +45,21 @@ jobs:
             echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY"
             echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
             echo "VITE_PDF_SERVICE_URL=http://127.0.0.1:3001"
+            # CP8 Slice F — the single PDF service instance started below is
+            # shared by both the "Test" step and the later E2E step, so the
+            # capture gate is on for the whole job. NODE_ENV=test + the flag
+            # satisfy email.ts's triple gate; it stays inert anywhere else
+            # (see services/pdf/src/lib/email.ts) because NODE_ENV is never
+            # 'production' in CI.
+            echo "NODE_ENV=test"
+            echo "E2E_CAPTURE_EMAIL=1"
+            # playwright.config.ts's webServer serves the production build on
+            # :4173 (vite preview), never the :5173 dev-server origin
+            # services/pdf's CORS_ORIGIN defaults to — without this, every
+            # browser fetch from the E2E build to the PDF service is blocked
+            # by CORS (confirmed locally: manifests as a generic "network
+            # error" in the UI, not an obviously-CORS-shaped failure).
+            echo "CORS_ORIGIN=http://127.0.0.1:4173"
           } > .env
 
       - name: Typecheck (frontend)
@@ -118,8 +133,10 @@ jobs:
 
       # dist/ from the "Build (frontend)" step above is the artifact under
       # test — playwright.config.ts's webServer serves it via `vite preview`,
-      # never the dev server, so this catches real integration bugs.
-      - name: E2E smoke test (Playwright)
+      # never the dev server, so this catches real integration bugs. Runs
+      # every spec under e2e/ (the Slice E smoke test plus Slice F's real
+      # onboarding journey, and any added later).
+      - name: E2E tests (Playwright)
         env:
           PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright-e2e
           CI: true

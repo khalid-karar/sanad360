@@ -1,4 +1,26 @@
 import { defineConfig, devices } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+// Same manual .env loader as src/test-setup.ts (Vitest's setupFiles hook) —
+// no dotenv dependency in this repo, and we need un-prefixed vars like
+// SUPABASE_SERVICE_ROLE_KEY for e2e/'s direct-DB verification helpers, which
+// Vite's own VITE_-only env exposure wouldn't give us anyway (this is a
+// plain Node process, not a Vite one).
+try {
+  const content = readFileSync(resolve(process.cwd(), '.env'), 'utf-8');
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.substring(0, eqIdx).trim();
+    const val = trimmed.substring(eqIdx + 1).trim();
+    if (key && !(key in process.env)) process.env[key] = val;
+  }
+} catch {
+  // No .env file — vars must be injected externally (CI, etc.)
+}
 
 /**
  * CP8 Slice E — browser E2E infra, first stood up in this repo.

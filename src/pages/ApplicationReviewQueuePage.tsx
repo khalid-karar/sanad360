@@ -157,7 +157,7 @@ export default function ApplicationReviewQueuePage() {
         ) : (
           <div className="space-y-3">
             {rows.map((app) => (
-              <Card key={app.id} className="bg-card text-card-foreground border-border">
+              <Card key={app.id} data-testid={`application-review-row-${app.id}`} className="bg-card text-card-foreground border-border">
                 <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
