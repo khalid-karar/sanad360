@@ -159,17 +159,43 @@ $$;
 
 -- ─────────────────────────────────────────────────────────────
 -- D. pickup_assignments_document_gate() — DIFF vs 021: one new company-level
---    check added, driver/vehicle checks byte-for-byte unchanged.
+--    check, plus a DERIVED transport_company-level check. pickup_assignments
+--    has no transport_company_id column at all (only company_id, driver_id,
+--    vehicle_id, branch_id — confirmed via \d) — unlike trips/pickup_events,
+--    there is no NEW.transport_company_id to pass directly. Resolved via
+--    driver_id (NOT NULL here; drivers.transport_company_id is NOT NULL),
+--    mirroring trips_before_insert()'s own driver-lookup pattern exactly
+--    (same SELECT shape, same variable name). Without this, a transport_
+--    company with incomplete/expired tenant-level docs could still have a
+--    pickup_assignment scheduled for one of its (individually-compliant)
+--    drivers/vehicles — not a security bypass end-to-end (the driver's
+--    actual pickup_events insert would still be blocked by Part F's 4d),
+--    but a confusing "scheduling silently succeeds, execution silently
+--    fails later" UX gap, and inconsistent with trips blocking immediately
+--    at creation. Driver/vehicle checks are otherwise byte-for-byte
+--    unchanged.
 -- ─────────────────────────────────────────────────────────────
 --
 -- --- diff ---
 --    CREATE OR REPLACE FUNCTION public.pickup_assignments_document_gate()
---    ...
+--    RETURNS trigger
+--    LANGUAGE plpgsql
+--    SECURITY DEFINER
+--    SET search_path = ''
+-- +  AS $$
+-- +  DECLARE
+-- +    v_driver_tc uuid;
 --    BEGIN
--- +    IF public.is_owner_operationally_blocked('company', NEW.company_id) THEN
--- +      RAISE EXCEPTION 'COMPANY_NOT_ACTIVE: company % does not have complete, current, verified required documents and cannot schedule pickups', NEW.company_id
--- +        USING ERRCODE = 'P0026';
+--      IF public.is_owner_operationally_blocked('company', NEW.company_id) THEN
+--        RAISE EXCEPTION 'COMPANY_NOT_ACTIVE: ...' USING ERRCODE = 'P0026';
+--      END IF;
+-- +
+-- +    SELECT transport_company_id INTO v_driver_tc FROM public.drivers WHERE id = NEW.driver_id;
+-- +    IF public.is_owner_operationally_blocked('transport_company', v_driver_tc) THEN
+-- +      RAISE EXCEPTION 'TRANSPORT_COMPANY_NOT_ACTIVE: transport_company % does not have complete, current, verified required documents and cannot schedule pickups', v_driver_tc
+-- +        USING ERRCODE = 'P0027';
 -- +    END IF;
+-- +
 --      IF public.is_owner_operationally_blocked('driver', NEW.driver_id) THEN
 --        RAISE EXCEPTION 'DRIVER_NOT_ACTIVE: ...' USING ERRCODE = 'P0023';
 --      END IF;
@@ -187,11 +213,20 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_driver_tc uuid;
 BEGIN
   IF public.is_owner_operationally_blocked('company', NEW.company_id) THEN
     RAISE EXCEPTION 'COMPANY_NOT_ACTIVE: company % does not have complete, current, verified required documents and cannot schedule pickups', NEW.company_id
       USING ERRCODE = 'P0026';
   END IF;
+
+  SELECT transport_company_id INTO v_driver_tc FROM public.drivers WHERE id = NEW.driver_id;
+  IF public.is_owner_operationally_blocked('transport_company', v_driver_tc) THEN
+    RAISE EXCEPTION 'TRANSPORT_COMPANY_NOT_ACTIVE: transport_company % does not have complete, current, verified required documents and cannot schedule pickups', v_driver_tc
+      USING ERRCODE = 'P0027';
+  END IF;
+
   IF public.is_owner_operationally_blocked('driver', NEW.driver_id) THEN
     RAISE EXCEPTION 'DRIVER_NOT_ACTIVE: driver % does not have complete, current, verified required documents and cannot be scheduled', NEW.driver_id
       USING ERRCODE = 'P0023';
