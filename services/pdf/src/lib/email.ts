@@ -1,4 +1,6 @@
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { appendFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
 
 export type EmailTemplate = 'verify' | 'approved' | 'rejected';
 export type Locale = 'ar' | 'en';
@@ -80,6 +82,46 @@ const templates: {
   },
 };
 
+// E2E capture hook (CP8 Slice F) — lets the Playwright suite read a real
+// verification link out of a real send() call without ever touching SES.
+// Triple-gated so this can NEVER activate in production, even if one of the
+// three conditions were somehow set by accident:
+//   1. E2E_CAPTURE_EMAIL must be the literal string '1'
+//   2. NODE_ENV must be exactly 'test' or 'ci'
+//   3. NODE_ENV must explicitly NOT be 'production' (redundant with #2's
+//      allowlist today, kept as an independent check so a future NODE_ENV
+//      value can never widen the allowlist into prod by accident)
+function captureEmailEnabled(): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  if (process.env.E2E_CAPTURE_EMAIL !== '1') return false;
+  return process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci';
+}
+
+function captureFilePath(): string {
+  return process.env.E2E_CAPTURE_EMAIL_FILE ?? path.resolve(process.cwd(), '.e2e-captured-emails.jsonl');
+}
+
+async function captureEmail<T extends EmailTemplate>(
+  to: string,
+  template: T,
+  locale: Locale,
+  vars: VarsFor<T>,
+  rendered: RenderedEmail
+): Promise<void> {
+  const file = captureFilePath();
+  await mkdir(path.dirname(file), { recursive: true });
+  const line = JSON.stringify({
+    to,
+    template,
+    locale,
+    vars,
+    subject: rendered.subject,
+    text: rendered.text,
+    capturedAt: new Date().toISOString(),
+  });
+  await appendFile(file, line + '\n', 'utf8');
+}
+
 let client: SESClient | null = null;
 function getClient(): SESClient {
   if (!client) {
@@ -100,11 +142,18 @@ export async function send<T extends EmailTemplate>(
   locale: Locale,
   vars: VarsFor<T>
 ): Promise<void> {
+  const render = templates[template][locale] as (v: VarsFor<T>) => RenderedEmail;
+  const rendered = render(vars);
+
+  if (captureEmailEnabled()) {
+    await captureEmail(to, template, locale, vars, rendered);
+    return;
+  }
+
   const from = process.env.SES_FROM_EMAIL;
   if (!from) throw new Error('SES_FROM_EMAIL must be set to send email');
 
-  const render = templates[template][locale] as (v: VarsFor<T>) => RenderedEmail;
-  const { subject, html, text } = render(vars);
+  const { subject, html, text } = rendered;
 
   await getClient().send(
     new SendEmailCommand({

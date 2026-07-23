@@ -20,6 +20,10 @@ test-output/
 test-results/
 playwright-report/
 
+# E2E email-capture hook output (services/pdf/src/lib/email.ts) — only ever
+# written when E2E_CAPTURE_EMAIL=1, never in production; local default path.
+.e2e-captured-emails.jsonl
+
 # Environment files — secrets NEVER live in the repo (see DEPLOYMENT.md).
 # Only the .env.example templates are tracked.
 .env
