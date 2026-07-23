@@ -96,3 +96,41 @@ jobs:
 
       - name: Build (frontend)
         run: npm run build
+
+      # @playwright/test's own Chromium (E2E browser) is cached under a path
+      # DISTINCT from services/pdf's rendering Chromium (~/.cache/ms-playwright,
+      # cached above under the `playwright-...` key) — two different Chromium
+      # builds from two different `playwright` package versions must never
+      # collide on the same cache key/path.
+      - name: Get @playwright/test version
+        id: pw-e2e
+        run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright-e2e
+          key: playwright-e2e-${{ runner.os }}-${{ steps.pw-e2e.outputs.version }}
+
+      - name: Install Playwright Chromium (E2E browser)
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright-e2e
+        run: npx playwright install --with-deps chromium
+
+      # dist/ from the "Build (frontend)" step above is the artifact under
+      # test — playwright.config.ts's webServer serves it via `vite preview`,
+      # never the dev server, so this catches real integration bugs.
+      - name: E2E smoke test (Playwright)
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright-e2e
+          CI: true
+        run: npm run test:e2e
+
+      - name: Upload Playwright artifacts (trace/video on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

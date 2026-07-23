@@ -15,6 +15,11 @@ dist-ssr
 # Test output — sample PDFs for manual visual inspection (gitignored, not committed)
 test-output/
 
+# Playwright E2E run artifacts (screenshots/videos/traces, HTML report) — CI
+# uploads these as workflow artifacts on failure instead of committing them.
+test-results/
+playwright-report/
+
 # Environment files — secrets NEVER live in the repo (see DEPLOYMENT.md).
 # Only the .env.example templates are tracked.
 .env
