@@ -134,3 +134,24 @@ for things that already work correctly at pilot scale.
   StatusPill-style scoped dark-mode override (explicit HSL, not a global token change — the shared
   tokens' button-fill pairings are already correct and a global lightness change would risk breaking
   those) to any real text usage that fails.
+
+## CP8 — Comprehensive Automated Testing
+
+- **Member/consultant offboarding has no UI surface — `revokeMembership()` (services/pdf, migration
+  032) has no frontend caller.** Found while adding RLS test coverage for `memberships` (CP8 Slice D,
+  gap 7): the table has exactly two SELECT policies — `memberships_select` (own row only) and
+  `memberships_select_maya_role` (super_admin viewing other Maya-side rows only) — and neither grants a
+  tenant admin (owner/manager) visibility into their OWN tenant-mates' membership rows, active or
+  revoked. There is consequently no "team members" list anywhere in the product to revoke someone
+  from; `revokeMembership()` is only ever called by its own test file
+  (`src/lib/__tests__/cp5-membership-soft-revoke.test.ts`), never by real UI.
+  **Why this is a feature gap, not an RLS bug:** the current behavior is fail-closed (under-grants, not
+  over-grants) — no cross-member visibility leaks anywhere, revoked or not. It was never wrong, just
+  never built on top of.
+  **Where this resurfaces:** before building a "team management" / "remove member" UI for company or
+  transport-company owners/managers, this needs a new, REVIEWED policy or `SECURITY DEFINER` RPC
+  granting tenant-mate visibility — scoped strictly to a tenant admin seeing their OWN tenant's members
+  (mirroring `my_membership()`'s existing company_id/transport_company_id scoping), never cross-tenant,
+  and never surfacing Maya-side or applicant rows. Do not widen `memberships_select` itself to do this;
+  add a narrowly-scoped sibling policy or function instead, same pattern as
+  `memberships_select_maya_role`.
