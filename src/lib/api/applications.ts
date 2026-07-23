@@ -53,11 +53,22 @@ export async function verifyEmailToken(token: string): Promise<{ message: string
   return { message: json.message ?? 'Your email has been verified.' };
 }
 
+// Must match migration 035's column-level GRANT to `authenticated` exactly
+// (and PendingApplication's own field list, database.types.ts) —
+// email_verification_token_hash/email_verification_expires_at are
+// deliberately NOT granted (service_role only). `select('*')` requests
+// every column, including those two, and Postgres rejects the WHOLE query
+// with 42501 rather than silently omitting the disallowed ones — found via
+// CP8 Slice F's browser E2E test hitting a real 403 on this exact call.
+// One literal (not concatenated) so postgrest-js can statically parse the
+// column list into a typed row instead of falling back to GenericStringError.
+const PENDING_APPLICATION_COLUMNS = 'id, applicant_user_id, tenant_type, name_ar, name_en, commercial_registration, vat_number, industry_code, contact_email, contact_phone, status, email_verified_at, reviewed_by, reviewed_at, reject_reason, resulting_company_id, resulting_transport_company_id, created_at' as const;
+
 /** The signed-in applicant's own application — RLS scopes this to their own row. */
 export async function fetchMyApplication(userId: string): Promise<PendingApplication | null> {
   const { data, error } = await supabase
     .from('pending_applications')
-    .select('*')
+    .select(PENDING_APPLICATION_COLUMNS)
     .eq('applicant_user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -86,7 +97,7 @@ export async function submitApplicationForReview(applicationId: string): Promise
 export async function listApplicationsPendingReview(): Promise<PendingApplication[]> {
   const { data, error } = await supabase
     .from('pending_applications')
-    .select('*')
+    .select(PENDING_APPLICATION_COLUMNS)
     .eq('status', 'pending_review')
     .order('created_at', { ascending: true });
   if (error) throw error;
