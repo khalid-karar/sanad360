@@ -28,6 +28,24 @@ export async function authMiddleware(
     // real one) — signature verification then fails for every single token,
     // valid or not, even though this project is itself reachable.
     console.error('[authMiddleware] JWT validation failed:', authError?.message ?? 'no user returned');
+
+    // Distinguish a genuinely invalid/expired token from a transient failure
+    // validating it. supabase-js's AuthError.status is undefined when the
+    // error occurred BEFORE a response was received (network failure,
+    // timeout) and is GoTrue's own HTTP status when a response WAS received
+    // — a 4xx there means GoTrue actively rejected the token as bad/expired,
+    // a 5xx (or no status at all) means the auth service itself failed to
+    // answer. Conflating the two into a blanket 401 (the previous behavior)
+    // meant transient auth-service load could masquerade as "your token is
+    // invalid" — see KNOWN_LIMITATIONS.md's CP6 entry. A missing status with
+    // NO error object at all (user simply not returned) has nothing to
+    // distinguish it by, so it stays 401 — a safe default, since the token
+    // is unusable either way.
+    const status = authError?.status;
+    if (authError && (status === undefined || status >= 500)) {
+      res.status(503).json({ error: 'Auth service temporarily unavailable — please retry' });
+      return;
+    }
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }

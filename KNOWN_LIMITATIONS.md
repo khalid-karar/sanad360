@@ -35,23 +35,29 @@ for things that already work correctly at pilot scale.
 
 ## CP6 — P0/P1 Fixes
 
-- **`cp3-branch-qr-issue.test.ts` test 3 ("a driver-role caller is rejected with 403") is a
-  concurrency/isolation flake, not a code defect.** Passes reliably in isolation (confirmed across
-  multiple standalone runs); fails under full-suite concurrent load with `401` instead of the expected
-  `403` — the PDF service's `authMiddleware` calls `admin.auth.getUser(jwt)` to validate the bearer
-  token, and any error from that call (including a transient one under load, not just a genuinely
-  invalid/expired token) is conflated into a blanket 401 (`services/pdf/src/lib/auth.ts`). Under the
-  full suite's concurrent load against the local GoTrue/auth stack, this occasionally surfaces as a
-  false 401 for a token that is actually still valid.
-  **Why it matters now:** the growing test suite (CP5 alone added ~8 files) increases concurrent load
-  on the local auth service, and this is exactly the kind of test that will read as a random,
-  unreproducible failure in CI once one exists — which erodes trust in the whole suite.
-  **MUST be fixed or quarantined-with-reason before CP8's zero-skip CI gate** — either (a) make
-  `authMiddleware` distinguish a genuinely invalid/expired token from a transient validation error
-  (e.g. retry once, or surface a 5xx instead of a 401 for non-auth errors), or (b) add a bounded retry
-  to the test itself if the transient failure turns out to be inherent to the local dev stack rather
-  than fixable server-side. Do not let this quietly become an ignored/skipped test without a recorded
-  reason — track it here until resolved.
+- **RESOLVED (CP8 Task 0).** `cp3-branch-qr-issue.test.ts` test 3 ("a driver-role caller is rejected
+  with 403") was previously flagged as a concurrency/isolation flake under full-suite load (false `401`
+  instead of `403`). Investigated properly before trusting a "clean run" as the answer:
+  - **Actual root cause**: this local dev machine had accumulated 39 leaked processes across many past
+    sessions — orphaned `tsx watch` (services/pdf dev server) and `vite.js` (frontend dev server)
+    instances going back days, plus one live Chromium tree spawned by one of them. `tsx watch` doesn't
+    drain its child Playwright browser on an abrupt kill the way `services/pdf/src/index.ts`'s own
+    SIGTERM/SIGINT handler does (that handler only runs when launched as `node dist/index.js`, which is
+    exactly what CI does — CI never runs `npm run dev`, so this accumulation pattern is structurally
+    local-machine-only and cannot occur on an ephemeral CI runner).
+  - **Verification**: after killing the leaked processes, ran the full suite (default parallel Vitest
+    pool, all 44 files) 5 times. Test 3 passed 5/5; all 44 files green every run. No genuine
+    test-isolation or DB-state bug was found — 5 consecutive clean runs under normal concurrent load is
+    strong evidence against an ordering/leak bug (those reproduce consistently, not vanish).
+  - **Decision**: kept parallel CI (did not adopt `--singleFork`, which would have serialized the suite
+    and masked real isolation bugs rather than exposed them).
+  - **Defense-in-depth fix shipped anyway**, rather than relying solely on "the environment happened to
+    be clean": `authMiddleware` (`services/pdf/src/lib/auth.ts`) now distinguishes a genuinely
+    invalid/expired token (GoTrue responds with a 4xx — `AuthError.status` in the 400s) from a
+    transient/upstream failure validating it (`AuthError.status` undefined — error occurred before any
+    response was received — or a 5xx). The former still returns `401`; the latter now returns a
+    retry-safe `503` instead of masquerading as an invalid token. Covered by
+    `services/pdf/src/__tests__/auth-middleware.test.ts`.
 
 ## CP7 — UI/UX Overhaul
 
