@@ -17,6 +17,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL    = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
 const ANON_KEY        = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -109,6 +110,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
       .select('id')
       .single<{ id: string }>();
     dispatchCompanyId = cw!.id;
+    grandfatherCompliance('company', dispatchCompanyId);
     const { data: bw } = await admin
       .from('branches')
       .insert({ company_id: dispatchCompanyId, name_ar: `فرع الإسناد ${RUN}` })

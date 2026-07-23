@@ -43,6 +43,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -116,6 +117,7 @@ describe('gov_rollup() — k-anonymity + differencing protection (Migration 031)
         .select('id')
         .single<{ id: string }>();
       cleanupCompanyIds.push(company!.id);
+      grandfatherCompliance('company', company!.id);
 
       const { data: branch } = await admin
         .from('branches')
@@ -269,6 +271,7 @@ describe('gov_rollup() — complementary suppression tiebreak is deterministic (
         .select('id')
         .single<{ id: string }>();
       cleanupCompanyIds2.push(company!.id);
+      grandfatherCompliance('company', company!.id);
 
       const { data: branch } = await admin
         .from('branches')

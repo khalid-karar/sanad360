@@ -134,6 +134,7 @@ describe('pending_confirmation compliance (Migration 030)', () => {
       .select('id')
       .single<{ id: string }>();
     dedicatedTcId = tc!.id;
+    grandfatherCompliance('transport_company', dedicatedTcId);
 
     const { data: drv } = await admin
       .from('drivers')

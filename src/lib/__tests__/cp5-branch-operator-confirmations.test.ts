@@ -60,6 +60,11 @@ describe('Branch operator confirm/dispute (Migrations 026/030, CP5 4d)', () => {
       .insert({ name_ar: `شركة عامل الفرع ${RUN}`, commercial_registration: `BOPC-${RUN}` })
       .select('id').single<{ id: string }>();
     companyId = company!.id;
+    // CP8 D2 (migration 042): fresh companies/transport_companies are
+    // compliance_exempt=false by default and would otherwise be blocked
+    // from having pickup_events inserted against them (below) by the new
+    // tenant-wide document gate — this suite isn't exercising that gate.
+    grandfatherCompliance('company', companyId);
 
     // geofence set to exactly match the pickup gps below — otherwise
     // geofence_verified=false adds its OWN missing-required-item
@@ -93,6 +98,7 @@ describe('Branch operator confirm/dispute (Migrations 026/030, CP5 4d)', () => {
       })
       .select('id').single<{ id: string }>();
     tcId = tc!.id;
+    grandfatherCompliance('transport_company', tcId);
 
     const { data: drv } = await admin
       .from('drivers')

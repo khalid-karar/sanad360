@@ -25,6 +25,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { describe, it, expect, beforeAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -213,6 +214,12 @@ describe('Inspection PDF generation', () => {
       .select('id')
       .single<{ id: string }>();
     expect(company2).not.toBeNull();
+    // CP8 D2 (migration 042): a freshly-created company is compliance_exempt
+    // =false by default and would otherwise be blocked from having a
+    // pickup_event inserted against it (below) by the new tenant-wide
+    // document gate — this test isn't exercising that gate, so grandfather
+    // it exactly like the seeded company already is (seed.sql).
+    grandfatherCompliance('company', company2!.id);
 
     // The seed manager belongs to company1; their JWT should be rejected for company2's events.
     // We'll insert a pickup for company1 but sign in the manager, then try to access a pickup

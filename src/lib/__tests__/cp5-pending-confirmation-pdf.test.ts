@@ -91,6 +91,7 @@ describe('pending_confirmation in the inspection PDF + admin sweep endpoint (Mig
       .select('id')
       .single<{ id: string }>();
     dedicatedTcId = tc!.id;
+    grandfatherCompliance('transport_company', dedicatedTcId);
 
     const { data: drv } = await admin
       .from('drivers')
