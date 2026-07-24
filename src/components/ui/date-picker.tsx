@@ -211,12 +211,25 @@ export function DateTimePicker({
   isRTL: boolean;
 }) {
   const today = new Date();
-  const parts = parseDateTimeValue(value);
-  const selected = value ? new Date(value) : null;
+  const initialSelected = value ? new Date(value) : null;
+
+  // Segment display is LOCAL state, not derived from the `value` prop on
+  // every render. partsToDateTimeValue() only returns a non-empty string
+  // once ALL FIVE segments are filled — deriving `parts` straight from
+  // `value` (as this used to) meant every keystroke before the date was
+  // complete round-tripped through the parent as onChange(''), which came
+  // back down as an empty `value` prop and collapsed every segment back to
+  // blank, including the one just typed. No real user could ever type a
+  // date here; each character erased itself before the next could be
+  // entered (confirmed empirically: even deliberate, delayed keystrokes
+  // never stuck). Local state accumulates the segments independently of
+  // whether the composite value is complete yet; onChange still reports the
+  // same '' contract to the parent until it is.
+  const [parts, setParts] = useState<DateTimeParts>(() => parseDateTimeValue(value));
 
   const [open, setOpen] = useState(false);
-  const [viewYear, setViewYear] = useState(selected?.getFullYear() ?? today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(selected?.getMonth() ?? today.getMonth());
+  const [viewYear, setViewYear] = useState(initialSelected?.getFullYear() ?? today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initialSelected?.getMonth() ?? today.getMonth());
   const inputRefs = useRef<Record<SegmentKey, HTMLInputElement | null>>({
     day: null, month: null, year: null, hour: null, minute: null,
   });
@@ -250,6 +263,7 @@ export function DateTimePicker({
   }
 
   function commit(next: DateTimeParts) {
+    setParts(next);
     onChange(partsToDateTimeValue(next));
   }
 
