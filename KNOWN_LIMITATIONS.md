@@ -155,3 +155,21 @@ for things that already work correctly at pilot scale.
   and never surfacing Maya-side or applicant rows. Do not widen `memberships_select` itself to do this;
   add a narrowly-scoped sibling policy or function instead, same pattern as
   `memberships_select_maya_role`.
+
+- **Facility creation/linking has no UI surface anywhere in the app.** Found while building CP8 Slice
+  G's browser E2E for the full operating chain: `facilities.INSERT`/`UPDATE` and `facility_transporters`
+  are service_role-only (migration 018's own review decision), and a grep across `src/pages`/`src`
+  confirms no React route or page ever calls `/admin/facilities` or `/admin/invite-recycler`
+  (`services/pdf/src/routes/invite-recycler.ts`) — those two endpoints, plus a direct
+  `facility_transporters` insert, are the ONLY way a recycling facility and its first `recycler_manager`/
+  `scale_operator` come into existence. The E2E test authenticates as the seeded admin account and calls
+  them directly over HTTP, the same real server action any operator would need to perform today —
+  there is no UI to bypass.
+  **Why this is a feature gap, not a bug:** fine for pilot scale — Maya ops provisions each facility
+  by hand via these endpoints (or a script) as new recycling partners onboard, which is a small,
+  infrequent, back-office action. It was never wrong, just never built a UI on top of.
+  **Where this resurfaces:** same category as `AdminUsersPage`-style admin surfaces and the
+  team-management gap above — before facility onboarding needs to happen at any real volume (more than
+  a handful of hand-provisioned partners), this needs an actual admin-console page wrapping those two
+  endpoints (facility create form + recycler-manager invite form), not a new capability, just UI on an
+  already-real, already-authorized server action.
