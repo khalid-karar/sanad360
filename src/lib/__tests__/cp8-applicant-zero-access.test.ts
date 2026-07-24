@@ -21,6 +21,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -45,6 +46,10 @@ describe('CP8 D gap 5: applicant has zero operational access', () => {
   let facilityId = '';
   let otherUserId = '';
   let docId = '';
+  let facilityTransporterLinkId = '';
+  let assignmentId = '';
+  let tripId = '';
+  let pickupEventId = '';
 
   beforeAll(async () => {
     // A real, unrelated company/tenant with real operational data — the
@@ -77,6 +82,39 @@ describe('CP8 D gap 5: applicant has zero operational access', () => {
 
     const { data: facility } = await admin.from('facilities').insert({ name_ar: `منشأة حقيقية ${RUN}` }).select('id').single<{ id: string }>();
     facilityId = facility!.id;
+
+    // This fixture isn't exercising migration 042's tenant-block gate —
+    // grandfather company/transport_company so the trips/pickup_events
+    // inserts below aren't rejected by is_owner_operationally_blocked().
+    grandfatherCompliance('company', companyId);
+    grandfatherCompliance('transport_company', tcId);
+    grandfatherCompliance('driver', driverId);
+    grandfatherCompliance('vehicle', vehicleId);
+
+    const { data: link } = await admin.from('facility_transporters').insert({
+      transport_company_id: tcId, facility_id: facilityId, status: 'active',
+    }).select('id').single<{ id: string }>();
+    facilityTransporterLinkId = link!.id;
+
+    const { data: assignment } = await admin.from('pickup_assignments').insert({
+      company_id: companyId, branch_id: branchId, driver_id: driverId, vehicle_id: vehicleId,
+      scheduled_at: new Date(Date.now() + 3600_000).toISOString(),
+    }).select('id').single<{ id: string }>();
+    assignmentId = assignment!.id;
+
+    const { data: trip } = await admin.from('trips').insert({
+      transport_company_id: tcId, driver_id: driverId, vehicle_id: vehicleId,
+      planned_facility_id: facilityId, waste_stream: 'plastic',
+    }).select('id').single<{ id: string }>();
+    tripId = trip!.id;
+
+    const { data: pickupEvent } = await admin.from('pickup_events').insert({
+      logical_id: crypto.randomUUID(), revision: 1,
+      company_id: companyId, branch_id: branchId, transport_company_id: tcId,
+      driver_id: driverId, vehicle_id: vehicleId, trip_id: tripId,
+      waste_types: ['plastic'], weight_kg: 10, qr_skip_reason: 'not_applicable_for_stream',
+    }).select('id').single<{ id: string }>();
+    pickupEventId = pickupEvent!.id;
 
     const { data: doc } = await admin.from('documents').insert({
       owner_type: 'company', owner_id: companyId, doc_type: 'commercial_registration',
@@ -115,6 +153,10 @@ describe('CP8 D gap 5: applicant has zero operational access', () => {
   afterAll(async () => {
     if (applicationId) await admin.from('pending_applications').delete().eq('id', applicationId);
     if (docId) await admin.from('documents').delete().eq('id', docId);
+    if (pickupEventId) await admin.from('pickup_events').delete().eq('id', pickupEventId);
+    if (tripId) await admin.from('trips').delete().eq('id', tripId);
+    if (assignmentId) await admin.from('pickup_assignments').delete().eq('id', assignmentId);
+    if (facilityTransporterLinkId) await admin.from('facility_transporters').delete().eq('id', facilityTransporterLinkId);
     if (facilityId) await admin.from('facilities').delete().eq('id', facilityId);
     if (tcId) await admin.from('transport_companies').delete().eq('id', tcId);
     if (companyId) await admin.from('companies').delete().eq('id', companyId);
@@ -134,9 +176,13 @@ describe('CP8 D gap 5: applicant has zero operational access', () => {
     const r5 = await applicantClient.from('drivers').select('id').eq('id', driverId);
     const r6 = await applicantClient.from('vehicles').select('id').eq('id', vehicleId);
     const r7 = await applicantClient.from('documents').select('id').eq('id', docId);
+    const r8 = await applicantClient.from('trips').select('id').eq('id', tripId);
+    const r9 = await applicantClient.from('pickup_events').select('id').eq('id', pickupEventId);
+    const r10 = await applicantClient.from('pickup_assignments').select('id').eq('id', assignmentId);
     const results = [
       ['companies', r1], ['branches', r2], ['transport_companies', r3], ['facilities', r4],
       ['drivers', r5], ['vehicles', r6], ['documents', r7],
+      ['trips', r8], ['pickup_events', r9], ['pickup_assignments', r10],
     ] as const;
     for (const [label, { data, error }] of results) {
       expect(error, `${label} query should not error`).toBeNull();
