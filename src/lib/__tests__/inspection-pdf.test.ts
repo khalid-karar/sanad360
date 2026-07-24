@@ -13,13 +13,19 @@
  * All tests are automatically skipped if the PDF service is not reachable,
  * matching the same skip-if-service-down pattern as the ledger tests.
  *
- * Three assertions:
+ * Four assertions:
  *   1. Single-pickup PDF: generates a file whose stored sha256_hash matches
  *      the bytes, and writes an inspection_pdfs row.
  *   2. Stored hash verification: re-download the PDF and recompute SHA-256 —
  *      must match inspection_pdfs.sha256_hash.
  *   3. Cross-tenant rejection: a manager from a different company is denied
  *      access to another tenant's pickup event (HTTP 403).
+ *   4. (CP8 Slice H) Evidence hash re-verification: a photo whose ledger
+ *      sha256 genuinely matches the uploaded bytes reports 'verified'; a
+ *      signature whose ledger sha256 was forged/corrupted (doesn't match
+ *      the real uploaded bytes) reports 'mismatch' in hash_checks — proving
+ *      checkHash() (services/pdf/src/routes/single.ts) actually catches a
+ *      tampered ledger hash, not just that a correct one passes.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -294,5 +300,75 @@ describe('Inspection PDF generation', () => {
     await admin.from('pickup_events').delete().eq('id', pickup2!.id);
     await admin.from('branches').delete().eq('id', branch2!.id);
     await admin.from('companies').delete().eq('id', company2!.id);
+  });
+
+  it("4. (CP8 Slice H) hash_checks reports 'verified' for a genuine hash and 'mismatch' for a forged/corrupted one", async () => {
+    if (!serviceUp) {
+      console.log('SKIP: PDF service not running');
+      return;
+    }
+
+    const pickupEventId = crypto.randomUUID();
+    const photoBytes = Buffer.from('real-photo-bytes-' + pickupEventId);
+    const signatureBytes = Buffer.from('real-signature-bytes-' + pickupEventId);
+    const photoPath = `${SEED.companyId}/${SEED.branchId}/${pickupEventId}/photo.jpg`;
+    const signaturePath = `${SEED.companyId}/${SEED.branchId}/${pickupEventId}/signature.png`;
+
+    const [photoUpload, signatureUpload] = await Promise.all([
+      admin.storage.from('pickup-photos').upload(photoPath, photoBytes, { contentType: 'image/jpeg' }),
+      admin.storage.from('pickup-signatures').upload(signaturePath, signatureBytes, { contentType: 'image/png' }),
+    ]);
+    expect(photoUpload.error).toBeNull();
+    expect(signatureUpload.error).toBeNull();
+
+    const realPhotoHash = createHash('sha256').update(photoBytes).digest('hex');
+    // The forgery: this does NOT match signatureBytes' real hash — simulates
+    // a corrupted ledger entry or a client that never actually hashed what
+    // it uploaded.
+    const forgedSignatureHash = createHash('sha256').update('not-the-real-bytes').digest('hex');
+
+    const { data: pickup, error: insertErr } = await admin
+      .from('pickup_events')
+      .insert({
+        id: pickupEventId,
+        logical_id: pickupEventId,
+        revision: 1,
+        company_id: SEED.companyId,
+        branch_id: SEED.branchId,
+        transport_company_id: SEED.transportCompanyId,
+        driver_id: SEED.driverId,
+        vehicle_id: SEED.vehicleId,
+        waste_types: ['organic'],
+        weight_kg: 12,
+        qr_skip_reason: 'not_applicable_for_stream',
+        photo_path: photoPath,
+        photo_sha256: realPhotoHash,
+        signature_path: signaturePath,
+        signature_sha256: forgedSignatureHash,
+      })
+      .select('id')
+      .single<{ id: string }>();
+    expect(insertErr).toBeNull();
+
+    const jwt = await getManagerJwt();
+    const res = await fetch(`${PDF_SERVICE_URL}/generate/single-pickup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+      body: JSON.stringify({ pickup_event_id: pickup!.id }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      hash_checks: { photo: string; signature: string };
+      inspection_pdf_id: string;
+    };
+
+    expect(body.hash_checks.photo).toBe('verified');
+    expect(body.hash_checks.signature).toBe('mismatch');
+
+    // Cleanup
+    await admin.from('inspection_pdfs').delete().eq('id', body.inspection_pdf_id);
+    await admin.from('pickup_events').delete().eq('id', pickup!.id);
+    await admin.storage.from('pickup-photos').remove([photoPath]);
+    await admin.storage.from('pickup-signatures').remove([signaturePath]);
   });
 });
