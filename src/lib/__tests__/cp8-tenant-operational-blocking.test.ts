@@ -34,6 +34,16 @@
  *   3. A grandfathered tenant (compliance_exempt=true, company +
  *      transport_company + driver + vehicle) is NOT blocked anywhere —
  *      pickup_assignments, trips, and pickup_events all succeed
+ *   4. (CP8 Slice H) A company with BOTH required documents present and
+ *      VERIFIED, but one of them EXPIRED, is blocked exactly like a company
+ *      with a MISSING document — _owner_document_status_unsafe() marks any
+ *      expired doc as 'restricted' (not just 'onboarding' for missing), and
+ *      is_owner_operationally_blocked() blocks on activation_status <>
+ *      'active' regardless of which of the two reasons caused it. Assertions
+ *      1-3 above only ever exercise the missing-document path (every rig has
+ *      zero documents) — this is the first test to prove the expiry path
+ *      itself actually blocks at the tenant level, not just architecturally
+ *      plausible from shared code with the already-tested driver/vehicle case.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -250,5 +260,60 @@ describe('CP8 D2: tenant-wide operational blocking (migration 042)', () => {
     }).select('id').single<{ id: string }>();
     expect(eventErr).toBeNull();
     cleanupEventIds.push(event!.id);
+  });
+
+  it('4. a company with both required documents VERIFIED but one EXPIRED is blocked the same as a missing document', async () => {
+    const rig = await makeRig('co-expired');
+    cleanupCompanyIds.push(rig.companyId);
+    cleanupTcIds.push(rig.transportCompanyId);
+    grandfatherCompliance('transport_company', rig.transportCompanyId);
+    grandfatherCompliance('driver', rig.driverId);
+    grandfatherCompliance('vehicle', rig.vehicleId);
+
+    // Both of 'company's required docs (migration 021 seed) present and
+    // VERIFIED — completion would read 100% if not for the expiry.
+    const { data: crDoc } = await admin.from('documents').insert({
+      owner_type: 'company', owner_id: rig.companyId, doc_type: 'commercial_registration',
+      file_path: `company/${rig.companyId}/cr.pdf`, file_sha256: 'a'.repeat(64),
+      expiry_date: '2020-01-01', // long past — unambiguously expired
+    }).select('id').single<{ id: string }>();
+    await admin.from('documents').update({ status: 'verified' }).eq('id', crDoc!.id);
+
+    const { data: vatDoc } = await admin.from('documents').insert({
+      owner_type: 'company', owner_id: rig.companyId, doc_type: 'vat_certificate',
+      file_path: `company/${rig.companyId}/vat.pdf`, file_sha256: 'b'.repeat(64),
+      expiry_date: '2030-01-01', // not expired
+    }).select('id').single<{ id: string }>();
+    await admin.from('documents').update({ status: 'verified' }).eq('id', vatDoc!.id);
+
+    const { data: status } = await admin.rpc('owner_document_status', {
+      p_owner_type: 'company', p_owner_id: rig.companyId,
+    });
+    const row = (Array.isArray(status) ? status[0] : status) as { activation_status: string; expired_doc_types: string[] };
+    expect(row.activation_status).toBe('restricted');
+    expect(row.expired_doc_types).toContain('commercial_registration');
+
+    const { error: assignErr } = await admin.from('pickup_assignments').insert({
+      company_id: rig.companyId, branch_id: rig.branchId,
+      driver_id: rig.driverId, vehicle_id: rig.vehicleId,
+      scheduled_at: new Date().toISOString(),
+    });
+    expect(assignErr).not.toBeNull();
+    expect(assignErr!.code).toBe('P0026');
+    expect(assignErr!.message).toMatch(/COMPANY_NOT_ACTIVE/);
+
+    const { error: eventErr } = await admin.from('pickup_events').insert({
+      logical_id: crypto.randomUUID(), revision: 1,
+      company_id: rig.companyId, branch_id: rig.branchId,
+      transport_company_id: rig.transportCompanyId,
+      driver_id: rig.driverId, vehicle_id: rig.vehicleId,
+      waste_types: ['organic'], weight_kg: 10,
+      qr_skip_reason: 'not_applicable_for_stream',
+    });
+    expect(eventErr).not.toBeNull();
+    expect(eventErr!.code).toBe('P0026');
+    expect(eventErr!.message).toMatch(/COMPANY_NOT_ACTIVE/);
+
+    await admin.from('documents').delete().in('id', [crDoc!.id, vatDoc!.id]);
   });
 });
