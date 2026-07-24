@@ -125,7 +125,7 @@ export default function DocumentReviewQueuePage() {
         ) : (
           <div className="space-y-3">
             {rows.map(({ doc, ownerLabel }) => (
-              <Card key={doc.id} className="bg-card text-card-foreground border-border">
+              <Card key={doc.id} data-testid={`document-review-row-${doc.id}`} className="bg-card text-card-foreground border-border">
                 <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
