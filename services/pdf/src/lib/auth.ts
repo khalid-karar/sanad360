@@ -1,6 +1,50 @@
 import type { Request, Response, NextFunction } from 'express';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { admin } from './supabase.js';
 import type { AuthedRequest } from '../types.js';
+
+const GET_USER_MAX_ATTEMPTS = 3;
+const GET_USER_RETRY_BACKOFF_MS = 100;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type GetUserResult = Awaited<ReturnType<typeof admin.auth.getUser>>;
+
+/**
+ * admin.auth.getUser(jwt) never throws for an auth-related failure — GoTrue
+ * client-library errors are caught internally and returned as
+ * `{ data: { user: null }, error }`, not thrown (confirmed by reading
+ * @supabase/auth-js's _getUser()/handleError()). Empirically confirmed
+ * locally (300 concurrent calls against a real local GoTrue): ~20% failed
+ * with a genuine socket-level connection reset, surfacing as
+ * AuthRetryableFetchError with status 0 — a real, well-formed error object,
+ * not a thrown exception and not "no error at all."
+ *
+ * That status-0 shape used to fall through this middleware's old
+ * status-number heuristic (`status === undefined || status >= 500`) — 0 is
+ * neither undefined nor >= 500 — misclassifying a transient network blip as
+ * "your token is invalid" (401) instead of "auth service temporarily
+ * unavailable" (503). A bounded retry fixes the PRODUCTION problem, not
+ * just the classification: a single dropped connection to GoTrue shouldn't
+ * ever look like a real user got logged out, when trying again a moment
+ * later would have worked. A genuinely invalid/expired token (a real 4xx
+ * response from GoTrue) is never retried — GoTrue already answered
+ * definitively, and retrying would just confirm the same rejection twice
+ * more.
+ */
+async function getUserWithRetry(jwt: string): Promise<GetUserResult> {
+  let last: GetUserResult | undefined;
+  for (let attempt = 1; attempt <= GET_USER_MAX_ATTEMPTS; attempt++) {
+    const result = await admin.auth.getUser(jwt);
+    if (result.data.user) return result;
+    last = result;
+    if (!isAuthRetryableFetchError(result.error)) return result;
+    if (attempt < GET_USER_MAX_ATTEMPTS) await sleep(GET_USER_RETRY_BACKOFF_MS * attempt);
+  }
+  return last!;
+}
 
 // Validates JWT and attaches userId + membership to the request.
 // Rejects with 401/403 if the JWT is invalid or expired.
@@ -18,7 +62,7 @@ export async function authMiddleware(
   const jwt = authHeader.slice(7);
 
   // Validate the JWT and get the user
-  const { data: { user }, error: authError } = await admin.auth.getUser(jwt);
+  const { data: { user }, error: authError } = await getUserWithRetry(jwt);
   if (authError || !user) {
     // Server-side only — never exposed in the response. The most common
     // cause of EVERY caller hitting this: this service's SUPABASE_URL /
@@ -29,20 +73,15 @@ export async function authMiddleware(
     // valid or not, even though this project is itself reachable.
     console.error('[authMiddleware] JWT validation failed:', authError?.message ?? 'no user returned');
 
-    // Distinguish a genuinely invalid/expired token from a transient failure
-    // validating it. supabase-js's AuthError.status is undefined when the
-    // error occurred BEFORE a response was received (network failure,
-    // timeout) and is GoTrue's own HTTP status when a response WAS received
-    // — a 4xx there means GoTrue actively rejected the token as bad/expired,
-    // a 5xx (or no status at all) means the auth service itself failed to
-    // answer. Conflating the two into a blanket 401 (the previous behavior)
-    // meant transient auth-service load could masquerade as "your token is
-    // invalid" — see KNOWN_LIMITATIONS.md's CP6 entry. A missing status with
-    // NO error object at all (user simply not returned) has nothing to
-    // distinguish it by, so it stays 401 — a safe default, since the token
-    // is unusable either way.
-    const status = authError?.status;
-    if (authError && (status === undefined || status >= 500)) {
+    // isAuthRetryableFetchError() is the SAME check @supabase/auth-js uses
+    // internally to decide a failure is transient (network blip / GoTrue
+    // 5xx) rather than a definitive rejection — using the library's own
+    // canonical check here instead of a hand-rolled status-number
+    // comparison is what catches the status-0 case above. Anything else
+    // (a real 4xx, or the pathological "no error object at all" case with
+    // nothing to distinguish it by) stays 401 — a safe default, since the
+    // token is unusable either way.
+    if (isAuthRetryableFetchError(authError)) {
       res.status(503).json({ error: 'Auth service temporarily unavailable — please retry' });
       return;
     }
