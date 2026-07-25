@@ -77,6 +77,7 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   let serviceUp = false;
   let managerJwt = '';
   let driverJwt = '';
+  let driverUserId = '';
   let outsiderJwt = '';
   let outsiderCompanyId = '';
   let outsiderUserId = '';
@@ -96,7 +97,34 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
     if (!serviceUp) return;
 
     managerJwt = await signIn(SEED.managerEmail, SEED.managerPassword);
-    driverJwt = await signIn(SEED.driverEmail, SEED.driverPassword);
+
+    // CP8 Slice H: a dedicated, per-run driver account — NOT the globally
+    // shared seed driver (0501234567@driver.sanad360.com). That shared
+    // credential is signed into directly by 13+ other test files; some of
+    // them call `.signOut()` with the default (global) scope, which revokes
+    // EVERY session for that user, not just the caller's own — including a
+    // JWT this file already captured in an earlier beforeAll. Confirmed via
+    // direct diagnosis: the resulting 401 here was never a thrown exception
+    // or a transient network failure (that failure mode IS real and is now
+    // separately fixed in authMiddleware's bounded retry) — it was a genuine
+    // AuthSessionMissingError ("session_not_found"), i.e. GoTrue correctly
+    // reporting that this exact session had been revoked out from under it.
+    // grant-audit.test.ts's own comment already documents this exact class
+    // of bug and fixes it with per-email isolated clients; every OTHER role
+    // in this file (outsider/branch_operator/dispatcher/consultant) already
+    // gets its own fresh, per-run account — the driver was the one exception.
+    const { data: driverCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-driver-${RUN}@driver.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    driverUserId = driverCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: driverUserId,
+      role: 'driver',
+      transport_company_id: SEED.transportCompanyId,
+    });
+    driverJwt = await signIn(`branch-qr-driver-${RUN}@driver.sanad360.dev`, 'DevPass1234!');
 
     // An owner/manager of a completely unrelated company (tenant mismatch case).
     const { data: company } = await admin
@@ -198,7 +226,7 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
       await admin.auth.admin.deleteUser(outsiderUserId);
     }
     if (outsiderCompanyId) await admin.from('companies').delete().eq('id', outsiderCompanyId);
-    for (const uid of [branchOperatorUserId, otherBranchOperatorUserId, dispatcherUserId, consultantUserId]) {
+    for (const uid of [branchOperatorUserId, otherBranchOperatorUserId, dispatcherUserId, consultantUserId, driverUserId]) {
       if (!uid) continue;
       await admin.from('memberships').delete().eq('user_id', uid);
       await admin.from('profiles').delete().eq('id', uid);
