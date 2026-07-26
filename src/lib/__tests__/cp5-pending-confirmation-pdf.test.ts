@@ -2,8 +2,8 @@
  * pending_confirmation PDF generation + admin sweep endpoint
  * (Migration 030, CP5 review item 1a/2)
  *
- * Skips automatically if the PDF service isn't reachable (same pattern as
- * phase2-acceptance.test.ts). The actual "renders distinctly, never
+ * HARD-fails in beforeAll if the PDF service isn't reachable (CP8 Slice I —
+ * no more soft-skip; see testHelpers/pdfServiceCheck.ts). The actual "renders distinctly, never
  * compliant" content assertion lives at the HTML-template level instead
  * (services/pdf/src/templates/pending-confirmation-reporting.test.ts) —
  * pdf-parse reorders/reshapes Arabic glyphs on extraction from a real
@@ -26,6 +26,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { grandfatherCompliance } from './testHelpers/complianceExempt';
+import { assertPdfServiceUp } from './testHelpers/pdfServiceCheck';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -52,17 +53,7 @@ const SEED = {
 
 const RUN = Date.now();
 
-async function isPdfServiceUp(): Promise<boolean> {
-  try {
-    const res = await fetch(`${PDF_SERVICE_URL}/health`, { signal: AbortSignal.timeout(3_000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 describe('pending_confirmation in the inspection PDF + admin sweep endpoint (Migration 030)', () => {
-  let serviceUp = false;
   let evidenceReqId = '';
   let managerJwt = '';
   let driverJwt = '';
@@ -77,8 +68,7 @@ describe('pending_confirmation in the inspection PDF + admin sweep endpoint (Mig
   const cleanupEventIds: string[] = [];
 
   beforeAll(async () => {
-    serviceUp = await isPdfServiceUp();
-    if (!serviceUp) return;
+    await assertPdfServiceUp(PDF_SERVICE_URL);
 
     const { data: tc } = await admin
       .from('transport_companies')
@@ -149,7 +139,6 @@ describe('pending_confirmation in the inspection PDF + admin sweep endpoint (Mig
   });
 
   it('1. a pending pickup generates a valid inspection PDF end-to-end (route now also fetches pickup_confirmations)', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
 
     const { data: event, error } = await admin
       .from('pickup_events')
@@ -194,7 +183,6 @@ describe('pending_confirmation in the inspection PDF + admin sweep endpoint (Mig
   });
 
   it('2. sweep endpoint: service_role key succeeds, plain authenticated caller is rejected', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
 
     const okRes = await fetch(`${PDF_SERVICE_URL}/admin/sweep-expired-confirmations`, {
       method: 'POST',

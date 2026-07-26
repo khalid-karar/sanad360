@@ -3,8 +3,8 @@
  *
  * Migration 022/Part B: branches.qr_token is a server-only HMAC secret; the
  * only way any client ever gets a scannable value is this short-TTL (90s)
- * signed token. Skips automatically if the PDF service isn't reachable
- * (same pattern as phase2-acceptance.test.ts / evidence-integrity.test.ts).
+ * signed token. HARD-fails in beforeAll if the PDF service isn't reachable
+ * (CP8 Slice I — no more soft-skip; see testHelpers/pdfServiceCheck.ts).
  *
  * Assertions:
  *   1. Owner/manager of the branch's own company → 200 with {token, expires_at}
@@ -19,6 +19,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { assertPdfServiceUp } from './testHelpers/pdfServiceCheck';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -46,15 +47,6 @@ const SEED = {
 
 const RUN = Date.now();
 
-async function isPdfServiceUp(): Promise<boolean> {
-  try {
-    const res = await fetch(`${PDF_SERVICE_URL}/health`, { signal: AbortSignal.timeout(3_000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function signIn(email: string, password: string): Promise<string> {
   const { data, error } = await anon.auth.signInWithPassword({ email, password });
   if (error || !data.session) throw new Error(`sign-in failed (${email}): ${error?.message}`);
@@ -74,7 +66,6 @@ async function issueQr(jwt: string, branchId: string): Promise<Response> {
 }
 
 describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
-  let serviceUp = false;
   let managerJwt = '';
   let driverJwt = '';
   let driverUserId = '';
@@ -93,8 +84,7 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   const cleanupEventIds: string[] = [];
 
   beforeAll(async () => {
-    serviceUp = await isPdfServiceUp();
-    if (!serviceUp) return;
+    await assertPdfServiceUp(PDF_SERVICE_URL);
 
     managerJwt = await signIn(SEED.managerEmail, SEED.managerPassword);
 
@@ -236,7 +226,6 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   });
 
   it('1. manager of the branch\'s own company gets a signed token', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(managerJwt, SEED.branchId);
     expect(res.status).toBe(200);
     const body = (await res.json()) as IssuedBranchQr;
@@ -247,19 +236,16 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   });
 
   it('2. a member of a different company is rejected with 403', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(outsiderJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });
 
   it('3. a driver-role caller is rejected with 403', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(driverJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });
 
   it('4. the issued token verifies server-side (qr_verified=true on insert)', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(managerJwt, SEED.branchId);
     expect(res.status).toBe(200);
     const { token } = (await res.json()) as IssuedBranchQr;
@@ -290,7 +276,6 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   });
 
   it('5. a tampered signature fails verification', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(managerJwt, SEED.branchId);
     const { token } = (await res.json()) as IssuedBranchQr;
     const [payloadB64, sigB64] = token.split('.');
@@ -326,7 +311,6 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   });
 
   it('6. (CP5) a branch_operator scoped to this exact branch gets a signed token', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(branchOperatorJwt, SEED.branchId);
     expect(res.status).toBe(200);
     const body = (await res.json()) as IssuedBranchQr;
@@ -334,19 +318,16 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   });
 
   it('7. (CP5) a branch_operator scoped to a DIFFERENT branch is rejected with 403', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(otherBranchOperatorJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });
 
   it('8. (CP5) a dispatcher of the SAME company is rejected with 403 — only owner/manager/admin or the branch\'s own branch_operator may issue', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(dispatcherJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });
 
   it('9. (CP5) a consultant engaged with the SAME company is rejected with 403', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(consultantJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });

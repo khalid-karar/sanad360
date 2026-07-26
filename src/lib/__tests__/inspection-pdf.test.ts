@@ -10,8 +10,8 @@
  *        SUPABASE_SERVICE_ROLE_KEY
  *        VITE_PDF_SERVICE_URL       (default http://localhost:3001)
  *
- * All tests are automatically skipped if the PDF service is not reachable,
- * matching the same skip-if-service-down pattern as the ledger tests.
+ * HARD-fails in beforeAll if the PDF service isn't reachable (CP8 Slice I —
+ * no more soft-skip; see testHelpers/pdfServiceCheck.ts).
  *
  * Four assertions:
  *   1. Single-pickup PDF: generates a file whose stored sha256_hash matches
@@ -32,6 +32,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { grandfatherCompliance } from './testHelpers/complianceExempt';
+import { assertPdfServiceUp } from './testHelpers/pdfServiceCheck';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -60,15 +61,6 @@ const SEED = {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function isPdfServiceUp(): Promise<boolean> {
-  try {
-    const res = await fetch(`${PDF_SERVICE_URL}/health`, { signal: AbortSignal.timeout(3000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 async function getManagerJwt(): Promise<string> {
   const { data, error } = await anon.auth.signInWithPassword({
@@ -106,8 +98,6 @@ async function insertTestPickup(): Promise<string> {
 
 describe('Inspection PDF generation', () => {
 
-  let serviceUp = false;
-
   beforeAll(async () => {
     // Skip all tests if seed is missing
     const { data: seedCheck } = await admin
@@ -116,21 +106,10 @@ describe('Inspection PDF generation', () => {
       throw new Error('Seed data not found. Run `supabase db reset`, then retry.');
     }
 
-    serviceUp = await isPdfServiceUp();
-    if (!serviceUp) {
-      console.warn(
-        '[inspection-pdf.test] PDF service not reachable at',
-        PDF_SERVICE_URL,
-        '— all tests will be skipped. Start it with: cd services/pdf && npm run dev'
-      );
-    }
+    await assertPdfServiceUp(PDF_SERVICE_URL);
   });
 
   it('1. Generates a PDF and writes an inspection_pdfs row with the correct sha256_hash', async () => {
-    if (!serviceUp) {
-      console.log('SKIP: PDF service not running');
-      return;
-    }
 
     const pickupEventId = await insertTestPickup();
     const jwt = await getManagerJwt();
@@ -173,10 +152,6 @@ describe('Inspection PDF generation', () => {
   });
 
   it('2. Re-downloading the PDF bytes and recomputing SHA-256 matches the stored hash', async () => {
-    if (!serviceUp) {
-      console.log('SKIP: PDF service not running');
-      return;
-    }
 
     const pickupEventId = await insertTestPickup();
     const jwt = await getManagerJwt();
@@ -208,10 +183,6 @@ describe('Inspection PDF generation', () => {
   });
 
   it('3. Cross-tenant caller is rejected with 403', async () => {
-    if (!serviceUp) {
-      console.log('SKIP: PDF service not running');
-      return;
-    }
 
     // Create a second company and a manager for it
     const { data: company2 } = await admin
@@ -303,10 +274,6 @@ describe('Inspection PDF generation', () => {
   });
 
   it("4. (CP8 Slice H) hash_checks reports 'verified' for a genuine hash and 'mismatch' for a forged/corrupted one", async () => {
-    if (!serviceUp) {
-      console.log('SKIP: PDF service not running');
-      return;
-    }
 
     const pickupEventId = crypto.randomUUID();
     const photoBytes = Buffer.from('real-photo-bytes-' + pickupEventId);

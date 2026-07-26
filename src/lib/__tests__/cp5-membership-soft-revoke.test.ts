@@ -2,8 +2,8 @@
  * Membership soft-revoke (Migration 032, CP5 4g)
  * services/pdf POST /company/revoke-membership
  *
- * Skips automatically if the PDF service isn't reachable (same pattern as
- * phase2-acceptance.test.ts).
+ * HARD-fails in beforeAll if the PDF service isn't reachable (CP8 Slice I —
+ * no more soft-skip; see testHelpers/pdfServiceCheck.ts).
  *
  * Assertions:
  *   1. An owner/manager of the SAME company can revoke a manager's own
@@ -21,6 +21,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { assertPdfServiceUp } from './testHelpers/pdfServiceCheck';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -37,15 +38,6 @@ const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: fals
 const RUN = Date.now();
 const PASSWORD = 'DevPass1234!';
 
-async function isPdfServiceUp(): Promise<boolean> {
-  try {
-    const res = await fetch(`${PDF_SERVICE_URL}/health`, { signal: AbortSignal.timeout(3_000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function signIn(email: string): Promise<string> {
   const { data, error } = await anon.auth.signInWithPassword({ email, password: PASSWORD });
   if (error || !data.session) throw new Error(`sign-in failed (${email}): ${error?.message}`);
@@ -61,7 +53,6 @@ async function revoke(jwt: string, membershipId: string, reason?: string): Promi
 }
 
 describe('Membership soft-revoke (Migration 032, services/pdf, CP5 4g)', () => {
-  let serviceUp = false;
   let companyId = '';
   let ownerUserId = '';
   let ownerJwt = '';
@@ -72,8 +63,7 @@ describe('Membership soft-revoke (Migration 032, services/pdf, CP5 4g)', () => {
   let outsiderJwt = '';
 
   beforeAll(async () => {
-    serviceUp = await isPdfServiceUp();
-    if (!serviceUp) return;
+    await assertPdfServiceUp(PDF_SERVICE_URL);
 
     const { data: company } = await admin
       .from('companies')
@@ -124,19 +114,16 @@ describe('Membership soft-revoke (Migration 032, services/pdf, CP5 4g)', () => {
   });
 
   it('3. a manager from a DIFFERENT company cannot revoke this membership', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await revoke(outsiderJwt, targetMembershipId, 'unrelated attempt');
     expect(res.status).toBe(403);
   });
 
   it('4. revoking without a reason is rejected (400)', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await revoke(ownerJwt, targetMembershipId, undefined);
     expect(res.status).toBe(400);
   });
 
   it('1+2. owner revokes a manager\'s membership — soft (row survives), fields set, audit-logged, and the row stops being usable', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await revoke(ownerJwt, targetMembershipId, 'مغادرة الشركة');
     expect(res.status).toBe(200);
 
@@ -169,7 +156,6 @@ describe('Membership soft-revoke (Migration 032, services/pdf, CP5 4g)', () => {
   });
 
   it('5. revoking an already-revoked membership is rejected (409)', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await revoke(ownerJwt, targetMembershipId, 'محاولة ثانية');
     expect(res.status).toBe(409);
   });
