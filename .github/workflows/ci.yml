@@ -27,6 +27,14 @@ jobs:
           npm ci
           npm ci --prefix services/pdf
 
+      # Fails fast, before any of the expensive Supabase/PDF-service/E2E
+      # infra spins up: zero-skip (.skip/.only/.todo/.fixme) + every
+      # .signOut() call scoped to 'local' (the default, global, revokes
+      # EVERY session for that user — see scripts/check-test-hygiene.mjs's
+      # own header for the real flake this caused and closed).
+      - name: Test hygiene gate (zero-skip + signOut scope)
+        run: npm run test:hygiene
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned for reproducible CI (matches the version used in development)

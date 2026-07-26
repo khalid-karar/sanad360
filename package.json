@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "test:acceptance": "vitest run src/lib/__tests__/phase2-acceptance.test.ts",
     "test:e2e": "playwright test",
+    "test:hygiene": "node scripts/check-test-hygiene.mjs",
     "db:push:local": "node scripts/db-target.mjs push local",
     "db:push:staging": "node scripts/db-target.mjs push staging",
     "db:push:production": "node scripts/db-target.mjs push production",
