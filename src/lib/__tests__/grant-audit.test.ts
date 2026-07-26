@@ -219,7 +219,13 @@ afterAll(async () => {
   for (const uid of cleanup.authUserIds) {
     await admin.auth.admin.deleteUser(uid).catch(() => {});
   }
-  await anon.auth.signOut();
+  // CP8 Slice I: scope:'local' is load-bearing, not decoration — the
+  // default (global) scope revokes EVERY session for whichever user this
+  // client currently holds, which can invalidate a JWT another
+  // concurrently-running test file already captured for that same shared
+  // seed account (this is what caused cp3-branch-qr-issue.test.ts's #3
+  // flake — see that file's own fix + comment).
+  await anon.auth.signOut({ scope: 'local' });
 }, TIMEOUT);
 
 // ═══════════════════════════════════════════════════════════════════════════
