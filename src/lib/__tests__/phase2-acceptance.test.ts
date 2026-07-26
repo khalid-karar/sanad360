@@ -504,10 +504,7 @@ describe('Phase 2 Acceptance Tests', () => {
     });
 
     it('3b. Company1 manager gets HTTP 403 from PDF service for company2 pickup', async () => {
-      if (!serviceUp) {
-        console.log('SKIP: PDF service not running');
-        return;
-      }
+      if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
       if (!cleanup.company2EventId) {
         // Trigger rejected the insert — DB-layer isolation already proved above
         console.log('SKIP: company2 pickup was rejected at DB level (isolation already verified)');
@@ -529,10 +526,7 @@ describe('Phase 2 Acceptance Tests', () => {
   describe('4–6. PDF integrity, content, and sample output', () => {
 
     it('4+5+6a. Single-pickup PDF: magic bytes, sha256 round-trip, weight in extracted text', async () => {
-      if (!serviceUp) {
-        console.log('SKIP: PDF service not running');
-        return;
-      }
+      if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
 
       // Insert a pickup with a distinctive weight so we can check the extracted text
       const weightKg = 137;
@@ -619,10 +613,7 @@ describe('Phase 2 Acceptance Tests', () => {
     });
 
     it('4+6b. Monthly summary PDF: magic bytes and sha256 round-trip', async () => {
-      if (!serviceUp) {
-        console.log('SKIP: PDF service not running');
-        return;
-      }
+      if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
 
       const month = currentMonth();
       const res = await callPdfService(

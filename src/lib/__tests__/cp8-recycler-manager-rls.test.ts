@@ -213,7 +213,7 @@ describe('CP8 D gap 1: recycler_manager RLS + endpoint coverage', () => {
   });
 
   it('4. POST /admin/facilities is admin-only; a recycler_manager gets 403', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
+    if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const { jwt: adminJwt } = await sessionClient(`admin-recy-${RUN}@maya.sanad360.dev`);
 
     const resAdmin = await fetch(`${PDF_SERVICE_URL}/admin/facilities`, {
@@ -235,7 +235,7 @@ describe('CP8 D gap 1: recycler_manager RLS + endpoint coverage', () => {
   });
 
   it('5. POST /admin/invite-recycler: role + own-facility scoping', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
+    if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const { jwt: adminJwt } = await sessionClient(`admin-recy-${RUN}@maya.sanad360.dev`);
     const { jwt: recManAJwt } = await sessionClient(`recman-a-${RUN}@maya.sanad360.dev`);
     const { jwt: scaleOpAJwt } = await sessionClient(`scaleop-a-${RUN}@maya.sanad360.dev`);

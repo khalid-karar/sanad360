@@ -159,10 +159,7 @@ describe('Product backlog (Migration 016)', () => {
   });
 
   it('3. company-wide monthly pack renders and records monthly_company', async () => {
-    if (!(await isPdfServiceUp())) {
-      console.warn('[product-backlog] PDF service down — skipping pack test.');
-      return;
-    }
+    if (!(await isPdfServiceUp())) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const month = new Date().toISOString().slice(0, 7);
     const res = await fetch(`${PDF_SERVICE_URL}/generate/monthly-company`, {
       method: 'POST',

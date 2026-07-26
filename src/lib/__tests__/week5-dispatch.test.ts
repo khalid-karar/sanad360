@@ -297,10 +297,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
   });
 
   it('5a. dispatcher invites a fleet driver → account works end-to-end', async () => {
-    if (!serviceUp) {
-      console.warn('[week5] PDF service down — skipping invite tests.');
-      return;
-    }
+    if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const jwt = await jwtFor(SEED.dispatcherEmail);
     const res = await fetch(`${PDF_SERVICE_URL}/transport/invite-driver`, {
       method: 'POST',
@@ -336,7 +333,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
   });
 
   it('5b. company-side caller gets 403 from the invite endpoint', async () => {
-    if (!serviceUp) return;
+    if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const jwt = await jwtFor(SEED.managerEmail);
     const res = await fetch(`${PDF_SERVICE_URL}/transport/invite-driver`, {
       method: 'POST',
