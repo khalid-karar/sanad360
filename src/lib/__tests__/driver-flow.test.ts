@@ -42,10 +42,15 @@ const SEED = {
   transportCompanyId: 'c0000000-0000-0000-0000-000000000001',
   driverId:           'd0000000-0000-0000-0000-000000000001',
   vehicleId:          'e0000000-0000-0000-0000-000000000001',
-  managerEmail:       'manager@sanad360.dev',
-  managerPassword:    'DevPass1234!',
   driverEmail:        '0501234567@driver.sanad360.com',
   driverPassword:     'DevPass1234!',
+  // migration 044: the company side can no longer INSERT a full
+  // pickup_assignment (driver/vehicle NULL-only on request); this file's
+  // subject is the DRIVER's own flow, not assignment creation, so the
+  // fixture is seeded via the UNCHANGED 011 transport-side from-scratch
+  // path (real RLS insert, just as a dispatcher rather than a manager).
+  dispatcherEmail:    'dispatcher@sanad360.dev',
+  dispatcherPassword: 'DevPass1234!',
 };
 
 const RUN = Date.now();
@@ -69,7 +74,7 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 }
 
 describe('Driver assignment → evidence → ledger → completion', () => {
-  let managerClient: SupabaseClient;
+  let dispatcherClient: SupabaseClient;
   let driverClient: SupabaseClient;
   let assignmentId = '';
   let eventLogicalId = '';
@@ -77,13 +82,16 @@ describe('Driver assignment → evidence → ledger → completion', () => {
   let photoPath = '';
 
   beforeAll(async () => {
-    [managerClient, driverClient] = await Promise.all([
-      sessionClient(SEED.managerEmail, SEED.managerPassword),
+    [dispatcherClient, driverClient] = await Promise.all([
+      sessionClient(SEED.dispatcherEmail, SEED.dispatcherPassword),
       sessionClient(SEED.driverEmail, SEED.driverPassword),
     ]);
 
-    // Manager (dispatch side) schedules the pickup — real RLS insert.
-    const { data: a, error } = await managerClient
+    // Transport dispatcher creates the assignment from scratch, its own
+    // driver+vehicle, for the linked company — the unchanged 011 path
+    // (migration 044 only reshapes the COMPANY-side insert; this one is
+    // untouched). Real RLS insert, lands directly in 'pending'.
+    const { data: a, error } = await dispatcherClient
       .from('pickup_assignments')
       .insert({
         company_id: SEED.companyId,

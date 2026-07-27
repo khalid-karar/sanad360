@@ -36,6 +36,11 @@ const SEED = {
   managerPassword: 'DevPass1234!',
   driverEmail: '0501234567@driver.sanad360.com',
   driverPassword: 'DevPass1234!',
+  // migration 044: the transport side assigns driver+vehicle onto the
+  // company's request — the seeded dispatcher, transport-side member of
+  // SEED.transportCompanyId (actively linked to SEED.companyId).
+  dispatcherEmail: 'dispatcher@sanad360.dev',
+  dispatcherPassword: 'DevPass1234!',
   managerUserId: 'f0000000-0000-0000-0000-000000000001',
   driverUserId: 'f0000000-0000-0000-0000-000000000002',
 };
@@ -64,6 +69,7 @@ async function sessionClient(email: string, password: string): Promise<{ client:
 describe('Phase 3 Acceptance Tests', () => {
   let managerClient: SupabaseClient;
   let driverClient: SupabaseClient;
+  let dispatcherClient: SupabaseClient;
 
   beforeAll(async () => {
     const { data: seedCheck } = await admin
@@ -72,6 +78,7 @@ describe('Phase 3 Acceptance Tests', () => {
 
     managerClient = (await sessionClient(SEED.managerEmail, SEED.managerPassword)).client;
     driverClient = (await sessionClient(SEED.driverEmail, SEED.driverPassword)).client;
+    dispatcherClient = (await sessionClient(SEED.dispatcherEmail, SEED.dispatcherPassword)).client;
 
     // ── Second tenant for isolation: company2 + owner user2 ──
     const stamp = Date.now();
@@ -118,25 +125,39 @@ describe('Phase 3 Acceptance Tests', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  it('1. Assignment lifecycle: create → accept → complete → pickup_event linked', async () => {
-    // Manager (company member) creates the assignment.
-    const { data: created, error: createErr } = await managerClient
+  it('1. Assignment lifecycle: request → assign → accept → complete → pickup_event linked', async () => {
+    // Manager (company member) REQUESTS the pickup — no driver/vehicle yet
+    // (migration 044: separation of duties, company never chooses who does it).
+    const { data: requested, error: requestErr } = await managerClient
       .from('pickup_assignments')
       .insert({
         company_id: SEED.companyId,
         branch_id: SEED.branchId,
-        driver_id: SEED.driverId,
-        vehicle_id: SEED.vehicleId,
         scheduled_at: new Date(Date.now() + 3600_000).toISOString(),
         notes: 'phase3 lifecycle',
+        status: 'requested',
       })
+      .select()
+      .single<{ id: string; status: string; driver_id: string | null; vehicle_id: string | null }>();
+
+    expect(requestErr).toBeNull();
+    expect(requested).not.toBeNull();
+    expect(requested!.status).toBe('requested');
+    expect(requested!.driver_id).toBeNull();
+    expect(requested!.vehicle_id).toBeNull();
+    cleanup.assignmentIds.push(requested!.id);
+
+    // The linked transport company's dispatcher assigns its OWN driver+vehicle.
+    const { data: created, error: createErr } = await dispatcherClient
+      .from('pickup_assignments')
+      .update({ driver_id: SEED.driverId, vehicle_id: SEED.vehicleId, status: 'pending' })
+      .eq('id', requested!.id)
       .select()
       .single<{ id: string; status: string }>();
 
     expect(createErr).toBeNull();
     expect(created).not.toBeNull();
     expect(created!.status).toBe('pending');
-    cleanup.assignmentIds.push(created!.id);
 
     // Driver accepts (driver is in the assigned transport company → UPDATE allowed).
     const { data: accepted, error: acceptErr } = await driverClient

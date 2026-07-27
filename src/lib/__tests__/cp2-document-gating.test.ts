@@ -497,7 +497,15 @@ describe('CP2 — onboarding & compliance document gating', () => {
     const status = await ownerStatus(transportClient, 'driver', driverNoDocsId);
     expect(status.activation_status).not.toBe('active'); // reporting is untouched — still onboarding
 
-    const { data, error } = await companyClient.from('pickup_assignments').insert({
+    // migration 044: the company side can no longer INSERT a full
+    // pickup_assignment (driver/vehicle NULL-only on request). This test's
+    // subject is the document GATE, not the company/dispatcher RLS split —
+    // seeded via the unchanged 011 transport-side from-scratch path instead
+    // (transportClient is owner/manager of SEED.transportCompanyId, which
+    // owns driverNoDocsId/vehicleActiveId and is actively linked to
+    // SEED.companyId), so the gate still runs against these exact
+    // driver/vehicle values.
+    const { data, error } = await transportClient.from('pickup_assignments').insert({
       company_id: SEED.companyId,
       branch_id: SEED.branchId,
       driver_id: driverNoDocsId, // grandfathered, zero documents

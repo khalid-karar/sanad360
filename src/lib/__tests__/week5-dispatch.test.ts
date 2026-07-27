@@ -75,7 +75,6 @@ async function isPdfServiceUp(): Promise<boolean> {
 }
 
 describe('Week 5: notifications, transport dispatch, driver invites', () => {
-  let managerClient: SupabaseClient;
   let dispatcherClient: SupabaseClient;
   let driverClient: SupabaseClient;
   let serviceUp = false;
@@ -97,8 +96,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
 
   beforeAll(async () => {
     serviceUp = await isPdfServiceUp();
-    [managerClient, dispatcherClient, driverClient] = await Promise.all([
-      sessionClient(SEED.managerEmail),
+    [dispatcherClient, driverClient] = await Promise.all([
       sessionClient(SEED.dispatcherEmail),
       sessionClient(SEED.driverEmail),
     ]);
@@ -202,7 +200,14 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
   });
 
   it('1. creating an assignment notifies the assigned driver (server trigger)', async () => {
-    const { data: a, error } = await managerClient
+    // migration 044: the company side can no longer INSERT a full
+    // pickup_assignment (driver/vehicle NULL-only on request). This test's
+    // subject is the notify_assignment_created() TRIGGER, not
+    // assignment-creation RLS, so it's seeded via the unchanged 011
+    // transport-side from-scratch path (same dispatcherClient test 2 uses)
+    // — that INSERT still sets driver_id directly, which is exactly the
+    // shape this trigger fires on.
+    const { data: a, error } = await dispatcherClient
       .from('pickup_assignments')
       .insert({
         company_id: SEED.companyId,
