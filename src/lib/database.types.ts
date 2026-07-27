@@ -334,14 +334,17 @@ export type CreateVehicleInput = Omit<Vehicle, 'id' | 'created_at' | 'compliance
 // ─── Phase 3 tables ──────────────────────────────────────────────────────────
 
 export type AssignmentStatus =
-  | 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+  | 'requested' | 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
 
 export interface PickupAssignment {
   id: string;
   company_id: string;
   branch_id: string;
-  driver_id: string;
-  vehicle_id: string;
+  /** NULL while status='requested' (migration 044) — the company requests a
+   *  pickup, a linked transport company's dispatcher assigns its own driver
+   *  + vehicle, which is what sets these and moves status to 'pending'. */
+  driver_id: string | null;
+  vehicle_id: string | null;
   scheduled_at: string;
   /** Recurrence series (migration 016): completing spawns the next occurrence. */
   recurrence: 'none' | 'daily' | 'weekly';
@@ -358,11 +361,12 @@ export interface PickupAssignment {
   updated_at: string;
 }
 
-export type CreateAssignmentInput = {
+/** The company REQUESTS a pickup — it never sets driver_id/vehicle_id
+ *  (migration 044 separation of duties; enforced server-side, not just by
+ *  this type). Always lands as status='requested'. */
+export type CreateAssignmentRequestInput = {
   company_id: string;
   branch_id: string;
-  driver_id: string;
-  vehicle_id: string;
   scheduled_at: string;
   recurrence?: 'none' | 'daily' | 'weekly';
   recurrence_until?: string;

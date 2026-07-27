@@ -33,6 +33,7 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
 import RecyclerDashboard from './pages/RecyclerDashboard';
 import TransportTripsPage from './pages/TransportTripsPage';
+import TransportAssignRequestsPage from './pages/TransportAssignRequestsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
 import BranchOperatorPage from './pages/BranchOperatorPage';
@@ -393,6 +394,14 @@ function App() {
           element={
             user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
               ? <TransportTripsPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/transport/assign-requests"
+          element={
+            user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
+              ? <TransportAssignRequestsPage />
               : <Navigate to="/login" replace />
           }
         />

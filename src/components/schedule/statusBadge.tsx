@@ -8,6 +8,7 @@ interface StatusMeta {
 }
 
 const STATUS_META: Record<AssignmentStatus, StatusMeta> = {
+  requested:   { ar: 'طلب جديد',     en: 'Requested',   cls: 'bg-purple-100 text-purple-800' },
   pending:     { ar: 'قيد الانتظار', en: 'Pending',     cls: 'bg-yellow-100 text-yellow-800' },
   accepted:    { ar: 'مقبول',        en: 'Accepted',    cls: 'bg-blue-100 text-blue-800' },
   in_progress: { ar: 'قيد التنفيذ',  en: 'In Progress', cls: 'bg-orange-100 text-orange-800' },

@@ -109,10 +109,9 @@ async function makeRig(tag: string): Promise<Rig> {
 async function makeOwner(email: string, kind: 'company' | 'transport_company', tenantId: string): Promise<SupabaseClient> {
   const { data: created, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
   if (error || !created.user) throw new Error(`createUser failed (${email}): ${error?.message}`);
-  const membership = kind === 'company'
-    ? { user_id: created.user.id, role: 'owner', company_id: tenantId }
-    : { user_id: created.user.id, role: 'dispatcher', transport_company_id: tenantId };
-  const { error: memErr } = await admin.from('memberships').insert(membership);
+  const { error: memErr } = kind === 'company'
+    ? await admin.from('memberships').insert({ user_id: created.user.id, role: 'owner', company_id: tenantId })
+    : await admin.from('memberships').insert({ user_id: created.user.id, role: 'dispatcher', transport_company_id: tenantId });
   if (memErr) throw new Error(`membership insert failed (${email}): ${memErr.message}`);
   return sessionClient(email);
 }

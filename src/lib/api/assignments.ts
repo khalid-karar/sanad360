@@ -1,7 +1,7 @@
 import { supabase } from '../supabase';
 import type {
   PickupAssignment,
-  CreateAssignmentInput,
+  CreateAssignmentRequestInput,
   AssignmentStatus,
 } from '../database.types';
 
@@ -23,9 +23,20 @@ import type {
 //   • Admins:
 //       see everything ((my_membership()).role = 'admin').
 //
-//   INSERT is restricted to owner/manager/dispatcher of the owning company;
-//   UPDATE is allowed for those roles OR a driver in the assigned transport
-//   company (so drivers can accept / start / complete their own work).
+//   • Transport staff of a LINKED (but not yet assigning) company:
+//       can additionally see that company's still-unassigned 'requested'
+//       rows (migration 044) — otherwise there'd be nothing to discover.
+//
+//   INSERT: a company (owner/manager/dispatcher) may only create a
+//   'requested' row with driver_id/vehicle_id NULL — separation of duties,
+//   migration 044. It can never choose who does the pickup. UPDATE for
+//   company staff (branch/date/notes/status->cancelled, never
+//   driver_id/vehicle_id) is otherwise unchanged. A LINKED transport
+//   company's owner/manager/dispatcher may UPDATE a 'requested' row to set
+//   ITS OWN driver_id/vehicle_id, moving it to 'pending' — see
+//   assignDriverVehicle() below. Drivers can accept/start/complete their own
+//   work as before. 011's dispatcher-creates-a-full-row-from-scratch INSERT
+//   path (for its own linked companies) is unchanged and not exposed here.
 //
 //   Because all access is enforced server-side by RLS, these API helpers never
 //   need to re-check the tenant — they simply issue the query and let Postgres
@@ -60,17 +71,62 @@ export async function listAssignments(
   return (data as PickupAssignment[]) ?? [];
 }
 
-export async function createAssignment(
-  input: CreateAssignmentInput
+/**
+ * The company REQUESTS a pickup — driver_id/vehicle_id are never sent
+ * (migration 044); the server additionally rejects them if a caller tries.
+ * Always lands as status='requested'. See assignDriverVehicle() for the
+ * transport side's half of the flow.
+ */
+export async function createAssignmentRequest(
+  input: CreateAssignmentRequestInput
 ): Promise<PickupAssignment> {
   const { data, error } = await supabase
     .from('pickup_assignments')
-    .insert(input)
+    .insert({ ...input, status: 'requested' })
     .select()
     .single<PickupAssignment>();
 
   if (error) throw error;
   return data;
+}
+
+/**
+ * A linked transport company's owner/manager/dispatcher assigns ITS OWN
+ * driver + vehicle onto a still-'requested' row, moving it to 'pending'.
+ * Server-validated (RLS + trigger): active company_transporters link,
+ * driver/vehicle must belong to the caller's own fleet, and no other column
+ * may change in the same call. See migration 044.
+ */
+export async function assignDriverVehicle(
+  assignmentId: string,
+  driverId: string,
+  vehicleId: string
+): Promise<PickupAssignment> {
+  const { data, error } = await supabase
+    .from('pickup_assignments')
+    .update({ driver_id: driverId, vehicle_id: vehicleId, status: 'pending' })
+    .eq('id', assignmentId)
+    .select()
+    .single<PickupAssignment>();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * A linked transport company's still-unassigned 'requested' rows — the pool
+ * a dispatcher picks from to assign driver + vehicle. RLS (044's new SELECT
+ * arm) already scopes this to companies the caller's transport company is
+ * actively linked to.
+ */
+export async function listUnassignedRequestsForTransport(): Promise<PickupAssignment[]> {
+  const { data, error } = await supabase
+    .from('pickup_assignments')
+    .select('*')
+    .eq('status', 'requested')
+    .order('scheduled_at', { ascending: true });
+  if (error) throw error;
+  return (data as PickupAssignment[]) ?? [];
 }
 
 /**
