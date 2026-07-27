@@ -115,7 +115,7 @@ export default function TransportAssignRequestsPage() {
       <div className={`space-y-6 ${isRTL ? 'rtl' : 'ltr'}`}>
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-1">
-            {isRTL ? 'طلبات الالتقاط' : 'Pickup Requests'}
+            {isRTL ? 'إسناد الطلبات' : 'Assign Requests'}
           </h1>
           <p className="text-muted-foreground">
             {isRTL

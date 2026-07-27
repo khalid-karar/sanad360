@@ -89,7 +89,7 @@ export default function Sidebar({ role }: SidebarProps) {
     { icon: UsersIcon, label: isRTL ? 'إدارة السائقين' : 'Driver Management', path: '/transport/drivers' },
     { icon: TruckIcon, label: isRTL ? 'إدارة المركبات' : 'Vehicle Management', path: '/transport/vehicles' },
     { icon: ClipboardListIcon, label: isRTL ? 'سجل الالتقاطات' : 'Pickup Log', path: '/transport/pickups' },
-    { icon: ClipboardCheckIcon, label: isRTL ? 'طلبات الالتقاط' : 'Pickup Requests', path: '/transport/assign-requests' },
+    { icon: ClipboardCheckIcon, label: isRTL ? 'إسناد الطلبات' : 'Assign Requests', path: '/transport/assign-requests' },
     { icon: FactoryIcon, label: isRTL ? 'الرحلات' : 'Trips', path: '/transport/trips' },
     { icon: FileCheckIcon, label: isRTL ? 'المستندات والتأسيس' : 'Onboarding & Documents', path: '/transport/onboarding' },
   ];

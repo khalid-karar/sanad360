@@ -90,6 +90,37 @@ export async function createTransportTenant(runId: number): Promise<TenantFixtur
 }
 
 /**
+ * A dispatcher account for an already-created transport tenant.
+ *
+ * No browser UI (or backend endpoint) exists for a transport owner to
+ * invite a dispatcher/team member — confirmed via grep, only
+ * /transport/invite-driver exists (that's for FLEET drivers, a different
+ * concept: a `drivers` row gaining a linked login, not a new membership).
+ * Real server-side seeding via service_role, same posture as facility
+ * creation below — not a UI bypass, there is no UI to bypass. The LOGIN
+ * and the assign-request ACTION (CP8 migration 044 separation of duties)
+ * this dispatcher performs are both real UI, real RLS.
+ */
+export async function createDispatcherForTransport(
+  transportCompanyId: string, runId: number
+): Promise<TenantFixture> {
+  const email = `e2e-g-dispatcher-${runId}@sanad360.dev`;
+  const { data: authUser, error: authErr } = await admin.auth.admin.createUser({
+    email, password: PASSWORD, email_confirm: true,
+  });
+  if (authErr || !authUser.user) throw new Error(`createUser (dispatcher) failed: ${authErr?.message}`);
+  const ownerUserId = authUser.user.id;
+  await admin.from('profiles').upsert({ id: ownerUserId, name_ar: 'موظف تنسيق النقل' }, { onConflict: 'id' });
+
+  const { error: memErr } = await admin
+    .from('memberships')
+    .insert({ user_id: ownerUserId, role: 'dispatcher', transport_company_id: transportCompanyId });
+  if (memErr) throw new Error(`memberships.insert (dispatcher) failed: ${memErr.message}`);
+
+  return { ownerEmail: email, ownerUserId, password: PASSWORD };
+}
+
+/**
  * Facility creation has NO browser UI anywhere in this app (confirmed via
  * grep — /admin/facilities and /admin/invite-recycler are services/pdf HTTP
  * endpoints only, never wired to a React page). Real server-side action via

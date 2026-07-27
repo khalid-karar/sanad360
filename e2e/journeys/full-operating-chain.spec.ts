@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { admin } from '../helpers/supabaseAdmin';
-import { createCompanyTenant, createTransportTenant, adminAuthHeader } from '../helpers/fixtures';
+import { createCompanyTenant, createTransportTenant, createDispatcherForTransport, adminAuthHeader } from '../helpers/fixtures';
 import { extractPdfText } from '../helpers/pdf';
 
 /**
@@ -12,17 +12,24 @@ import { extractPdfText } from '../helpers/pdf';
  * e2e/helpers/fixtures.ts, so this test spends its time on NEW ground):
  * branch onboarding -> driver/vehicle onboarding with real document upload
  * -> a reviewer verifying them via the real UI -> transporter linking ->
- * pickup scheduling -> a driver executing a real pickup (real dynamic branch
- * QR via manual entry, real geofence via Playwright's geolocation mock, real
- * evidence files) -> a trip to a facility -> a scale operator confirming the
- * weighbridge weight -> weight reconciliation -> downloading and verifying
- * the inspection PDF and the All-Branches pack.
+ * pickup REQUEST (company, no driver/vehicle choice) -> a DISTINCT
+ * dispatcher account assigning its own driver+vehicle (CP8 migration 044
+ * separation of duties: /transport/assign-requests, real fresh login, real
+ * UI — the first exercise of the dispatcher role in this journey) -> a
+ * driver executing a real pickup (real dynamic branch QR via manual entry,
+ * real geofence via Playwright's geolocation mock, real evidence files) ->
+ * a trip to a facility -> a scale operator confirming the weighbridge
+ * weight -> weight reconciliation -> downloading and verifying the
+ * inspection PDF and the All-Branches pack.
  *
  * Facility creation/linking has NO browser UI anywhere in this app (grep
  * confirms /admin/facilities and /admin/invite-recycler are services/pdf
  * HTTP endpoints only) — that stage authenticates as the seeded admin
  * account and calls those endpoints directly (a real server-side action,
- * not a UI bypass; there is no UI to bypass).
+ * not a UI bypass; there is no UI to bypass). The dispatcher ACCOUNT is
+ * seeded the same way for the same reason (no invite-dispatcher UI/endpoint
+ * exists — see createDispatcherForTransport's own comment) — but logging in
+ * as that account and performing the assignment are both real UI actions.
  *
  * Every OTHER stage drives the real UI in a real browser. Where a UI has a
  * known hardcoded-mock widget (TransportKPIs/AdminKPIs/ComplianceMap/
@@ -58,6 +65,12 @@ test('full operating chain: branch -> transporter -> facility -> trip -> weighbr
   // ── Fixtures: pre-approved tenants (Slice F already proved this UI) ──────
   const company = await createCompanyTenant(RUN);
   const transport = await createTransportTenant(RUN);
+  // CP8 migration 044 separation of duties: the dispatcher who assigns the
+  // driver+vehicle must be a DISTINCT account from the transport owner (no
+  // UI exists to invite one — see createDispatcherForTransport's own
+  // comment — the account itself is seeded; logging in and assigning are
+  // both real UI).
+  const dispatcher = await createDispatcherForTransport(transport.transportCompanyId, RUN);
 
   let facilityId = '';
   let scaleOperatorEmail = '';
@@ -255,15 +268,18 @@ test('full operating chain: branch -> transporter -> facility -> trip -> weighbr
   });
 
   let assignmentId = '';
-  await test.step('company owner schedules a pickup for the new branch/driver/vehicle', async () => {
+  await test.step('company owner REQUESTS a pickup for the new branch (no driver/vehicle choice — CP8 migration 044)', async () => {
     await companyPage.goto('/company/schedule');
     // The sidebar nav item for this very page is ALSO labeled "طلب التقاط"
     // (the page name and its own primary action happen to share the exact
     // same Arabic string) — scope to <main> for the real action button.
     await companyPage.locator('main').getByRole('button', { name: 'طلب التقاط' }).click();
     await companyPage.locator('#schedule-branch').selectOption(branchId);
-    await companyPage.locator('#schedule-driver').selectOption(driverId);
-    await companyPage.locator('#schedule-vehicle').selectOption(vehicleId);
+    // No #schedule-driver/#schedule-vehicle — migration 044 removed them
+    // from this form entirely; the company can never choose who does the
+    // pickup, only the linked transporter's dispatcher can (next step).
+    await expect(companyPage.locator('#schedule-driver')).toHaveCount(0);
+    await expect(companyPage.locator('#schedule-vehicle')).toHaveCount(0);
 
     // DateTimePicker (src/components/ui/date-picker.tsx) is a fully
     // controlled component: each segment's onChange computes its `next`
@@ -296,11 +312,50 @@ test('full operating chain: branch -> transporter -> facility -> trip -> weighbr
 
     await expect(async () => {
       const { data: assignment } = await admin
-        .from('pickup_assignments').select('id').eq('company_id', company.companyId)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle<{ id: string }>();
+        .from('pickup_assignments').select('id, status, driver_id, vehicle_id').eq('company_id', company.companyId)
+        .order('created_at', { ascending: false }).limit(1)
+        .maybeSingle<{ id: string; status: string; driver_id: string | null; vehicle_id: string | null }>();
       expect(assignment).toBeTruthy();
+      expect(assignment!.status).toBe('requested');
+      expect(assignment!.driver_id).toBeNull();
+      expect(assignment!.vehicle_id).toBeNull();
       assignmentId = assignment!.id;
     }).toPass({ timeout: 10_000 });
+
+    // UI truth, not just DB: the table shows the request as unassigned.
+    await expect(companyPage.getByText('بانتظار الإسناد')).toBeVisible();
+  });
+
+  const dispatcherCtx = await browser.newContext();
+  const dispatcherPage = await dispatcherCtx.newPage();
+
+  await test.step("transport DISPATCHER (a distinct account from the owner, logged in fresh) assigns its own driver+vehicle to the company's request", async () => {
+    await dispatcherPage.goto('/login');
+    await dispatcherPage.locator('#login-identifier').fill(dispatcher.ownerEmail);
+    await dispatcherPage.locator('#login-password').fill(dispatcher.password);
+    await dispatcherPage.getByRole('button', { name: 'تسجيل الدخول' }).click();
+    await expect(dispatcherPage).toHaveURL(/\/transport/);
+
+    await dispatcherPage.goto('/transport/assign-requests');
+    const requestCard = dispatcherPage.locator('main').filter({ hasText: BRANCH_NAME });
+    await expect(requestCard).toBeVisible({ timeout: 10_000 });
+    await requestCard.getByRole('button', { name: 'إسناد سائق ومركبة' }).click();
+
+    await dispatcherPage.locator('#assign-driver').selectOption(driverId);
+    await dispatcherPage.locator('#assign-vehicle').selectOption(vehicleId);
+    await dispatcherPage.getByRole('button', { name: 'إسناد', exact: true }).click();
+
+    await expect(async () => {
+      const { data: assignment } = await admin
+        .from('pickup_assignments').select('status, driver_id, vehicle_id').eq('id', assignmentId)
+        .single<{ status: string; driver_id: string | null; vehicle_id: string | null }>();
+      expect(assignment.status).toBe('pending');
+      expect(assignment.driver_id).toBe(driverId);
+      expect(assignment.vehicle_id).toBe(vehicleId);
+    }).toPass({ timeout: 10_000 });
+
+    // UI truth: the request drops off the dispatcher's own unassigned list.
+    await expect(dispatcherPage.locator('main').filter({ hasText: BRANCH_NAME })).toHaveCount(0);
   });
 
   let tripId = '';
@@ -536,6 +591,7 @@ test('full operating chain: branch -> transporter -> facility -> trip -> weighbr
 
   await companyCtx.close();
   await transportCtx.close();
+  await dispatcherCtx.close();
   await driverCtx.close();
   await recyclerCtx.close();
 });

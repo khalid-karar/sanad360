@@ -173,3 +173,21 @@ for things that already work correctly at pilot scale.
   a handful of hand-provisioned partners), this needs an actual admin-console page wrapping those two
   endpoints (facility create form + recycler-manager invite form), not a new capability, just UI on an
   already-real, already-authorized server action.
+
+- **No invite path exists for dispatcher/manager (or any non-driver tenant role) — only
+  `/transport/invite-driver`.** Found while reshaping CP8 Slice G's E2E for migration 044 (separation of
+  duties: a transport dispatcher, not the owner, must assign driver+vehicle to a company's pickup
+  request): a grep across `src/lib/api` and `services/pdf/src/routes` confirms the ONLY tenant-role
+  invite endpoint is `/transport/invite-driver`, which links a `drivers` fleet record to a new login —
+  a different concept from inviting a plain dispatcher/manager membership with no fleet record behind
+  it. There is no `/transport/invite-staff` (or company-side equivalent), and combined with the
+  member-list + revoke gap logged above, transport/company team management (invite any tenant role,
+  list members, revoke) is entirely unbuilt. The E2E test provisions its dispatcher account directly via
+  service_role (`e2e/helpers/fixtures.ts`'s `createDispatcherForTransport()`), the same posture as the
+  facility/admin seeding above — real login, real assignment action, seeded account.
+  **Why this is a feature gap, not a bug:** fine for pilot scale — Maya ops provisions dispatcher/manager
+  accounts by hand (service_role) as each transport company's staffing needs come up, same posture as
+  facility provisioning above. It was never wrong, just never built a UI on top of.
+  **Where this resurfaces:** before a transport company or generator company can self-serve staffing
+  their own team, this needs a real invite-any-tenant-role endpoint/UI plus the member-list + revoke UI
+  from the gap above — a single "team management" feature covering both, not two separate builds.
