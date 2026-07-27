@@ -8,7 +8,7 @@ import { assertCompanyAccess } from '../lib/auth.js';
 import type {
   AuthedRequest, PickupEventRow, CompanyRow, BranchRow,
   TransportCompanyRow, DriverRow, VehicleRow, HashCheck, EvidenceHashChecks,
-  DisposalRow, FacilityRow, TripRow,
+  DisposalRow, FacilityRow, TripRow, PickupConfirmationRow,
 } from '../types.js';
 
 // Server-side integrity check: compare the SHA-256 recorded in the append-only
@@ -105,6 +105,26 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     disposalPhotoCheck = checkHash(disposal.weighbridge_photo_path, disposal.weighbridge_photo_sha256, photo);
   }
 
+  // 4c. Branch confirmation (migration 026/030): the branch_operator's own
+  //     attestation of THIS pickup — distinct from the disposal_confirmations
+  //     chain above (that's the recycler's confirmation of the whole TRIP).
+  //     A pickup with compliance_status='pending_confirmation' has none of
+  //     these yet; the template renders that state explicitly rather than
+  //     silently omitting the section.
+  const { data: branchConfirmation } = await admin
+    .from('pickup_confirmations')
+    .select('*')
+    .eq('pickup_event_id', event.id)
+    .maybeSingle<PickupConfirmationRow>();
+
+  let branchConfirmationSignatureCheck: HashCheck = 'unavailable';
+  if (branchConfirmation) {
+    const sig = await fetchEvidence('pickup-confirmation-signatures', branchConfirmation.signature_path);
+    branchConfirmationSignatureCheck = checkHash(
+      branchConfirmation.signature_path, branchConfirmation.signature_sha256, sig
+    );
+  }
+
   // 5. Render HTML → PDF
   const generatedAt = new Date().toISOString();
   const documentId = event.id.substring(0, 8).toUpperCase();
@@ -127,6 +147,8 @@ export async function handleSinglePickup(req: AuthedRequest, res: Response): Pro
     disposalFacility: facility ?? null,
     disposalPhotoCheck,
     trip: trip ?? null,
+    branchConfirmation: branchConfirmation ?? null,
+    branchConfirmationSignatureCheck,
     documentId,
     generatedAt,
   };

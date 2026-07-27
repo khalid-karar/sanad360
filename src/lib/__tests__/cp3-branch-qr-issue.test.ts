@@ -3,8 +3,8 @@
  *
  * Migration 022/Part B: branches.qr_token is a server-only HMAC secret; the
  * only way any client ever gets a scannable value is this short-TTL (90s)
- * signed token. Skips automatically if the PDF service isn't reachable
- * (same pattern as phase2-acceptance.test.ts / evidence-integrity.test.ts).
+ * signed token. HARD-fails in beforeAll if the PDF service isn't reachable
+ * (CP8 Slice I — no more soft-skip; see testHelpers/pdfServiceCheck.ts).
  *
  * Assertions:
  *   1. Owner/manager of the branch's own company → 200 with {token, expires_at}
@@ -13,10 +13,13 @@
  *   4. The issued token actually verifies server-side: inserting a
  *      pickup_event with it sets qr_verified=true
  *   5. A tampered token (flipped signature byte) fails verification
+ *   6. (CP5) A branch_operator scoped to this exact branch → 200
+ *   7. (CP5) A branch_operator scoped to a DIFFERENT branch → 403
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { assertPdfServiceUp } from './testHelpers/pdfServiceCheck';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -44,15 +47,6 @@ const SEED = {
 
 const RUN = Date.now();
 
-async function isPdfServiceUp(): Promise<boolean> {
-  try {
-    const res = await fetch(`${PDF_SERVICE_URL}/health`, { signal: AbortSignal.timeout(3_000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function signIn(email: string, password: string): Promise<string> {
   const { data, error } = await anon.auth.signInWithPassword({ email, password });
   if (error || !data.session) throw new Error(`sign-in failed (${email}): ${error?.message}`);
@@ -72,20 +66,55 @@ async function issueQr(jwt: string, branchId: string): Promise<Response> {
 }
 
 describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
-  let serviceUp = false;
   let managerJwt = '';
   let driverJwt = '';
+  let driverUserId = '';
   let outsiderJwt = '';
   let outsiderCompanyId = '';
   let outsiderUserId = '';
+  let branchOperatorJwt = '';
+  let branchOperatorUserId = '';
+  let otherBranchOperatorJwt = '';
+  let otherBranchOperatorUserId = '';
+  let otherBranchId = '';
+  let dispatcherJwt = '';
+  let dispatcherUserId = '';
+  let consultantJwt = '';
+  let consultantUserId = '';
   const cleanupEventIds: string[] = [];
 
   beforeAll(async () => {
-    serviceUp = await isPdfServiceUp();
-    if (!serviceUp) return;
+    await assertPdfServiceUp(PDF_SERVICE_URL);
 
     managerJwt = await signIn(SEED.managerEmail, SEED.managerPassword);
-    driverJwt = await signIn(SEED.driverEmail, SEED.driverPassword);
+
+    // CP8 Slice H: a dedicated, per-run driver account — NOT the globally
+    // shared seed driver (0501234567@driver.sanad360.com). That shared
+    // credential is signed into directly by 13+ other test files; some of
+    // them call `.signOut()` with the default (global) scope, which revokes
+    // EVERY session for that user, not just the caller's own — including a
+    // JWT this file already captured in an earlier beforeAll. Confirmed via
+    // direct diagnosis: the resulting 401 here was never a thrown exception
+    // or a transient network failure (that failure mode IS real and is now
+    // separately fixed in authMiddleware's bounded retry) — it was a genuine
+    // AuthSessionMissingError ("session_not_found"), i.e. GoTrue correctly
+    // reporting that this exact session had been revoked out from under it.
+    // grant-audit.test.ts's own comment already documents this exact class
+    // of bug and fixes it with per-email isolated clients; every OTHER role
+    // in this file (outsider/branch_operator/dispatcher/consultant) already
+    // gets its own fresh, per-run account — the driver was the one exception.
+    const { data: driverCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-driver-${RUN}@driver.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    driverUserId = driverCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: driverUserId,
+      role: 'driver',
+      transport_company_id: SEED.transportCompanyId,
+    });
+    driverJwt = await signIn(`branch-qr-driver-${RUN}@driver.sanad360.dev`, 'DevPass1234!');
 
     // An owner/manager of a completely unrelated company (tenant mismatch case).
     const { data: company } = await admin
@@ -107,6 +136,76 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
       company_id: outsiderCompanyId,
     });
     outsiderJwt = await signIn(`branch-qr-outsider-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A branch_operator scoped to SEED.branchId itself.
+    const { data: boCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-operator-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    branchOperatorUserId = boCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: branchOperatorUserId,
+      role: 'branch_operator',
+      company_id: SEED.companyId,
+      branch_id: SEED.branchId,
+    });
+    branchOperatorJwt = await signIn(`branch-qr-operator-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A SECOND branch_operator scoped to a DIFFERENT branch under the same
+    // company — proves the branch_operator carve-out is scoped to their own
+    // branch_id, not their company.
+    const { data: otherBranch } = await admin
+      .from('branches')
+      .insert({ company_id: SEED.companyId, name_ar: `فرع آخر ${RUN}` })
+      .select('id')
+      .single<{ id: string }>();
+    otherBranchId = otherBranch!.id;
+
+    const { data: otherBoCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-other-operator-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    otherBranchOperatorUserId = otherBoCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: otherBranchOperatorUserId,
+      role: 'branch_operator',
+      company_id: SEED.companyId,
+      branch_id: otherBranchId,
+    });
+    otherBranchOperatorJwt = await signIn(`branch-qr-other-operator-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A dispatcher of the SAME company (a role that DOES get write access to
+    // other branch-adjacent resources, e.g. pickup scheduling — proving it
+    // is NOT also admitted here matters more than an arbitrary role).
+    const { data: dispatcherCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-dispatcher-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    dispatcherUserId = dispatcherCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: dispatcherUserId,
+      role: 'dispatcher',
+      company_id: SEED.companyId,
+    });
+    dispatcherJwt = await signIn(`branch-qr-dispatcher-${RUN}@company.sanad360.dev`, 'DevPass1234!');
+
+    // A consultant (CP5) engaged with the SAME company — read-adjacent role,
+    // not a signing authority for this endpoint.
+    const { data: consultantCreated } = await admin.auth.admin.createUser({
+      email: `branch-qr-consultant-${RUN}@company.sanad360.dev`,
+      password: 'DevPass1234!',
+      email_confirm: true,
+    });
+    consultantUserId = consultantCreated.user!.id;
+    await admin.from('memberships').insert({
+      user_id: consultantUserId,
+      role: 'consultant',
+      company_id: SEED.companyId,
+    });
+    consultantJwt = await signIn(`branch-qr-consultant-${RUN}@company.sanad360.dev`, 'DevPass1234!');
   });
 
   afterAll(async () => {
@@ -117,10 +216,16 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
       await admin.auth.admin.deleteUser(outsiderUserId);
     }
     if (outsiderCompanyId) await admin.from('companies').delete().eq('id', outsiderCompanyId);
+    for (const uid of [branchOperatorUserId, otherBranchOperatorUserId, dispatcherUserId, consultantUserId, driverUserId]) {
+      if (!uid) continue;
+      await admin.from('memberships').delete().eq('user_id', uid);
+      await admin.from('profiles').delete().eq('id', uid);
+      await admin.auth.admin.deleteUser(uid).catch(() => {});
+    }
+    if (otherBranchId) await admin.from('branches').delete().eq('id', otherBranchId);
   });
 
   it('1. manager of the branch\'s own company gets a signed token', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(managerJwt, SEED.branchId);
     expect(res.status).toBe(200);
     const body = (await res.json()) as IssuedBranchQr;
@@ -131,19 +236,16 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   });
 
   it('2. a member of a different company is rejected with 403', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(outsiderJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });
 
   it('3. a driver-role caller is rejected with 403', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(driverJwt, SEED.branchId);
     expect(res.status).toBe(403);
   });
 
   it('4. the issued token verifies server-side (qr_verified=true on insert)', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(managerJwt, SEED.branchId);
     expect(res.status).toBe(200);
     const { token } = (await res.json()) as IssuedBranchQr;
@@ -174,7 +276,6 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
   });
 
   it('5. a tampered signature fails verification', async () => {
-    if (!serviceUp) { console.log('SKIP: PDF service not running'); return; }
     const res = await issueQr(managerJwt, SEED.branchId);
     const { token } = (await res.json()) as IssuedBranchQr;
     const [payloadB64, sigB64] = token.split('.');
@@ -207,5 +308,27 @@ describe('Branch QR issuer (services/pdf, Migration 022/Part B)', () => {
     cleanupEventIds.push(data!.id);
     expect(data!.qr_verified).toBe(false);
     expect(data!.risk_flags).toContain('qr_mismatch');
+  });
+
+  it('6. (CP5) a branch_operator scoped to this exact branch gets a signed token', async () => {
+    const res = await issueQr(branchOperatorJwt, SEED.branchId);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as IssuedBranchQr;
+    expect(body.token).toMatch(/^[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+$/);
+  });
+
+  it('7. (CP5) a branch_operator scoped to a DIFFERENT branch is rejected with 403', async () => {
+    const res = await issueQr(otherBranchOperatorJwt, SEED.branchId);
+    expect(res.status).toBe(403);
+  });
+
+  it('8. (CP5) a dispatcher of the SAME company is rejected with 403 — only owner/manager/admin or the branch\'s own branch_operator may issue', async () => {
+    const res = await issueQr(dispatcherJwt, SEED.branchId);
+    expect(res.status).toBe(403);
+  });
+
+  it('9. (CP5) a consultant engaged with the SAME company is rejected with 403', async () => {
+    const res = await issueQr(consultantJwt, SEED.branchId);
+    expect(res.status).toBe(403);
   });
 });

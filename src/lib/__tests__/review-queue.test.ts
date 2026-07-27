@@ -12,12 +12,20 @@
  *   2. Fully compliant event WITH confirmation → zero risk flags, custody closed
  *   3. Manager can acknowledge (alert_acknowledgements) and re-read it;
  *      duplicate acknowledgement hits the UNIQUE constraint (23505)
+ *   4. (CP6) custody_missing is NEVER resolved by acknowledgement — a
+ *      pickup with zero ordinary risk flags but open custody, even once
+ *      acknowledged, still comes back with needsAttention=true from
+ *      listFlaggedPickups(). Only a real disposal_confirmations row clears
+ *      it. An ordinary risk flag on an ALREADY custody-confirmed pickup
+ *      remains independently dismissible via the same acknowledgement path.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { grandfatherCompliance } from './testHelpers/complianceExempt';
+import { supabase } from '../supabase';
+import { listFlaggedPickups, acknowledgePickupReview } from '../api/review';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
 const ANON_KEY     = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -79,6 +87,10 @@ describe('Review queue data contract', () => {
   let facilityId = '';
   let facilityLinkId = '';
   let tripId = '';
+  let custodyOnlyEventId = '';
+  let mixedEventId = '';
+  let trip2Id = '';
+  let confirmation2Id = '';
 
   beforeAll(async () => {
     manager = await sessionClient(SEED.managerEmail);
@@ -211,11 +223,22 @@ describe('Review queue data contract', () => {
     if (confirmationId) await admin.from('disposal_confirmations').delete().eq('id', confirmationId);
     if (flaggedEventId) await admin.from('pickup_events').delete().eq('id', flaggedEventId);
     if (compliantEventId) await admin.from('pickup_events').delete().eq('id', compliantEventId);
+    if (custodyOnlyEventId) {
+      await admin.from('alert_acknowledgements').delete().eq('alert_key', `pickup_review:${custodyOnlyEventId}`);
+      await admin.from('pickup_events').delete().eq('id', custodyOnlyEventId);
+    }
+    if (mixedEventId) {
+      await admin.from('alert_acknowledgements').delete().eq('alert_key', `pickup_review:${mixedEventId}`);
+      await admin.from('pickup_events').delete().eq('id', mixedEventId);
+    }
+    if (confirmation2Id) await admin.from('disposal_confirmations').delete().eq('id', confirmation2Id);
+    if (trip2Id) await admin.from('trips').delete().eq('id', trip2Id);
     if (tripId) await admin.from('trips').delete().eq('id', tripId);
     if (facilityLinkId) await admin.from('facility_transporters').delete().eq('id', facilityLinkId);
     if (facilityId) await admin.from('facilities').delete().eq('id', facilityId);
     if (cleanDriverId) await admin.from('drivers').delete().eq('id', cleanDriverId);
     if (cleanVehicleId) await admin.from('vehicles').delete().eq('id', cleanVehicleId);
+    await supabase.auth.signOut({ scope: 'local' });
   });
 
   it('1. flagged event surfaces with risk flag + open custody chain', async () => {
@@ -273,5 +296,124 @@ describe('Review queue data contract', () => {
       .from('alert_acknowledgements')
       .insert({ company_id: SEED.companyId, alert_key: alertKey });
     expect(dupErr?.code).toBe('23505');
+  });
+
+  it('4. (CP6) custody_missing is never resolved by acknowledgement; an ordinary flag on an already custody-confirmed pickup IS independently dismissible', async () => {
+    // Sub-fixture A: zero ordinary risk flags, but never grouped into a
+    // trip — custody stays open regardless of anything else.
+    const { data: custodyOnlyEvent } = await admin
+      .from('pickup_events')
+      .insert({
+        logical_id: crypto.randomUUID(),
+        revision: 1,
+        company_id: SEED.companyId,
+        branch_id: SEED.branchId,
+        transport_company_id: SEED.transportCompanyId,
+        driver_id: cleanDriverId,
+        vehicle_id: cleanVehicleId,
+        waste_types: ['organic'],
+        weight_kg: 15,
+        gps_lat: 24.6877,
+        gps_lng: 46.6876,
+        gps_accuracy_m: 10,
+        qr_code_value: signQrToken(SEED.branchId, branchQrToken),
+        photo_path: 'rq/photo2.jpg',
+        signature_path: 'rq/sig2.png',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    custodyOnlyEventId = custodyOnlyEvent!.id;
+
+    // Acknowledge it anyway — this is exactly the move that must count for
+    // nothing against the custody flag.
+    const { error: ackErr } = await admin.from('alert_acknowledgements').insert({
+      company_id: SEED.companyId,
+      alert_key: `pickup_review:${custodyOnlyEventId}`,
+      acknowledged_by: SEED.managerProfileId,
+    });
+    expect(ackErr).toBeNull();
+
+    // Sub-fixture B: an ordinary flag (missing_photo), but custody IS
+    // confirmed — its own trip + confirmed disposal_confirmations row.
+    const { data: trip2 } = await admin
+      .from('trips')
+      .insert({
+        transport_company_id: SEED.transportCompanyId,
+        driver_id: cleanDriverId,
+        vehicle_id: cleanVehicleId,
+        planned_facility_id: facilityId,
+        waste_stream: 'organic',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    trip2Id = trip2!.id;
+
+    const { data: conf2 } = await admin
+      .from('disposal_confirmations')
+      .insert({ trip_id: trip2Id, status: 'confirmed', net_weight_kg: 15 })
+      .select('id')
+      .single<{ id: string }>();
+    confirmation2Id = conf2!.id;
+
+    const { data: mixedEvent } = await admin
+      .from('pickup_events')
+      .insert({
+        logical_id: crypto.randomUUID(),
+        revision: 1,
+        company_id: SEED.companyId,
+        branch_id: SEED.branchId,
+        transport_company_id: SEED.transportCompanyId,
+        driver_id: cleanDriverId,
+        vehicle_id: cleanVehicleId,
+        waste_types: ['organic'],
+        weight_kg: 15,
+        gps_lat: 24.6877,
+        gps_lng: 46.6876,
+        gps_accuracy_m: 10,
+        signature_path: 'rq/sig3.png', // no photo_path → missing_photo fires
+        trip_id: trip2Id,
+        qr_skip_reason: 'not_applicable_for_stream',
+      })
+      .select('id')
+      .single<{ id: string }>();
+    mixedEventId = mixedEvent!.id;
+
+    // listFlaggedPickups/acknowledgePickupReview use the shared `supabase`
+    // singleton internally — sign in as this same manager on it directly
+    // (this is the actual production code path, not a re-derivation of it).
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: SEED.managerEmail,
+      password: SEED.password,
+    });
+    expect(signInErr).toBeNull();
+
+    const records = await listFlaggedPickups(500);
+
+    const custodyOnly = records.find((r) => r.event.id === custodyOnlyEventId);
+    expect(custodyOnly).toBeDefined();
+    expect(custodyOnly!.reasons).toContain('custody_missing');
+    expect(custodyOnly!.otherReasons).toHaveLength(0);
+    expect(custodyOnly!.custodyConfirmed).toBe(false);
+    expect(custodyOnly!.reviewed).toBe(true); // it WAS acknowledged...
+    // ...but the core property holds: acknowledgement counts for nothing
+    // against custody. It must still surface as needing attention.
+    expect(custodyOnly!.needsAttention).toBe(true);
+
+    const mixed = records.find((r) => r.event.id === mixedEventId);
+    expect(mixed).toBeDefined();
+    expect(mixed!.custodyConfirmed).toBe(true);
+    expect(mixed!.otherReasons).toContain('missing_photo');
+    expect(mixed!.reviewed).toBe(false);
+    expect(mixed!.needsAttention).toBe(true); // unacknowledged ordinary flag
+
+    // Now acknowledge the mixed one — since custody is ALREADY confirmed,
+    // this fully resolves it (proving ordinary flags dismiss independently
+    // of custody, in either direction).
+    await acknowledgePickupReview(SEED.companyId, mixedEventId, SEED.managerProfileId);
+    const recordsAfter = await listFlaggedPickups(500);
+    const mixedAfter = recordsAfter.find((r) => r.event.id === mixedEventId);
+    expect(mixedAfter!.reviewed).toBe(true);
+    expect(mixedAfter!.custodyConfirmed).toBe(true);
+    expect(mixedAfter!.needsAttention).toBe(false);
   });
 });

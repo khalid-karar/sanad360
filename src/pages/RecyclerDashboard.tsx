@@ -132,7 +132,12 @@ function ScaleOperatorConsole({ isRTL }: { isRTL: boolean }) {
 
   const [confirming, setConfirming] = useState<Trip | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
+  // CP7: was a single raw err.message string (sometimes a technical,
+  // non-bilingual DOMException message) — now the same camera-vs-token
+  // distinction as driver/QRScanner.tsx: 'camera' means the camera itself
+  // never started (permission/hardware), 'token' means the camera worked
+  // but the scanned/typed code failed server-side validation.
+  const [scanError, setScanError] = useState<{ kind: 'camera' | 'token'; detail?: string } | null>(null);
   const [manualToken, setManualToken] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -165,7 +170,7 @@ function ScaleOperatorConsole({ isRTL }: { isRTL: boolean }) {
       const result = await validateTripQrToken(token);
       setConfirming(result.trip);
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : 'QR validation failed');
+      setScanError({ kind: 'token', detail: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -184,9 +189,21 @@ function ScaleOperatorConsole({ isRTL }: { isRTL: boolean }) {
           () => { /* frame without QR — ignore */ }
         )
         .catch((err: unknown) => {
-          setScanError(err instanceof Error ? err.message : String(err));
+          setScanError({ kind: 'camera', detail: err instanceof Error ? err.message : String(err) });
         });
     }, 100);
+  }
+
+  function scanErrorMessage(): string {
+    if (!scanError) return '';
+    if (scanError.kind === 'camera') {
+      return isRTL
+        ? 'تعذّر تشغيل الكاميرا. أدخل الرمز يدوياً أدناه.'
+        : 'Could not start the camera. Enter the token manually below.';
+    }
+    return isRTL
+      ? `تعذّر التحقق من الرمز: ${scanError.detail ?? ''}`
+      : `Could not validate the token: ${scanError.detail ?? ''}`;
   }
 
   return (
@@ -241,8 +258,14 @@ function ScaleOperatorConsole({ isRTL }: { isRTL: boolean }) {
       {scanning && (
         <Modal open onClose={stopScanner} isRTL={isRTL} title={isRTL ? 'مسح رمز QR' : 'Scan QR'}>
           <div className="space-y-4">
-            <div id={QR_ELEMENT_ID} className="w-full rounded-lg overflow-hidden bg-muted" style={{ minHeight: 280 }} />
-            {scanError && <p className="text-sm text-destructive">{scanError}</p>}
+            <div
+              id={QR_ELEMENT_ID}
+              className="w-full rounded-lg overflow-hidden bg-muted"
+              style={{ minHeight: 280 }}
+              aria-label={isRTL ? 'عرض كاميرا مسح رمز QR' : 'QR scanner camera view'}
+              role="img"
+            />
+            {scanError && <p className="text-sm text-destructive" role="alert">{scanErrorMessage()}</p>}
             <div className="space-y-2">
               <Label className="text-foreground">{isRTL ? 'أو أدخل الرمز يدوياً' : 'Or enter the token manually'}</Label>
               <div className="flex gap-2">
@@ -451,7 +474,7 @@ function ConfirmTripModal({
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="bg-background text-foreground border-input" />
         </div>
 
-        {formError && <p className="text-sm text-destructive">{formError}</p>}
+        {formError && <p className="text-sm text-destructive" role="alert">{formError}</p>}
 
         <div className="flex gap-3">
           <Button type="submit" disabled={submitting} className="gap-2">

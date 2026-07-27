@@ -172,11 +172,8 @@ describe('Evidence-file integrity (Migration 005)', () => {
     expect(await sha256Hex(bytes)).toBe(row!.photo_sha256);
   });
 
-  it('4. generated PDF embeds the photo_sha256 (skipped if service down)', async () => {
-    if (!(await isPdfServiceUp())) {
-      console.log('SKIP: PDF service not running');
-      return;
-    }
+  it('4. generated PDF embeds the photo_sha256', async () => {
+    if (!(await isPdfServiceUp())) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
 
     const { data: signIn } = await anon.auth.signInWithPassword({
       email: SEED.managerEmail,

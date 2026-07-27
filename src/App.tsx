@@ -33,24 +33,23 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
 import RecyclerDashboard from './pages/RecyclerDashboard';
 import TransportTripsPage from './pages/TransportTripsPage';
+import TransportAssignRequestsPage from './pages/TransportAssignRequestsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DocumentReviewQueuePage from './pages/DocumentReviewQueuePage';
+import BranchOperatorPage from './pages/BranchOperatorPage';
+import GovernmentViewPage from './pages/GovernmentViewPage';
+import ConsultantPortfolioPage from './pages/ConsultantPortfolioPage';
+import SignupPage from './pages/SignupPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import ApplicationStatusPage from './pages/ApplicationStatusPage';
+import ApplicationReviewQueuePage from './pages/ApplicationReviewQueuePage';
+import { homeRouteFor } from './lib/roleRouting';
 
 const RECYCLER_ROLES = ['recycler_manager', 'scale_operator'];
-
-// owner/manager exist on both company and transport-company tenants, so the
-// destination depends on which tenant field the active membership actually
-// set — see the identical fix in LoginPage.tsx's post-login redirect.
-function homeRouteFor(user: { role: string; transport_company_id: string | null }): string {
-  if (user.role === 'admin') return '/admin';
-  if (user.role === 'driver') return '/driver';
-  if (RECYCLER_ROLES.includes(user.role)) return '/recycler';
-  if (user.role === 'document_reviewer') return '/reviewer';
-  return user.transport_company_id ? '/transport' : '/company';
-}
+const MAYA_ADMIN_SHELL_ROLES = ['admin', 'super_admin', 'system_admin', 'support_agent', 'billing_accountant'];
 
 function App() {
-  const { user, hydrate } = useAuthStore();
+  const { user, isRTL, hydrate } = useAuthStore();
   const { initializeTheme } = useThemeStore();
   // true while we're checking if an existing session exists on first load
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -58,6 +57,18 @@ function App() {
   useEffect(() => {
     initializeTheme();
   }, [initializeTheme]);
+
+  // index.html hardcodes <html lang="ar" dir="rtl"> once, before any JS
+  // runs — toggleLanguage() only ever flipped the in-memory `isRTL` boolean,
+  // so the root <html> attributes went stale the moment a user switched
+  // language (every component re-renders correctly off isRTL, but native
+  // browser behavior keyed off the DOCUMENT's lang/dir — spell-check
+  // dictionary, date-picker direction, screen-reader language, :dir() CSS —
+  // did not). Keep both in sync on every change, not just on mount.
+  useEffect(() => {
+    document.documentElement.lang = isRTL ? 'ar' : 'en';
+    document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+  }, [isRTL]);
 
   // Offline disposal queue: replay pending custody confirmations (same
   // triggers as the pickup queue below).
@@ -182,6 +193,34 @@ function App() {
           }
         />
         <Route
+          path="/signup"
+          element={
+            user
+              ? <Navigate to={homeRouteFor(user)} replace />
+              : <SignupPage />
+          }
+        />
+        {/* CP5.5: reachable regardless of session state — an applicant
+            clicking their emailed link is normally logged OUT (email_confirm
+            only flips true once this page's own POST succeeds). */}
+        <Route path="/verify" element={<VerifyEmailPage />} />
+        <Route
+          path="/application-status"
+          element={
+            user?.role === 'applicant'
+              ? <ApplicationStatusPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/reviewer/applications"
+          element={
+            user && ['document_reviewer', 'admin', 'super_admin', 'system_admin'].includes(user.role)
+              ? <ApplicationReviewQueuePage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
           path="/driver"
           element={
             user?.role === 'driver'
@@ -280,7 +319,7 @@ function App() {
         <Route
           path="/admin"
           element={
-            user?.role === 'admin'
+            user && MAYA_ADMIN_SHELL_ROLES.includes(user.role)
               ? <AdminDashboard />
               : <Navigate to="/login" replace />
           }
@@ -288,7 +327,10 @@ function App() {
         <Route
           path="/admin/companies"
           element={
-            user?.role === 'admin'
+            // Full-admin only (mirrors DB is_full_admin()) — system_admin's
+            // actual permission surface is still a pending product decision
+            // (migration 025), so it doesn't get raw company-list access yet.
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <CompaniesPage />
               : <Navigate to="/login" replace />
           }
@@ -296,7 +338,7 @@ function App() {
         <Route
           path="/admin/users"
           element={
-            user?.role === 'admin'
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <AdminUsersPage />
               : <Navigate to="/login" replace />
           }
@@ -304,7 +346,7 @@ function App() {
         <Route
           path="/admin/analytics"
           element={
-            user?.role === 'admin'
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <AdminAnalyticsPage />
               : <Navigate to="/login" replace />
           }
@@ -356,6 +398,14 @@ function App() {
           }
         />
         <Route
+          path="/transport/assign-requests"
+          element={
+            user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
+              ? <TransportAssignRequestsPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
           path="/transport/onboarding"
           element={
             user && ['owner', 'manager', 'dispatcher'].includes(user.role) && user.transport_company_id
@@ -390,8 +440,32 @@ function App() {
         <Route
           path="/admin/document-review"
           element={
-            user?.role === 'admin'
+            user && ['admin', 'super_admin'].includes(user.role)
               ? <DocumentReviewQueuePage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/branch"
+          element={
+            user?.role === 'branch_operator' && user.branch_id
+              ? <BranchOperatorPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/gov"
+          element={
+            user?.role === 'gov_viewer'
+              ? <GovernmentViewPage />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/consultant"
+          element={
+            user?.role === 'consultant'
+              ? <ConsultantPortfolioPage />
               : <Navigate to="/login" replace />
           }
         />

@@ -57,7 +57,11 @@ export default function GeofenceMapPicker({
     }).addTo(map);
 
     const marker = L.marker(center, { draggable: true }).addTo(map);
-    const circle = L.circle(center, { radius: radiusM, color: '#16a34a', fillOpacity: 0.1 }).addTo(map);
+    // CP7 design-system pass: was raw hex (#16a34a) — a close-but-not-equal
+    // green to --primary (150 65% 26%), never actually tied to it. Leaflet's
+    // SVG path renderer resolves CSS custom properties in a color string
+    // same as any other CSS, so this now tracks the real token.
+    const circle = L.circle(center, { radius: radiusM, color: 'hsl(var(--primary))', fillOpacity: 0.1 }).addTo(map);
 
     marker.on('dragend', () => {
       const pos = marker.getLatLng();

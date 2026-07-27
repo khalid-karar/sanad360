@@ -14,8 +14,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
 import {
-  Loader2Icon, ImageIcon, PenLineIcon, FileTextIcon, CheckIcon, EyeIcon,
+  Loader2Icon, ImageIcon, PenLineIcon, FileTextIcon, CheckIcon, EyeIcon, ClipboardCheckIcon,
 } from 'lucide-react';
 
 const REASON_LABELS: Record<string, { ar: string; en: string }> = {
@@ -33,6 +34,9 @@ const REASON_LABELS: Record<string, { ar: string; en: string }> = {
   qr_skipped_with_reason:   { ar: 'تخطي QR بسبب مُسجَّل',       en: 'QR skipped with reason' },
   reduced_verification:     { ar: 'تحقق مخفَّض (QR إلزامي متخطى)', en: 'Reduced verification' },
   missing_required_evidence: { ar: 'دليل إلزامي مفقود',        en: 'Missing required evidence' },
+  // CP7: found rendering raw/untranslated during the review-queue audit —
+  // migration 030 (CP5) added this flag but it was never given a label.
+  awaiting_branch_confirmation: { ar: 'بانتظار تأكيد الفرع', en: 'Awaiting branch confirmation' },
 };
 
 // Per-item labels for the dynamic `missing_required:<item>` flag (022) — one
@@ -44,6 +48,10 @@ const REQUIRED_ITEM_LABELS: Record<string, { ar: string; en: string }> = {
   signature:      { ar: 'التوقيع',        en: 'Signature' },
   receipt:        { ar: 'الإيصال',        en: 'Receipt' },
   scale_photo:    { ar: 'صورة الميزان',    en: 'Scale photo' },
+  // CP7: found rendering as the raw item id ("branch_confirmation") during
+  // the review-queue audit — migration 026 (CP5) added this required-item
+  // value but it was never added here.
+  branch_confirmation: { ar: 'تأكيد الفرع', en: 'Branch confirmation' },
 };
 
 const MISSING_REQUIRED_PREFIX = 'missing_required:';
@@ -144,8 +152,8 @@ export default function ReviewQueuePage() {
     }
   }
 
-  const visible = records.filter((r) => showReviewed || !r.reviewed);
-  const pendingCount = records.filter((r) => !r.reviewed).length;
+  const visible = records.filter((r) => showReviewed || r.needsAttention);
+  const pendingCount = records.filter((r) => r.needsAttention).length;
 
   return (
     <AppShell role="company">
@@ -169,29 +177,31 @@ export default function ReviewQueuePage() {
           </Button>
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {!loading && error && (
+          <ErrorState message={error} retry={reload} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        )}
 
         {loading ? (
-          <div className="flex justify-center py-10">
-            <Loader2Icon className="w-6 h-6 animate-spin text-primary" />
-          </div>
-        ) : visible.length === 0 ? (
-          <Card className="bg-card text-card-foreground border-border">
-            <CardContent className="pt-8 pb-8 text-center text-muted-foreground">
-              {isRTL ? '✓ لا توجد عمليات بانتظار المراجعة' : '✓ Nothing awaiting review'}
-            </CardContent>
-          </Card>
+          <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
+        ) : error ? null : visible.length === 0 ? (
+          <EmptyState
+            icon={<ClipboardCheckIcon />}
+            title={isRTL ? 'لا توجد عمليات بانتظار المراجعة' : 'Nothing awaiting review'}
+            hint={isRTL
+              ? 'كل السجلات مراجَعة أو لا تحتاج انتباهاً حالياً'
+              : 'Everything is reviewed or doesn’t currently need attention'}
+          />
         ) : (
           <div className="space-y-3">
             {visible.map((r) => (
               <Card
                 key={r.event.id}
-                className={`bg-card text-card-foreground border-border ${r.reviewed ? 'opacity-60' : ''}`}
+                className={`bg-card text-card-foreground border-border ${!r.needsAttention ? 'opacity-60' : ''}`}
               >
                 <CardContent className="pt-6 space-y-3">
                   <div className="flex items-start justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
-                      <RiskGauge score={r.event.risk_score} complianceStatus={r.event.compliance_status} />
+                      <RiskGauge score={r.event.risk_score} complianceStatus={r.event.compliance_status} isRTL={isRTL} />
                       <div>
                         <p className="text-sm text-foreground" dir="ltr">
                           {formatDateTime(r.event.created_at, isRTL)}
@@ -221,7 +231,11 @@ export default function ReviewQueuePage() {
                       ))}
                       {r.reviewed && (
                         <Badge variant="outline" className="text-[10px]">
-                          {isRTL ? '✓ مُراجَع' : '✓ Reviewed'}
+                          {r.custodyConfirmed
+                            ? (isRTL ? '✓ مُراجَع' : '✓ Reviewed')
+                            // Other flags were acknowledged, but custody is
+                            // still open — never claim full "reviewed" here.
+                            : (isRTL ? '✓ باقي البنود مُراجَعة' : '✓ Other flags reviewed')}
                         </Badge>
                       )}
                     </div>
@@ -244,9 +258,21 @@ export default function ReviewQueuePage() {
                         : <FileTextIcon className="w-4 h-4 me-1" />}
                       {isRTL ? 'ملف التفتيش' : 'Inspection PDF'}
                     </Button>
-                    {!r.reviewed && (
+                    {/* Mark Reviewed only ever acknowledges otherReasons — it
+                        is never offered as a way to clear custody_missing.
+                        A record with ONLY custody_missing gets a disabled,
+                        explanatory chip instead; one with other reasons too
+                        keeps the normal button for those, independent of
+                        custody. */}
+                    {r.otherReasons.length > 0 && !r.reviewed && (
                       <Button size="sm" disabled={busyId !== null} onClick={() => acknowledge(r)}>
                         <CheckIcon className="w-4 h-4 me-1" />{isRTL ? 'تمت المراجعة' : 'Mark Reviewed'}
+                      </Button>
+                    )}
+                    {!r.custodyConfirmed && (
+                      <Button size="sm" variant="outline" disabled className="cursor-not-allowed opacity-70">
+                        <CheckIcon className="w-4 h-4 me-1" />
+                        {isRTL ? 'بانتظار تأكيد إعادة التدوير' : 'Awaiting recycler confirmation'}
                       </Button>
                     )}
                   </div>

@@ -372,6 +372,23 @@ UPDATE public.vehicles SET compliance_exempt = true WHERE id = 'e0000000-0000-00
 ALTER TABLE public.drivers  ENABLE TRIGGER drivers_lock_compliance_exempt_trigger;
 ALTER TABLE public.vehicles ENABLE TRIGGER vehicles_lock_compliance_exempt_trigger;
 
+-- CP8 D2 (migration 042): same grandfather treatment for the seeded
+-- company + all three seeded transport_companies — otherwise the new
+-- tenant-wide document gate blocks every pickup_assignment/trip/
+-- pickup_event demo/test flow scoped to this dev tenant.
+ALTER TABLE public.companies           DISABLE TRIGGER companies_lock_compliance_exempt_trigger;
+ALTER TABLE public.transport_companies DISABLE TRIGGER transport_companies_lock_compliance_exempt_trigger;
+UPDATE public.companies SET compliance_exempt = true
+  WHERE id = 'a0000000-0000-0000-0000-000000000001';
+UPDATE public.transport_companies SET compliance_exempt = true
+  WHERE id IN (
+    'c0000000-0000-0000-0000-000000000001',
+    'c0000000-0000-0000-0000-000000000002',
+    'c0000000-0000-0000-0000-000000000003'
+  );
+ALTER TABLE public.companies           ENABLE TRIGGER companies_lock_compliance_exempt_trigger;
+ALTER TABLE public.transport_companies ENABLE TRIGGER transport_companies_lock_compliance_exempt_trigger;
+
 -- ─────────────────────────────────────────────────────────────
 -- FACILITY  (CP1: recycling plant — Riyadh industrial zone)
 -- ─────────────────────────────────────────────────────────────

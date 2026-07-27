@@ -12,6 +12,8 @@ interface OnboardBody {
   owner_temp_password?: string;
   /** Optional: transport companies to link to a newly created company. */
   transport_company_ids?: string[];
+  /** Optional: FK to industries.code (migration 028) — company tenants only. */
+  industry_code?: string;
 }
 
 /**
@@ -129,6 +131,7 @@ export async function handleOnboardCompany(req: Request, res: Response): Promise
           name_en: body.name_en ?? null,
           commercial_registration: body.commercial_registration,
           vat_number: body.vat_number ?? null,
+          industry_code: body.industry_code ?? null,
         })
         .select('id')
         .single<{ id: string }>();

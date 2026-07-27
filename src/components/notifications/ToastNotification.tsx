@@ -89,7 +89,7 @@ export default function ToastNotification() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDismiss(notification)}
-                    className="text-muted-foreground hover:text-foreground h-6 w-6 p-0 ml-2"
+                    className="text-muted-foreground hover:text-foreground h-6 w-6 p-0 ms-2"
                   >
                     <XIcon className="w-3 h-3" />
                   </Button>

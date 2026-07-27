@@ -13,9 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
+import { Modal } from '@/components/ui/modal';
 import {
   CalendarIcon, TruckIcon, UserIcon, WeightIcon, DownloadIcon, EyeIcon,
-  CheckCircle2Icon, AlertTriangleIcon, XCircleIcon, MapPinIcon, XIcon,
+  CheckCircle2Icon, AlertTriangleIcon, XCircleIcon, MapPinIcon, ClockIcon, ClipboardListIcon,
 } from 'lucide-react';
 
 export default function PickupLogPage() {
@@ -37,6 +39,7 @@ export default function PickupLogPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [detail, setDetail] = useState<PickupEvent | null>(null);
 
   // Mobile: the 4-field filter block eats a full screen — collapsed by default
@@ -53,6 +56,7 @@ export default function PickupLogPage() {
 
   async function loadEvents() {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await listPickupEvents({
         dateFrom: dateFrom || undefined,
@@ -61,6 +65,13 @@ export default function PickupLogPage() {
         status: status === 'all' ? undefined : status,
       });
       setEvents(data);
+    } catch (err) {
+      // CP7: this used to have no catch at all — a failed fetch left
+      // `events` at its previous (possibly empty) value with zero
+      // indication anything went wrong; "no records" and "couldn't load"
+      // were indistinguishable.
+      setEvents([]);
+      setLoadError(err instanceof Error ? err.message : (isRTL ? 'فشل تحميل السجلات' : 'Failed to load records'));
     } finally {
       setLoading(false);
     }
@@ -83,6 +94,8 @@ export default function PickupLogPage() {
     compliant: events.filter((e) => e.compliance_status === 'compliant').length,
     warning: events.filter((e) => e.compliance_status === 'warning').length,
     nonCompliant: events.filter((e) => e.compliance_status === 'non_compliant').length,
+    // (CP5/030) Its own tile — never folded into compliant or non_compliant.
+    pendingConfirmation: events.filter((e) => e.compliance_status === 'pending_confirmation').length,
   }), [events]);
 
   function handleExport() {
@@ -169,6 +182,7 @@ export default function PickupLogPage() {
                     <SelectItem value="compliant">{isRTL ? 'ممتثل' : 'Compliant'}</SelectItem>
                     <SelectItem value="warning">{isRTL ? 'تحذير' : 'Warning'}</SelectItem>
                     <SelectItem value="non_compliant">{isRTL ? 'غير ممتثل' : 'Non-Compliant'}</SelectItem>
+                    <SelectItem value="pending_confirmation">{isRTL ? 'بانتظار تأكيد الفرع' : 'Pending Confirmation'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -177,12 +191,13 @@ export default function PickupLogPage() {
         </Card>
 
         {/* Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {[
             { labelAr: 'الإجمالي', labelEn: 'Total', value: counts.total, Icon: CalendarIcon, cls: 'text-foreground' },
             { labelAr: 'ممتثلة', labelEn: 'Compliant', value: counts.compliant, Icon: CheckCircle2Icon, cls: 'text-success' },
             { labelAr: 'تحذيرات', labelEn: 'Warnings', value: counts.warning, Icon: AlertTriangleIcon, cls: 'text-warning' },
             { labelAr: 'غير ممتثلة', labelEn: 'Non-Compliant', value: counts.nonCompliant, Icon: XCircleIcon, cls: 'text-destructive' },
+            { labelAr: 'بانتظار تأكيد الفرع', labelEn: 'Pending Confirmation', value: counts.pendingConfirmation, Icon: ClockIcon, cls: 'text-secondary' },
           ].map((c) => (
             <Card key={c.labelEn} className="bg-card text-card-foreground border-border">
               <CardContent className="pt-6 flex items-center justify-between">
@@ -204,20 +219,30 @@ export default function PickupLogPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px] pr-4">
+            {loading && <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />}
+            {!loading && loadError && (
+              <ErrorState message={loadError} retry={loadEvents} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+            )}
+            {!loading && !loadError && events.length === 0 && (
+              <EmptyState
+                icon={<ClipboardListIcon />}
+                title={isRTL ? 'لا توجد سجلات' : 'No records found'}
+                hint={isRTL
+                  ? 'جرّب تعديل المرشحات أعلاه، أو تحقق لاحقاً بعد تسجيل عمليات التقاط جديدة'
+                  : 'Try adjusting the filters above, or check back after new pickups are recorded'}
+              />
+            )}
+            {!loading && !loadError && events.length > 0 && (
+            <ScrollArea className="h-[600px] pe-4">
               <div className="space-y-4">
-                {loading && (
-                  <div className="text-center py-12 text-muted-foreground">{isRTL ? 'جارٍ التحميل...' : 'Loading...'}</div>
-                )}
-                {!loading && events.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    {isRTL ? 'لا توجد سجلات' : 'No records found'}
-                  </div>
-                )}
                 {events.map((e) => (
                   <Card key={e.id} className={`border-2 ${
                     e.compliance_status === 'compliant' ? 'bg-success/5 border-success/20'
                     : e.compliance_status === 'warning' ? 'bg-warning/5 border-warning/20'
+                    // (CP5/030) Was an else-fallthrough that miscounted
+                    // pending_confirmation as non_compliant — now its own
+                    // explicit branch, never folded in.
+                    : e.compliance_status === 'pending_confirmation' ? 'bg-secondary/5 border-secondary/20'
                     : 'bg-destructive/5 border-destructive/20'}`}>
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between mb-4">
@@ -227,7 +252,12 @@ export default function PickupLogPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {statusBadge(e.compliance_status)}
-                          <Button size="sm" variant="outline" onClick={() => setDetail(e)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDetail(e)}
+                            aria-label={isRTL ? 'عرض التفاصيل' : 'View details'}
+                          >
                             <EyeIcon className="w-4 h-4" />
                           </Button>
                         </div>
@@ -243,19 +273,25 @@ export default function PickupLogPage() {
                 ))}
               </div>
             </ScrollArea>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Detail drawer */}
+      {/* Detail drawer — CP7: was a hand-rolled `fixed inset-0` overlay, the
+          exact pattern the shared Modal (Radix Dialog) component was built
+          to replace elsewhere in this app: no focus trap, no Escape
+          handling, no aria-modal. Converted to Modal for the same reason
+          every other dialog in this app already uses it. */}
       {detail && (
-        <div className="fixed inset-0 bg-gray-900/50 z-50 flex items-start justify-end p-4">
-          <Card className="w-full max-w-md bg-card text-card-foreground border-border max-h-[90vh] flex flex-col mt-16">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-foreground">{isRTL ? 'تفاصيل الالتقاط' : 'Pickup Detail'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setDetail(null)}><XIcon className="w-5 h-5" /></Button>
-            </CardHeader>
-            <CardContent className="overflow-y-auto space-y-2 text-sm">
+        <Modal
+          open
+          onClose={() => setDetail(null)}
+          isRTL={isRTL}
+          maxWidth="max-w-md"
+          title={isRTL ? 'تفاصيل الالتقاط' : 'Pickup Detail'}
+        >
+          <div className="space-y-2 text-sm">
               {[
                 [isRTL ? 'المعرّف' : 'ID', detail.id],
                 [isRTL ? 'التاريخ' : 'Date', new Date(detail.created_at).toLocaleString(isRTL ? 'ar-SA' : 'en-CA')],
@@ -271,12 +307,11 @@ export default function PickupLogPage() {
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4 border-b border-border py-1.5">
                   <span className="text-muted-foreground">{k}</span>
-                  <span className="text-foreground text-right break-all">{v}</span>
+                  <span className="text-foreground text-end break-all">{v}</span>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </div>
+          </div>
+        </Modal>
       )}
     </AppShell>
   );

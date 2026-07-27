@@ -7,6 +7,13 @@ import { MapPinIcon, CheckCircle2Icon, AlertTriangleIcon, LoaderIcon } from 'luc
 
 type GpsStatus = 'acquiring' | 'success' | 'error' | 'denied';
 
+// CP7: branches default to a 150m geofence radius (BranchesPage.tsx) — a GPS
+// reading whose OWN accuracy is close to or exceeds that radius is too
+// imprecise to trust for a geofence check, even though it "succeeded." No
+// distinct status is introduced (the read genuinely succeeded); success just
+// also carries a visible low-accuracy warning when this threshold is crossed.
+const LOW_ACCURACY_THRESHOLD_M = 100;
+
 export default function GeolocationVerified() {
   const { isRTL } = useAuthStore();
   const { currentAssignment, setPickupState, updateManifestData } = useDriverStore();
@@ -91,11 +98,13 @@ export default function GeolocationVerified() {
         </CardHeader>
         <CardContent className="space-y-6">
 
-          {/* Status icon */}
+          {/* Status icon — CP7: a low-accuracy success previously still
+              showed the plain green success icon here while the banner
+              below warned amber, sending mixed signals. Icon now matches. */}
           <div className="flex justify-center">
             <div className={`w-24 h-24 rounded-full flex items-center justify-center ${
               gpsStatus === 'success'
-                ? 'bg-success/10'
+                ? (coords && coords.accuracy > LOW_ACCURACY_THRESHOLD_M ? 'bg-warning/10' : 'bg-success/10')
                 : gpsStatus === 'acquiring'
                 ? 'bg-primary/10'
                 : 'bg-destructive/10'
@@ -103,7 +112,10 @@ export default function GeolocationVerified() {
               {gpsStatus === 'acquiring' && (
                 <LoaderIcon className="w-12 h-12 text-primary animate-spin" />
               )}
-              {gpsStatus === 'success' && (
+              {gpsStatus === 'success' && coords && coords.accuracy > LOW_ACCURACY_THRESHOLD_M && (
+                <AlertTriangleIcon className="w-12 h-12 text-warning" />
+              )}
+              {gpsStatus === 'success' && (!coords || coords.accuracy <= LOW_ACCURACY_THRESHOLD_M) && (
                 <CheckCircle2Icon className="w-12 h-12 text-success" />
               )}
               {(gpsStatus === 'error' || gpsStatus === 'denied') && (
@@ -125,25 +137,43 @@ export default function GeolocationVerified() {
 
           {/* GPS result */}
           {gpsStatus === 'acquiring' && (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-muted-foreground" role="status">
               {isRTL ? 'جارٍ الحصول على الموقع...' : 'Acquiring location...'}
             </p>
           )}
           {gpsStatus === 'success' && coords && (
-            <div className="rounded-md bg-success/10 border border-success/20 p-3 text-sm text-center">
-              <p className="text-success font-medium">
-                {isRTL
-                  ? 'تم التقاط موقع الجهاز — يتحقق الخادم من النطاق عند الحفظ'
-                  : 'Device location captured — the server checks the geofence on submit'}
+            <div
+              className={`rounded-md border p-3 text-sm text-center ${
+                coords.accuracy > LOW_ACCURACY_THRESHOLD_M
+                  ? 'bg-warning/10 border-warning/20'
+                  : 'bg-success/10 border-success/20'
+              }`}
+              role="status"
+            >
+              <p className={coords.accuracy > LOW_ACCURACY_THRESHOLD_M ? 'text-warning font-medium' : 'text-success font-medium'}>
+                {coords.accuracy > LOW_ACCURACY_THRESHOLD_M
+                  ? (isRTL
+                      ? 'تم التقاط الموقع، لكن دقته منخفضة — قد لا يتحقق النطاق الجغرافي'
+                      : 'Location captured, but its accuracy is low — the geofence check may not pass')
+                  : (isRTL
+                      ? 'تم التقاط موقع الجهاز — يتحقق الخادم من النطاق عند الحفظ'
+                      : 'Device location captured — the server checks the geofence on submit')}
               </p>
               <p className="text-muted-foreground mt-1" dir="ltr">
                 {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
                 {' — '}±{Math.round(coords.accuracy)} m
               </p>
+              {coords.accuracy > LOW_ACCURACY_THRESHOLD_M && (
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {isRTL
+                    ? 'جرّب الانتقال لمكان مفتوح (بعيداً عن المباني) ثم أعد المحاولة، أو تابع — سيُسجَّل القرار النهائي من الخادم'
+                    : 'Try moving to an open area (away from buildings) and retrying, or continue — the server records the final verdict'}
+                </p>
+              )}
             </div>
           )}
           {(gpsStatus === 'error' || gpsStatus === 'denied') && errorMsg && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-center">
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-center" role="alert">
               <p className="text-destructive">{errorMsg}</p>
               <p className="text-muted-foreground mt-1 text-xs">
                 {isRTL
@@ -155,7 +185,11 @@ export default function GeolocationVerified() {
 
           {/* Actions */}
           <div className="flex gap-3">
-            {gpsStatus === 'error' && (
+            {/* CP7: Retry was previously only offered for gpsStatus==='error'
+                — 'denied' had no way back except leaving the app to change
+                browser settings, and a successful-but-low-accuracy reading
+                had no way to try for a better one. Both get Retry too now. */}
+            {(gpsStatus === 'error' || gpsStatus === 'denied' || (gpsStatus === 'success' && coords && coords.accuracy > LOW_ACCURACY_THRESHOLD_M)) && (
               <Button
                 variant="outline"
                 onClick={handleRetry}

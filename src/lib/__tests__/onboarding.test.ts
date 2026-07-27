@@ -6,8 +6,8 @@
  * including real admins — receive 403. The endpoint previously had zero test
  * coverage.
  *
- * Requires the PDF service to be running (it hosts the endpoint); tests are
- * skipped with a warning when it is down, mirroring inspection-pdf.test.ts.
+ * HARD-fails in beforeAll if the PDF service isn't reachable (CP8 Slice I —
+ * no more soft-skip; see testHelpers/pdfServiceCheck.ts).
  *
  * Assertions:
  *   1. Admin can onboard a company (201) and the owner membership exists
@@ -17,6 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { assertPdfServiceUp } from './testHelpers/pdfServiceCheck';
 
 const SUPABASE_URL    = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
 const ANON_KEY        = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -48,15 +49,6 @@ async function jwtFor(email: string, password: string): Promise<string> {
   return data.session!.access_token;
 }
 
-async function isPdfServiceUp(): Promise<boolean> {
-  try {
-    const res = await fetch(`${PDF_SERVICE_URL}/health`, { signal: AbortSignal.timeout(3000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 function postOnboard(body: unknown, jwt?: string): Promise<Response> {
   return fetch(`${PDF_SERVICE_URL}/admin/onboard-company`, {
     method: 'POST',
@@ -69,18 +61,12 @@ function postOnboard(body: unknown, jwt?: string): Promise<Response> {
 }
 
 describe('Admin onboarding endpoint', () => {
-  let serviceUp = false;
   let adminUserId = '';
   let createdCompanyId = '';
   let createdOwnerId = '';
 
   beforeAll(async () => {
-    serviceUp = await isPdfServiceUp();
-    if (!serviceUp) {
-      // eslint-disable-next-line no-console
-      console.warn(`[onboarding.test] PDF service not reachable at ${PDF_SERVICE_URL} — skipping.`);
-      return;
-    }
+    await assertPdfServiceUp(PDF_SERVICE_URL);
     // Platform admin: membership with role='admin' and NO tenant (one_tenant CHECK).
     const { data: created, error } = await admin.auth.admin.createUser({
       email: ADMIN_EMAIL,
@@ -114,8 +100,7 @@ describe('Admin onboarding endpoint', () => {
     }
   });
 
-  it('1. admin can onboard a company (201) with owner membership', async () => {
-    if (!serviceUp) return;
+  it('1. admin can onboard a company (201) with owner membership and industry_code (CP5 4h)', async () => {
     const jwt = await jwtFor(ADMIN_EMAIL, ADMIN_PASSWORD);
     const res = await postOnboard(
       {
@@ -125,6 +110,7 @@ describe('Admin onboarding endpoint', () => {
         owner_email: NEW_OWNER_EMAIL,
         owner_temp_password: 'TempPass1234!',
         owner_name_ar: 'مالك تجريبي',
+        industry_code: 'logistics_warehousing',
       },
       jwt
     );
@@ -144,10 +130,17 @@ describe('Admin onboarding endpoint', () => {
       .single<{ role: string; company_id: string }>();
     expect(mem?.role).toBe('owner');
     expect(mem?.company_id).toBe(json.companyId);
+
+    // industry_code threaded through to the new company row.
+    const { data: company } = await admin
+      .from('companies')
+      .select('industry_code')
+      .eq('id', json.companyId)
+      .single<{ industry_code: string | null }>();
+    expect(company?.industry_code).toBe('logistics_warehousing');
   });
 
   it('2. non-admin caller gets 403', async () => {
-    if (!serviceUp) return;
     const jwt = await jwtFor(SEED.managerEmail, SEED.managerPassword);
     const res = await postOnboard(
       {
@@ -163,7 +156,6 @@ describe('Admin onboarding endpoint', () => {
   });
 
   it('3. missing bearer token gets 403', async () => {
-    if (!serviceUp) return;
     const res = await postOnboard({ tenant_type: 'company' });
     expect(res.status).toBe(403);
   });

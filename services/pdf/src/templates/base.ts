@@ -148,9 +148,12 @@ export const BASE_CSS = `
     font-size: 11pt;
   }
 
-  .badge-compliant     { background: #dcfce7; color: #166534; }
-  .badge-warning       { background: #fef9c3; color: #854d0e; }
-  .badge-non_compliant { background: #fee2e2; color: #991b1b; }
+  .badge-compliant           { background: #dcfce7; color: #166534; }
+  .badge-warning             { background: #fef9c3; color: #854d0e; }
+  .badge-non_compliant       { background: #fee2e2; color: #991b1b; }
+  /* (CP5/030) Its own distinct state — never compliant, never folded into
+     non_compliant — a blue tone shared with no other badge. */
+  .badge-pending_confirmation { background: #e0e7ff; color: #3730a3; }
 
   .flag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 
@@ -350,9 +353,10 @@ export const WASTE_LABELS: Record<string, string> = {
 };
 
 export const COMPLIANCE_LABELS: Record<string, string> = {
-  compliant:     'ممتثل',
-  warning:       'تحذير',
-  non_compliant: 'غير ممتثل',
+  compliant:            'ممتثل',
+  warning:              'تحذير',
+  non_compliant:        'غير ممتثل',
+  pending_confirmation: 'بانتظار تأكيد الفرع',
 };
 
 export const VEHICLE_TYPE_LABELS: Record<string, string> = {

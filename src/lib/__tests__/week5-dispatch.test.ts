@@ -17,6 +17,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { grandfatherCompliance } from './testHelpers/complianceExempt';
 
 const SUPABASE_URL    = process.env.VITE_SUPABASE_URL ?? 'http://localhost:54321';
 const ANON_KEY        = process.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -74,7 +75,6 @@ async function isPdfServiceUp(): Promise<boolean> {
 }
 
 describe('Week 5: notifications, transport dispatch, driver invites', () => {
-  let managerClient: SupabaseClient;
   let dispatcherClient: SupabaseClient;
   let driverClient: SupabaseClient;
   let serviceUp = false;
@@ -96,8 +96,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
 
   beforeAll(async () => {
     serviceUp = await isPdfServiceUp();
-    [managerClient, dispatcherClient, driverClient] = await Promise.all([
-      sessionClient(SEED.managerEmail),
+    [dispatcherClient, driverClient] = await Promise.all([
       sessionClient(SEED.dispatcherEmail),
       sessionClient(SEED.driverEmail),
     ]);
@@ -109,6 +108,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
       .select('id')
       .single<{ id: string }>();
     dispatchCompanyId = cw!.id;
+    grandfatherCompliance('company', dispatchCompanyId);
     const { data: bw } = await admin
       .from('branches')
       .insert({ company_id: dispatchCompanyId, name_ar: `فرع الإسناد ${RUN}` })
@@ -200,7 +200,14 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
   });
 
   it('1. creating an assignment notifies the assigned driver (server trigger)', async () => {
-    const { data: a, error } = await managerClient
+    // migration 044: the company side can no longer INSERT a full
+    // pickup_assignment (driver/vehicle NULL-only on request). This test's
+    // subject is the notify_assignment_created() TRIGGER, not
+    // assignment-creation RLS, so it's seeded via the unchanged 011
+    // transport-side from-scratch path (same dispatcherClient test 2 uses)
+    // — that INSERT still sets driver_id directly, which is exactly the
+    // shape this trigger fires on.
+    const { data: a, error } = await dispatcherClient
       .from('pickup_assignments')
       .insert({
         company_id: SEED.companyId,
@@ -295,10 +302,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
   });
 
   it('5a. dispatcher invites a fleet driver → account works end-to-end', async () => {
-    if (!serviceUp) {
-      console.warn('[week5] PDF service down — skipping invite tests.');
-      return;
-    }
+    if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const jwt = await jwtFor(SEED.dispatcherEmail);
     const res = await fetch(`${PDF_SERVICE_URL}/transport/invite-driver`, {
       method: 'POST',
@@ -334,7 +338,7 @@ describe('Week 5: notifications, transport dispatch, driver invites', () => {
   });
 
   it('5b. company-side caller gets 403 from the invite endpoint', async () => {
-    if (!serviceUp) return;
+    if (!serviceUp) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const jwt = await jwtFor(SEED.managerEmail);
     const res = await fetch(`${PDF_SERVICE_URL}/transport/invite-driver`, {
       method: 'POST',

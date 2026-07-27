@@ -18,10 +18,22 @@ export type ReviewReason = string;
 
 export interface FlaggedRecord {
   event: PickupEvent;
+  /** Every reason, including 'custody_missing' when open — for badge rendering. */
   reasons: ReviewReason[];
+  /** `reasons` minus 'custody_missing' — the ones a generic "Mark Reviewed" can actually resolve. */
+  otherReasons: ReviewReason[];
+  /** True only once a real disposal_confirmations row exists for this pickup's trip. */
   custodyConfirmed: boolean;
-  /** True when a manager already acknowledged this record. */
+  /** True when a manager already acknowledged this record's non-custody reasons. */
   reviewed: boolean;
+  /**
+   * True when this record still needs attention: custody is open (this
+   * alone is NEVER cleared by acknowledgement — only a real
+   * disposal_confirmations row does), OR there are other reasons that
+   * haven't been acknowledged yet. A record with reviewed=true but
+   * custodyConfirmed=false still has needsAttention=true.
+   */
+  needsAttention: boolean;
 }
 
 const REVIEW_KEY_PREFIX = 'pickup_review:';
@@ -71,10 +83,15 @@ export async function listFlaggedPickups(limit = 200): Promise<FlaggedRecord[]> 
 
   return rows
     .map((event) => {
-      const reasons = [...event.risk_flags] as ReviewReason[];
+      const otherReasons = [...event.risk_flags] as ReviewReason[];
       const custodyConfirmed = event.trip_id !== null && confirmedTripIds.has(event.trip_id);
-      if (!custodyConfirmed) reasons.push('custody_missing');
-      return { event, reasons, custodyConfirmed, reviewed: acked.has(event.id) };
+      const reasons = custodyConfirmed ? otherReasons : [...otherReasons, 'custody_missing'];
+      const reviewed = acked.has(event.id);
+      // Custody is NEVER resolved by acknowledgement — only a real
+      // disposal_confirmations row (custodyConfirmed) clears it. Other
+      // reasons resolve via the ordinary ack mechanism, same as before.
+      const needsAttention = !custodyConfirmed || (otherReasons.length > 0 && !reviewed);
+      return { event, reasons, otherReasons, custodyConfirmed, reviewed, needsAttention };
     })
     .filter((r) => r.reasons.length > 0);
 }

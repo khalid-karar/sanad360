@@ -196,8 +196,12 @@ export const useDriverStore = create<DriverState>((set, get) => ({
 
     const a = view.assignment;
     // The ledger records who was actually present: the signed-in driver's own
-    // record when it exists, falling back to the assigned driver.
-    const driverId = authUser.driver_record_id ?? a.driver_id;
+    // record when it exists, falling back to the assigned driver. `a` is
+    // only ever reached here via ACTIONABLE (pending/accepted/in_progress),
+    // which the driver_vehicle_status_check CHECK constraint guarantees
+    // means driver_id/vehicle_id are set (migration 044) — only 'requested'
+    // rows have them NULL, and those are filtered out before this point.
+    const driverId = authUser.driver_record_id ?? a.driver_id!;
 
     set({ isSubmitting: true, submitError: null, queuedOffline: false });
     try {
@@ -231,7 +235,7 @@ export const useDriverStore = create<DriverState>((set, get) => ({
           branch_id: a.branch_id,
           transport_company_id: authUser.transport_company_id,
           driver_id: driverId,
-          vehicle_id: a.vehicle_id,
+          vehicle_id: a.vehicle_id!,
           // Carries the dispatcher's trip grouping (migration 019) onto the
           // ledger row at the ONLY point it can be set — pickup_events is
           // append-only, so trip_id is never UPDATEd after the fact.
@@ -290,7 +294,7 @@ export const useDriverStore = create<DriverState>((set, get) => ({
             branchId: a.branch_id,
             transportCompanyId: authUser.transport_company_id,
             driverId,
-            vehicleId: a.vehicle_id,
+            vehicleId: a.vehicle_id!,
             wasteTypes: state.manifestData.wasteType,
             weightKg: parseFloat(state.manifestData.weight),
             gpsLat: state.manifestData.gps_lat,

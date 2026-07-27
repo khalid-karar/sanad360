@@ -219,7 +219,13 @@ afterAll(async () => {
   for (const uid of cleanup.authUserIds) {
     await admin.auth.admin.deleteUser(uid).catch(() => {});
   }
-  await anon.auth.signOut();
+  // CP8 Slice I: scope:'local' is load-bearing, not decoration — the
+  // default (global) scope revokes EVERY session for whichever user this
+  // client currently holds, which can invalidate a JWT another
+  // concurrently-running test file already captured for that same shared
+  // seed account (this is what caused cp3-branch-qr-issue.test.ts's #3
+  // flake — see that file's own fix + comment).
+  await anon.auth.signOut({ scope: 'local' });
 }, TIMEOUT);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -346,11 +352,39 @@ describe('Grant audit — authenticated write paths (migration 007)', () => {
   );
 
   // ── pickup_assignments ───────────────────────────────────────────────────
+  // (migration 044 — separation of duties) Rewritten from "Manager can
+  // INSERT a pickup_assignment" (the old model let the company set
+  // driver/vehicle directly, which is now the thing this test proves is
+  // FORBIDDEN) to assert the actual new policy shape end to end: the
+  // company can only ever create a driver/vehicle-less REQUEST and can
+  // never set them itself (neither at INSERT nor UPDATE); only the linked
+  // transport company (transportMgr, owner of SEED.transportCompanyId,
+  // actively linked to SEED.companyId via the seed) can assign its OWN
+  // fleet, transitioning the row to 'pending'.
   it(
-    '8. Manager can INSERT a pickup_assignment',
+    '8. Manager can INSERT a pickup_assignment REQUEST but cannot set driver/vehicle; the linked transport owner CAN assign its own fleet',
     async () => {
       const mgr = await sessionClient(companyMgr.email, companyMgr.password);
-      const { data, error } = await mgr
+
+      const { data: req, error: reqErr } = await mgr
+        .from('pickup_assignments')
+        .insert({
+          company_id: SEED.companyId,
+          branch_id: SEED.branchId,
+          scheduled_at: new Date(Date.now() + 86_400_000).toISOString(),
+          status: 'requested',
+        })
+        .select('id, status, driver_id, vehicle_id')
+        .single<{ id: string; status: string; driver_id: string | null; vehicle_id: string | null }>();
+      expect(reqErr).toBeNull();
+      expect(req?.id).toBeTruthy();
+      expect(req!.status).toBe('requested');
+      expect(req!.driver_id).toBeNull();
+      expect(req!.vehicle_id).toBeNull();
+      cleanup.assignmentIds.push(req!.id);
+
+      // The company CANNOT set driver_id/vehicle_id itself — not at INSERT...
+      const { data: forgedInsert, error: forgedInsertErr } = await mgr
         .from('pickup_assignments')
         .insert({
           company_id: SEED.companyId,
@@ -358,13 +392,33 @@ describe('Grant audit — authenticated write paths (migration 007)', () => {
           driver_id: SEED.driverId,
           vehicle_id: SEED.vehicleId,
           scheduled_at: new Date(Date.now() + 86_400_000).toISOString(),
-          status: 'pending',
         })
-        .select('id')
-        .single<{ id: string }>();
-      expect(error).toBeNull();
-      expect(data?.id).toBeTruthy();
-      if (data) cleanup.assignmentIds.push(data.id);
+        .select('id');
+      expect(forgedInsertErr).not.toBeNull();
+      expect(forgedInsert).toBeNull();
+
+      // ...nor at UPDATE (RLS can't diff OLD vs NEW columns — this is the
+      // trigger-level guard, COMPANY_MAY_NOT_ASSIGN).
+      const { error: forgedUpdateErr } = await mgr
+        .from('pickup_assignments')
+        .update({ driver_id: SEED.driverId, vehicle_id: SEED.vehicleId })
+        .eq('id', req!.id);
+      expect(forgedUpdateErr).not.toBeNull();
+      expect(forgedUpdateErr!.code).toBe('P0032');
+
+      // The LINKED transport company's owner CAN assign its own driver +
+      // vehicle, transitioning requested -> pending.
+      const transport = await sessionClient(transportMgr.email, transportMgr.password);
+      const { data: assigned, error: assignErr } = await transport
+        .from('pickup_assignments')
+        .update({ driver_id: SEED.driverId, vehicle_id: SEED.vehicleId, status: 'pending' })
+        .eq('id', req!.id)
+        .select('id, status, driver_id, vehicle_id')
+        .single<{ id: string; status: string; driver_id: string; vehicle_id: string }>();
+      expect(assignErr).toBeNull();
+      expect(assigned!.status).toBe('pending');
+      expect(assigned!.driver_id).toBe(SEED.driverId);
+      expect(assigned!.vehicle_id).toBe(SEED.vehicleId);
     },
     TIMEOUT,
   );

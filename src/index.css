@@ -1,5 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap');
+/* index.html already loads Inter + IBM Plex Sans Arabic — the pair declared
+   in tailwind.config.js's fontFamily.sans (IBM Plex Sans Arabic first: the
+   primary UI face for this Arabic-first product, Inter covers any Latin
+   glyphs it's missing). This @import previously ALSO loaded "IBM+Plex+Sans"
+   (the Latin-only variant — a different family name, never referenced by
+   fontFamily.sans, dead weight) and a second copy of Inter at different
+   weights. Only IBM Plex Mono (fontFamily.mono) isn't loaded elsewhere. */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -29,14 +35,24 @@
     --gradient-primary-start: 150 65% 26%;
     --gradient-primary-end: 225 70% 40%;
 
-    --tertiary: 210 90% 56%;
+    /* CP7 design-system pass: was 56% lightness — 0 0% 100% text on it
+       measured 3.32:1, failing normal-text AA (4.5:1 required), passing only
+       the 3:1 large-text floor. Unused anywhere in components today, fixed
+       anyway so the token is safe the first time it IS used. Verified 4.88:1
+       at 44%. */
+    --tertiary: 210 90% 44%;
     --tertiary-foreground: 0 0% 100%;
 
     --neutral: 0 0% 96%;
     --neutral-foreground: 220 15% 20%;
 
     --muted: 220 13% 95%;
-    --muted-foreground: 220 10% 46%;
+    /* CP7: was 46% lightness — measured 4.34:1 on --muted, failing
+       normal-text AA (only large-text-safe), yet used at normal/small text
+       sizes (button.tsx's secondary variant, status pills in
+       DriverDeliveriesPage/TransportTripsPage, tabs.tsx). Verified 4.67:1 at
+       44%. */
+    --muted-foreground: 220 10% 44%;
 
     --accent: 220 13% 95%;
     --accent-foreground: 220 20% 15%;
@@ -49,6 +65,15 @@
 
     --warning: 35 92% 33%; /* AA: 4.95 as text on white AND white-on-it */
     --warning-foreground: 0 0% 100%;
+
+    /* CP7: one warm accent, distinct from --warning (hue 35, "caution") —
+       a gold/highlight tone for "worth noticing" states that aren't errors
+       or warnings (e.g. a new/highlighted item). Bright golds need a DARK
+       foreground to pass AA, not white (white-on-gold measured 1.95:1 — a
+       hard fail); --foreground (the body-text dark tone) on --warm measured
+       8.02:1. */
+    --warm: 45 90% 48%;
+    --warm-foreground: 220 20% 15%;
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
@@ -84,7 +109,7 @@
     --gradient-primary-start: 150 65% 36%;
     --gradient-primary-end: 225 70% 60%;
 
-    --tertiary: 210 90% 56%;
+    --tertiary: 210 90% 44%; /* CP7: see light-mode comment — 4.88:1 white-on-it */
     --tertiary-foreground: 0 0% 100%;
 
     --neutral: 217 32% 17%;
@@ -97,13 +122,28 @@
     --accent-foreground: 210 40% 98%;
 
     --destructive: 0 72% 55%; /* AA: 4.56 as text on dark bg */
-    --destructive-foreground: 0 0% 100%;
+    /* CP7: was 0 0% 100% (white) — white-on-this-fill measured 4.38:1,
+       failing normal-text AA (the Button destructive variant renders at
+       normal button-text size). Lowering --destructive's lightness would
+       fix this pairing but break the 4.56:1 "as text on dark bg" pairing
+       above (the two usages pull in opposite directions on one shared
+       value) — so, matching the pattern --warning-foreground already uses
+       in this exact block, the FOREGROUND becomes the near-black background
+       tone instead of white. Verified 4.56:1 on --destructive. */
+    --destructive-foreground: 222 84% 4.9%;
 
     --success: 150 65% 26%; /* Using primary green for success */
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 222 84% 4.9%;
+
+    /* CP7: one warm accent (see light-mode comment). Bright gold needs the
+       same near-black foreground as warning/destructive above, not white —
+       verified 9.55:1 on --warm below (12.22:1 if ever used directly as
+       text on --card instead of a fill). */
+    --warm: 45 95% 55%;
+    --warm-foreground: 222 84% 4.9%;
 
     --border: 217 32% 17%;
     --input: 217 32% 17%;
@@ -189,7 +229,7 @@
 
   html,
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased font-sans;
     font-feature-settings: "rlig" 1, "calt" 1;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -198,15 +238,18 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Arabic font support */
+  /* .rtl/.ltr set DIRECTION ONLY — one Arabic-first font stack (font-sans,
+     IBM Plex Sans Arabic + Inter, applied above) serves both languages.
+     These classes used to hardcode a font-family each (Noto Sans Arabic for
+     RTL, Inter for LTR), silently overriding font-sans and making the IBM
+     Plex Sans Arabic webfont loaded in index.html dead weight — every
+     Arabic string was actually rendering in Noto Sans Arabic instead. */
   .rtl {
     direction: rtl;
-    font-family: 'Noto Sans Arabic', 'Inter', system-ui, sans-serif;
   }
 
   .ltr {
     direction: ltr;
-    font-family: 'Inter', system-ui, sans-serif;
   }
 }
 

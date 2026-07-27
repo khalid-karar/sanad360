@@ -71,16 +71,23 @@ export async function fetchMyProfile(userId: string): Promise<AuthUser> {
   if (profileError) throw profileError;
 
   // All memberships, oldest first — mirrors my_membership()'s fallback order.
+  // revoked_at IS NULL mirrors my_membership() (migration 032) exactly: a
+  // revoked row must stop being usable here too, not just at the RLS layer
+  // (memberships_select is "own row only" regardless of revoked_at, so
+  // without this filter a revoked row would still surface client-side).
   const { data: membershipRows, error: membershipError } = await supabase
     .from('memberships')
     .select('*')
     .eq('user_id', userId)
+    .is('revoked_at', null)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true });
 
   if (membershipError) throw membershipError;
   const memberships = (membershipRows as Membership[]) ?? [];
-  if (memberships.length === 0) throw new Error('No membership found for this user');
+  if (memberships.length === 0) {
+    throw new Error('MEMBERSHIP_REVOKED: your access has been revoked or no membership exists for this account');
+  }
 
   // Active-tenant selection (migration 012); fall back to the oldest.
   const { data: active } = await supabase

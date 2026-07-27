@@ -6,9 +6,18 @@ export type MemberRole =
   // CP1 (migration 017): recycler-side roles, tenant-scoped to a facility.
   | 'recycler_manager' | 'scale_operator'
   // CP2 (migration 020): tenant-less Maya-side document reviewer.
-  | 'document_reviewer';
+  | 'document_reviewer'
+  // CP5 (migration 024): Maya-side roles (tenant-less; only super_admin may
+  // grant/modify any of these — enforced in the DB, migration 029).
+  | 'super_admin' | 'system_admin' | 'support_agent' | 'billing_accountant'
+  // CP5 (migration 024): tenant-side roles.
+  | 'branch_operator' | 'consultant' | 'gov_viewer'
+  // CP5.5 (migration 035): tenant-less self-signup applicant — every tenant
+  // ID is NULL for this role (see the one_tenant CHECK), until
+  // review_pending_application() promotes it to a real 'owner' membership.
+  | 'applicant';
 export type WasteType = 'industrial' | 'plastic' | 'chemical' | 'organic' | 'electronic' | 'medical';
-export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant';
+export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant' | 'pending_confirmation';
 
 export interface Company {
   id: string;
@@ -16,6 +25,8 @@ export interface Company {
   name_en: string | null;
   commercial_registration: string;
   vat_number: string | null;
+  /** CP5 (migration 028): FK to industries.code, nullable (pre-CP5 companies). */
+  industry_code: string | null;
   created_at: string;
 }
 
@@ -34,6 +45,29 @@ export interface Branch {
   // (migration 022) — column-level GRANTs (023) mean it never reaches the
   // client anyway. Fetch a rotating scan token from services/pdf instead
   // (src/lib/api/branches.ts requestBranchQrToken()).
+  /** CP5 (migration 027): FK to regions.code, nullable (pre-CP5 branches). */
+  region_code: string | null;
+  created_at: string;
+}
+
+/** CP5 (migration 028): bilingual industry lookup, consumed by gov_rollup(). */
+export interface Industry {
+  code: string;
+  label_ar: string;
+  label_en: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+/** CP5 (migration 027): canonical ISO 3166-2:SA region lookup. */
+export interface Region {
+  code: string;
+  name_ar: string;
+  name_en: string;
+  sort_order: number;
+  /** CP5 (migration 030): nullable GASTAT code, distinct from the ISO code. */
+  gastat_code: string | null;
   created_at: string;
 }
 
@@ -65,6 +99,10 @@ export interface Membership {
   facility_id: string | null;
   branch_id: string | null;
   created_at: string;
+  /** CP5 (migration 032): soft revoke — a revoked row is excluded by my_membership(). */
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoke_reason: string | null;
 }
 
 // ─── CP1: recycler facilities, trips, weight reconciliation ────────────────
@@ -198,6 +236,42 @@ export interface PickupEvent {
   created_at: string;
 }
 
+/** CP5 (migration 026): a branch_operator's attestation of a pickup_event. */
+export interface PickupConfirmation {
+  id: string;
+  pickup_event_id: string;
+  branch_id: string;
+  company_id: string;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  method: 'in_app_confirm' | 'signature_on_driver_device' | 'unavailable';
+  signature_path: string | null;
+  signature_sha256: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  gps_accuracy_m: number | null;
+  status: 'confirmed' | 'disputed';
+  dispute_reason: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+/** CP5 (migration 031): one row from gov_rollup() — k-anonymized, differencing-safe. */
+export interface GovRollupRow {
+  level: 'region' | 'industry' | 'facility' | 'transporter';
+  group_key: string | null;
+  label_ar: string;
+  label_en: string;
+  is_suppressed: boolean;
+  n_companies: number | null;
+  total_pickups: number | null;
+  total_weight_kg: number | null;
+  compliant_count: number | null;
+  warning_count: number | null;
+  non_compliant_count: number | null;
+  pending_confirmation_count: number | null;
+}
+
 export interface AuditLog {
   id: string;
   user_id: string | null;
@@ -260,14 +334,17 @@ export type CreateVehicleInput = Omit<Vehicle, 'id' | 'created_at' | 'compliance
 // ─── Phase 3 tables ──────────────────────────────────────────────────────────
 
 export type AssignmentStatus =
-  | 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+  | 'requested' | 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
 
 export interface PickupAssignment {
   id: string;
   company_id: string;
   branch_id: string;
-  driver_id: string;
-  vehicle_id: string;
+  /** NULL while status='requested' (migration 044) — the company requests a
+   *  pickup, a linked transport company's dispatcher assigns its own driver
+   *  + vehicle, which is what sets these and moves status to 'pending'. */
+  driver_id: string | null;
+  vehicle_id: string | null;
   scheduled_at: string;
   /** Recurrence series (migration 016): completing spawns the next occurrence. */
   recurrence: 'none' | 'daily' | 'weekly';
@@ -284,11 +361,12 @@ export interface PickupAssignment {
   updated_at: string;
 }
 
-export type CreateAssignmentInput = {
+/** The company REQUESTS a pickup — it never sets driver_id/vehicle_id
+ *  (migration 044 separation of duties; enforced server-side, not just by
+ *  this type). Always lands as status='requested'. */
+export type CreateAssignmentRequestInput = {
   company_id: string;
   branch_id: string;
-  driver_id: string;
-  vehicle_id: string;
   scheduled_at: string;
   recurrence?: 'none' | 'daily' | 'weekly';
   recurrence_until?: string;
@@ -370,7 +448,11 @@ export type CreateDisposalConfirmationInput = {
 // ─── CP2: onboarding & compliance document gating (migrations 020/021) ─────
 
 export type DocumentOwnerType =
-  | 'company' | 'branch' | 'transport_company' | 'driver' | 'vehicle' | 'facility';
+  | 'company' | 'branch' | 'transport_company' | 'driver' | 'vehicle' | 'facility'
+  // CP5.5 (migration 035): documents uploaded during the pending-application
+  // phase, before a real tenant exists. Re-parented onto the real tenant by
+  // review_pending_application() on approval — never re-uploaded.
+  | 'pending_application';
 
 export type DocumentStatus = 'pending' | 'verified' | 'rejected';
 
@@ -435,6 +517,39 @@ export interface OwnerDocumentStatus {
   expiring_soon: ExpiringSoonDoc[];
 }
 
+// ─── CP5.5: self-service onboarding (migrations 034-041) ───────────────────
+
+export type PendingApplicationStatus =
+  | 'pending_email_verification'
+  | 'pending_documents'
+  | 'pending_review'
+  | 'approved'
+  | 'rejected';
+
+// Row shape as visible to `authenticated` (RLS column-level GRANT, migration
+// 035): email_verification_token_hash/email_verification_expires_at are
+// deliberately omitted — never client-visible, service_role only.
+export interface PendingApplication {
+  id: string;
+  applicant_user_id: string;
+  tenant_type: 'company' | 'transport_company';
+  name_ar: string;
+  name_en: string | null;
+  commercial_registration: string;
+  vat_number: string | null;
+  industry_code: string | null;
+  contact_email: string;
+  contact_phone: string | null;
+  status: PendingApplicationStatus;
+  email_verified_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reject_reason: string | null;
+  resulting_company_id: string | null;
+  resulting_transport_company_id: string | null;
+  created_at: string;
+}
+
 // Each table exposes Row (full read shape), Insert (write shape — server-set
 // columns optional), and Update (all columns optional). supabase-js uses Insert
 // for `.insert()` and Update for `.update()`. We model Insert/Update as
@@ -480,6 +595,10 @@ export interface Database {
       waste_stream_tolerances: TableShape<WasteStreamTolerance>;
       documents: TableShape<DocumentRow>;
       required_documents: TableShape<RequiredDocument>;
+      pickup_confirmations: TableShape<PickupConfirmation>;
+      industries: TableShape<Industry>;
+      regions: TableShape<Region>;
+      pending_applications: TableShape<PendingApplication>;
     };
     Views: {
       pickup_events_latest: { Row: Indexed<PickupEvent>; Relationships: [] };
@@ -497,6 +616,32 @@ export interface Database {
           unverified_doc_types: string[];
           expiring_soon: ExpiringSoonDoc[];
         }[];
+      };
+      // migration 031 — SECURITY DEFINER, restricted to gov_viewer/admin/
+      // super_admin (enforced inside the function, not by RLS — RLS grants
+      // gov_viewer no path to any PII-bearing table at all).
+      gov_rollup: {
+        Args: { p_region_code: string | null; p_industry_code: string | null; p_facility_id: string | null };
+        Returns: GovRollupRow[];
+      };
+      // migration 035 — the ONLY path pending_review -> approved/rejected.
+      // Caller must be document_reviewer/system_admin/admin/super_admin AND
+      // not the applicant themself (enforced inside the function).
+      review_pending_application: {
+        Args: { p_application_id: string; p_decision: 'approved' | 'rejected'; p_reject_reason?: string | null };
+        Returns: {
+          status: string;
+          resulting_company_id: string | null;
+          resulting_transport_company_id: string | null;
+        }[];
+      };
+      // migration 041 — the ONLY path pending_documents -> pending_review.
+      // Caller must be the applicant who owns the row; server re-validates
+      // document completeness against the application's OWN tenant_type
+      // (never the pending_application union) before allowing the flip.
+      submit_application_for_review: {
+        Args: { p_application_id: string };
+        Returns: { status: string }[];
       };
     };
     Enums: Record<string, never>;

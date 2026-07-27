@@ -7,6 +7,10 @@ import { initMonitoring } from './lib/monitoring';
 // No-op without VITE_SENTRY_DSN (local dev / CI).
 initMonitoring();
 
+// Inline hex, not design tokens, deliberately: this renders when importing
+// ./App itself threw (e.g. a missing env var) — the failure could be
+// anywhere in the app's own setup, so the fallback must not depend on
+// anything from it (Tailwind classes, token CSS vars) to be trustworthy.
 function renderError(message: string) {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <div style={{

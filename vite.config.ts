@@ -24,6 +24,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    // e2e/ is Playwright's tree (its own test.describe/test globals,
+    // config, and runner) — Vitest's default include glob otherwise
+    // matches *.spec.ts there too and tries to run it as a Vitest file.
+    exclude: ["**/node_modules/**", "e2e/**"],
     // Loads .env into process.env before every test file, including
     // unprefixed vars like SUPABASE_SERVICE_ROLE_KEY that Vitest's
     // automatic VITE_-prefix loading would otherwise skip.

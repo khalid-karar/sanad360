@@ -53,7 +53,7 @@ export default function AwaitingPickup() {
       </FadeInUp>
 
       {(assignmentsError || startError) && (
-        <p className="text-sm text-destructive">{startError ?? assignmentsError}</p>
+        <p className="text-sm text-destructive" role="alert">{startError ?? assignmentsError}</p>
       )}
 
       {assignmentsLoading ? (

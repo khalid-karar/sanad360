@@ -33,6 +33,13 @@ const SEED = {
   vehicleId:          'e0000000-0000-0000-0000-000000000001',
   driverProfileId:    'f0000000-0000-0000-0000-000000000002',
   managerEmail:       'manager@sanad360.dev',
+  // migration 044: the company side can no longer INSERT a full
+  // pickup_assignment (driver/vehicle NULL-only on request). Test 1's
+  // subject is the recurrence-spawn TRIGGER, not assignment-creation RLS, so
+  // the initial occurrence is seeded via the unchanged 011 transport-side
+  // from-scratch path (the seeded dispatcher, transport-side member of
+  // SEED.transportCompanyId, actively linked to SEED.companyId).
+  dispatcherEmail:    'dispatcher@sanad360.dev',
   password:           'DevPass1234!',
 };
 
@@ -58,13 +65,13 @@ async function isPdfServiceUp(): Promise<boolean> {
 }
 
 describe('Product backlog (Migration 016)', () => {
-  let manager: SupabaseClient;
+  let dispatcher: SupabaseClient;
   let managerJwt = '';
   let phoneDriverId = '';
   let packPdfId = '';
 
   beforeAll(async () => {
-    manager = await sessionClient(SEED.managerEmail);
+    dispatcher = await sessionClient(SEED.dispatcherEmail);
     const { data } = await anon.auth.signInWithPassword({
       email: SEED.managerEmail,
       password: SEED.password,
@@ -88,7 +95,7 @@ describe('Product backlog (Migration 016)', () => {
     // until = +10 days: occurrence 2 (+7d) fits, occurrence 3 (+14d) must NOT spawn.
     const until = new Date(start.getTime() + 10 * 86400000).toISOString().slice(0, 10);
 
-    const { data: a1, error } = await manager
+    const { data: a1, error } = await dispatcher
       .from('pickup_assignments')
       .insert({
         company_id: SEED.companyId,
@@ -159,10 +166,7 @@ describe('Product backlog (Migration 016)', () => {
   });
 
   it('3. company-wide monthly pack renders and records monthly_company', async () => {
-    if (!(await isPdfServiceUp())) {
-      console.warn('[product-backlog] PDF service down — skipping pack test.');
-      return;
-    }
+    if (!(await isPdfServiceUp())) throw new Error('PDF service not reachable — this test requires it; see testHelpers/pdfServiceCheck.ts');
     const month = new Date().toISOString().slice(0, 7);
     const res = await fetch(`${PDF_SERVICE_URL}/generate/monthly-company`, {
       method: 'POST',

@@ -27,6 +27,14 @@ jobs:
           npm ci
           npm ci --prefix services/pdf
 
+      # Fails fast, before any of the expensive Supabase/PDF-service/E2E
+      # infra spins up: zero-skip (.skip/.only/.todo/.fixme) + every
+      # .signOut() call scoped to 'local' (the default, global, revokes
+      # EVERY session for that user — see scripts/check-test-hygiene.mjs's
+      # own header for the real flake this caused and closed).
+      - name: Test hygiene gate (zero-skip + signOut scope)
+        run: npm run test:hygiene
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned for reproducible CI (matches the version used in development)
@@ -45,6 +53,21 @@ jobs:
             echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY"
             echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
             echo "VITE_PDF_SERVICE_URL=http://127.0.0.1:3001"
+            # CP8 Slice F — the single PDF service instance started below is
+            # shared by both the "Test" step and the later E2E step, so the
+            # capture gate is on for the whole job. NODE_ENV=test + the flag
+            # satisfy email.ts's triple gate; it stays inert anywhere else
+            # (see services/pdf/src/lib/email.ts) because NODE_ENV is never
+            # 'production' in CI.
+            echo "NODE_ENV=test"
+            echo "E2E_CAPTURE_EMAIL=1"
+            # playwright.config.ts's webServer serves the production build on
+            # :4173 (vite preview), never the :5173 dev-server origin
+            # services/pdf's CORS_ORIGIN defaults to — without this, every
+            # browser fetch from the E2E build to the PDF service is blocked
+            # by CORS (confirmed locally: manifests as a generic "network
+            # error" in the UI, not an obviously-CORS-shaped failure).
+            echo "CORS_ORIGIN=http://127.0.0.1:4173"
           } > .env
 
       - name: Typecheck (frontend)
@@ -96,3 +119,43 @@ jobs:
 
       - name: Build (frontend)
         run: npm run build
+
+      # @playwright/test's own Chromium (E2E browser) is cached under a path
+      # DISTINCT from services/pdf's rendering Chromium (~/.cache/ms-playwright,
+      # cached above under the `playwright-...` key) — two different Chromium
+      # builds from two different `playwright` package versions must never
+      # collide on the same cache key/path.
+      - name: Get @playwright/test version
+        id: pw-e2e
+        run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright-e2e
+          key: playwright-e2e-${{ runner.os }}-${{ steps.pw-e2e.outputs.version }}
+
+      - name: Install Playwright Chromium (E2E browser)
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright-e2e
+        run: npx playwright install --with-deps chromium
+
+      # dist/ from the "Build (frontend)" step above is the artifact under
+      # test — playwright.config.ts's webServer serves it via `vite preview`,
+      # never the dev server, so this catches real integration bugs. Runs
+      # every spec under e2e/ (the Slice E smoke test plus Slice F's real
+      # onboarding journey, and any added later).
+      - name: E2E tests (Playwright)
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright-e2e
+          CI: true
+        run: npm run test:e2e
+
+      - name: Upload Playwright artifacts (trace/video on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

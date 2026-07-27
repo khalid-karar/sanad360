@@ -94,7 +94,7 @@ export default function PWAInstallPrompt() {
               className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               size="sm"
             >
-              <DownloadIcon className="w-4 h-4 mr-2" />
+              <DownloadIcon className="w-4 h-4 me-2" />
               {isInstalling 
                 ? (isRTL ? 'جاري التثبيت...' : 'Installing...')
                 : (isRTL ? 'تثبيت' : 'Install')

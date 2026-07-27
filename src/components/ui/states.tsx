@@ -57,7 +57,7 @@ export function ErrorState({
 }) {
   return (
     <Card className="bg-destructive/5 text-card-foreground border-destructive/30">
-      <CardContent className="pt-6 pb-6 flex items-center justify-between gap-4 flex-wrap">
+      <CardContent className="pt-6 pb-6 flex items-center justify-between gap-4 flex-wrap" role="alert">
         <div className="flex items-center gap-3">
           <AlertTriangleIcon className="w-5 h-5 text-destructive flex-shrink-0" aria-hidden />
           <p className="text-sm text-destructive">{message}</p>

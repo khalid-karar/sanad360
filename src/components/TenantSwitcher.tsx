@@ -3,16 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import type { Membership } from '../lib/database.types';
+import { homeRouteFor } from '../lib/roleRouting';
 import { Building2Icon } from 'lucide-react';
-
-// Role → landing route (mirrors App.tsx roleRoute)
-const ROLE_ROUTE: Record<string, string> = {
-  driver: '/driver',
-  owner: '/company',
-  manager: '/company',
-  dispatcher: '/transport',
-  admin: '/admin',
-};
 
 /**
  * Consultant tenant switcher (migration 012). Rendered only when the user
@@ -71,8 +63,8 @@ export default function TenantSwitcher() {
     setBusy(true);
     try {
       await switchTenant(membershipId);
-      const role = useAuthStore.getState().user?.role ?? 'driver';
-      navigate(ROLE_ROUTE[role] ?? '/login');
+      const next = useAuthStore.getState().user;
+      navigate(next ? homeRouteFor(next) : '/login');
     } finally {
       setBusy(false);
     }
@@ -80,13 +72,15 @@ export default function TenantSwitcher() {
 
   return (
     <div className="flex items-center gap-2">
-      <Building2Icon className="w-4 h-4 text-muted-foreground" />
+      <Building2Icon className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
       <select
         value={user.active_membership_id}
         disabled={busy}
         onChange={(e) => handleSwitch(e.target.value)}
-        className="bg-background text-foreground border border-input rounded-md px-2 py-1.5 text-sm max-w-[220px]"
+        className="bg-background text-foreground border border-input rounded-md px-2 py-1.5 text-sm max-w-[220px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         title={isRTL ? 'تبديل المنشأة' : 'Switch tenant'}
+        aria-label={isRTL ? 'تبديل المنشأة' : 'Switch tenant'}
+        aria-busy={busy}
       >
         {memberships.map((m: Membership) => (
           <option key={m.id} value={m.id}>

@@ -4,18 +4,20 @@ import { useAuthStore } from '../../stores/authStore';
 import AppShell from '../AppShell';
 import {
   listAssignments,
-  createAssignment,
+  createAssignmentRequest,
   updateAssignmentStatus,
 } from '../../lib/api/assignments';
 import { getDriversAndVehiclesForCompany } from '../../lib/api/companyTransporters';
 import { listBranches } from '../../lib/api/branches';
-import type { PickupAssignment, Branch, Driver, Vehicle } from '../../lib/database.types';
+import type { PickupAssignment, Branch, Driver } from '../../lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2Icon, PlusIcon, XIcon, TruckIcon, MessageCircleIcon } from 'lucide-react';
+import { Loader2Icon, PlusIcon, TruckIcon, MessageCircleIcon, CalendarClockIcon } from 'lucide-react';
 import { StatusBadge } from './statusBadge';
 import { DatePicker, DateTimePicker } from '@/components/ui/date-picker';
 import { formatDateTime } from '../../lib/format';
+import { LoadingState, EmptyState, ErrorState } from '@/components/ui/states';
+import { Modal } from '@/components/ui/modal';
 
 export default function PickupSchedulePage() {
   const navigate = useNavigate();
@@ -24,9 +26,12 @@ export default function PickupSchedulePage() {
 
   const [assignments, setAssignments] = useState<PickupAssignment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  // Read-only: resolves an ALREADY-assigned row's driver name/phone for
+  // display. Migration 044 — the company never CHOOSES a driver/vehicle
+  // (that's the linked transport company's dispatcher's job), so this pool
+  // is display-only now, never a select's option list.
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  // Whether the company has any active transporter that provides drivers/vehicles.
+  // Whether the company has any active transporter linked at all.
   const [hasTransporter, setHasTransporter] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +39,6 @@ export default function PickupSchedulePage() {
 
   // Form state
   const [branchId, setBranchId] = useState('');
-  const [driverId, setDriverId] = useState('');
-  const [vehicleId, setVehicleId] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly'>('none');
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
@@ -47,10 +50,11 @@ export default function PickupSchedulePage() {
     setLoading(true);
     setError(null);
     try {
-      // Load assignments, branches and the transporter-derived driver/vehicle
-      // pools together. getDriversAndVehiclesForCompany() resolves the company's
-      // active company_transporters links (replacing the old most-recent-pickup
-      // hack) and returns empty arrays when no transporter is linked.
+      // Load assignments, branches and the transporter-derived driver pool
+      // (display only — see the `drivers` state comment) together.
+      // getDriversAndVehiclesForCompany() resolves the company's active
+      // company_transporters links and returns empty arrays when no
+      // transporter is linked.
       const [list, branchList, pool] = await Promise.all([
         listAssignments({ companyId }),
         listBranches(companyId),
@@ -59,7 +63,6 @@ export default function PickupSchedulePage() {
       setAssignments(list);
       setBranches(branchList.filter((b) => b.status === 'active'));
       setDrivers(pool.drivers);
-      setVehicles(pool.vehicles);
       setHasTransporter(pool.drivers.length > 0 || pool.vehicles.length > 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
@@ -82,11 +85,12 @@ export default function PickupSchedulePage() {
     setSubmitting(true);
     setError(null);
     try {
-      await createAssignment({
+      // The company REQUESTS a pickup only — no driver/vehicle choice
+      // (migration 044: the linked transport company's dispatcher assigns
+      // its own fleet afterward).
+      await createAssignmentRequest({
         company_id: companyId,
         branch_id: branchId,
-        driver_id: driverId,
-        vehicle_id: vehicleId,
         scheduled_at: new Date(scheduledAt).toISOString(),
         recurrence,
         recurrence_until: recurrence !== 'none' && recurrenceUntil ? recurrenceUntil : undefined,
@@ -95,8 +99,6 @@ export default function PickupSchedulePage() {
       });
       setShowForm(false);
       setBranchId('');
-      setDriverId('');
-      setVehicleId('');
       setScheduledAt('');
       setRecurrence('none');
       setRecurrenceUntil('');
@@ -119,14 +121,16 @@ export default function PickupSchedulePage() {
   }
 
   // wa.me needs country-format digits; normalize 05xxxxxxxx -> 9665xxxxxxxx.
-  function driverPhone(id: string): string | null {
+  function driverPhone(id: string | null): string | null {
+    if (!id) return null;
     const raw = drivers.find((d) => d.id === id)?.phone;
     if (!raw) return null;
     const digits = raw.replace(/\D/g, '');
     return digits.startsWith('0') ? `966${digits.slice(1)}` : digits;
   }
 
-  function driverName(id: string): string {
+  function driverName(id: string | null): string {
+    if (!id) return isRTL ? 'بانتظار الإسناد' : 'Awaiting assignment';
     return drivers.find((d) => d.id === id)?.name_ar ?? id.slice(0, 8);
   }
 
@@ -153,10 +157,12 @@ export default function PickupSchedulePage() {
           )}
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {!loading && error && (
+          <ErrorState message={error} retry={reload} retryLabel={isRTL ? 'إعادة المحاولة' : 'Retry'} />
+        )}
 
         {/* No active transporter linked → block scheduling and guide the user. */}
-        {!loading && !hasTransporter ? (
+        {!error && (!loading && !hasTransporter ? (
           <Card className="bg-card text-card-foreground border-border">
             <CardContent className="py-12 flex flex-col items-center text-center gap-4">
               <TruckIcon className="w-10 h-10 text-muted-foreground" />
@@ -176,13 +182,15 @@ export default function PickupSchedulePage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2Icon className="w-6 h-6 animate-spin text-primary" />
-              </div>
+              <LoadingState label={isRTL ? 'جارٍ التحميل' : 'Loading'} />
             ) : assignments.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-6 text-center">
-                {isRTL ? 'لا توجد التقاطات مجدولة' : 'No scheduled pickups yet'}
-              </p>
+              <EmptyState
+                icon={<CalendarClockIcon />}
+                title={isRTL ? 'لا توجد التقاطات مجدولة' : 'No scheduled pickups yet'}
+                hint={isRTL
+                  ? 'اطلب التقاطاً جديداً باستخدام الزر أعلاه'
+                  : 'Request a new pickup using the button above'}
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -236,7 +244,7 @@ export default function PickupSchedulePage() {
                           <StatusBadge status={a.status} isRTL={isRTL} />
                         </td>
                         <td className="p-3 text-sm">
-                          {a.status === 'pending' && (
+                          {(a.status === 'requested' || a.status === 'pending') && (
                             <Button variant="outline" size="sm" onClick={() => handleCancel(a.id)}>
                               {isRTL ? 'إلغاء' : 'Cancel'}
                             </Button>
@@ -250,67 +258,28 @@ export default function PickupSchedulePage() {
             )}
           </CardContent>
         </Card>
-        )}
+        ))}
       </div>
 
-      {/* Schedule form modal */}
+      {/* Schedule form modal — CP7: was a hand-rolled `fixed inset-0` overlay
+          (no focus trap, no Escape handling); converted to the shared Modal
+          (Radix Dialog), same as every other dialog in this app. */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <Card className={`w-full max-w-md bg-card text-card-foreground border-border ${isRTL ? 'rtl' : 'ltr'}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{isRTL ? 'طلب التقاط' : 'Request Pickup'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setShowForm(false)}>
-                <XIcon className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent>
+        <Modal open onClose={() => setShowForm(false)} isRTL={isRTL} maxWidth="max-w-md" title={isRTL ? 'طلب التقاط' : 'Request Pickup'}>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'الفرع' : 'Branch'} *</label>
+                  <label className="text-sm font-medium text-foreground" htmlFor="schedule-branch">{isRTL ? 'الفرع' : 'Branch'} *</label>
                   <select
+                    id="schedule-branch"
                     value={branchId}
                     onChange={(e) => setBranchId(e.target.value)}
                     required
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <option value="">{isRTL ? 'اختر الفرع' : 'Select branch'}</option>
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>
                         {isRTL ? b.name_ar : b.name_en ?? b.name_ar}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'السائق' : 'Driver'} *</label>
-                  <select
-                    value={driverId}
-                    onChange={(e) => setDriverId(e.target.value)}
-                    required
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
-                  >
-                    <option value="">{isRTL ? 'اختر السائق' : 'Select driver'}</option>
-                    {drivers.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name_ar} — {d.license_number}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'المركبة' : 'Vehicle'} *</label>
-                  <select
-                    value={vehicleId}
-                    onChange={(e) => setVehicleId(e.target.value)}
-                    required
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
-                  >
-                    <option value="">{isRTL ? 'اختر المركبة' : 'Select vehicle'}</option>
-                    {vehicles.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.plate_number} — {v.type}
                       </option>
                     ))}
                   </select>
@@ -327,13 +296,14 @@ export default function PickupSchedulePage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium text-foreground">
+                    <label className="text-sm font-medium text-foreground" htmlFor="schedule-recurrence">
                       {isRTL ? 'التكرار' : 'Recurrence'}
                     </label>
                     <select
+                      id="schedule-recurrence"
                       value={recurrence}
                       onChange={(e) => setRecurrence(e.target.value as 'none' | 'daily' | 'weekly')}
-                      className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                      className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       <option value="none">{isRTL ? 'بدون تكرار' : 'One-time'}</option>
                       <option value="daily">{isRTL ? 'يومي' : 'Daily'}</option>
@@ -353,16 +323,23 @@ export default function PickupSchedulePage() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-foreground">{isRTL ? 'ملاحظات' : 'Notes'}</label>
+                  <label className="text-sm font-medium text-foreground" htmlFor="schedule-notes">{isRTL ? 'ملاحظات' : 'Notes'}</label>
                   <textarea
+                    id="schedule-notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                    className="mt-1 w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   />
                 </div>
 
-                {error && <p className="text-sm text-destructive">{error}</p>}
+                <p className="text-xs text-muted-foreground">
+                  {isRTL
+                    ? 'سيقوم الناقل المعتمد بإسناد السائق والمركبة لهذا الطلب.'
+                    : 'Your approved transporter will assign a driver and vehicle to this request.'}
+                </p>
+
+                {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
 
                 <div className="flex gap-3">
                   <Button type="submit" disabled={submitting} className="gap-2">
@@ -374,9 +351,7 @@ export default function PickupSchedulePage() {
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        </div>
+        </Modal>
       )}
     </AppShell>
   );

@@ -102,7 +102,12 @@ export default function WastePerformance() {
                 cy="50%"
                 labelLine={false}
                 outerRadius={100}
-                fill="#8884d8"
+                // CP7: Recharts requires a Pie-level fallback fill, but
+                // every data point below supplies its own <Cell fill=.../>
+                // (already token-based) so this never actually renders —
+                // was a raw-hex template leftover (#8884d8); now token-based
+                // too, for the theoretical case of an entry missing a color.
+                fill="hsl(var(--primary))"
                 dataKey="value"
                 nameKey={isRTL ? "name" : "nameEn"}
                 label={({ percent }) => `${(percent * 100).toFixed(0)}%`}

@@ -349,11 +349,14 @@ export default function BranchesPage() {
               {qrDataUrl ? (
                 <img src={qrDataUrl} alt="Branch QR" className="mx-auto w-56 h-56 rounded-md border border-border bg-white p-2" />
               ) : (
-                <div className="mx-auto w-56 h-56 rounded-md border border-border bg-muted flex items-center justify-center text-sm text-muted-foreground">
+                <div
+                  className="mx-auto w-56 h-56 rounded-md border border-border bg-muted flex items-center justify-center text-sm text-muted-foreground"
+                  role="status"
+                >
                   {isRTL ? 'جارٍ التحميل...' : 'Loading...'}
                 </div>
               )}
-              {qrError && <p className="text-xs text-destructive">{qrError}</p>}
+              {qrError && <p className="text-xs text-destructive" role="alert">{qrError}</p>}
               <p className="text-xs text-muted-foreground">
                 {isRTL
                   ? 'اترك هذا الجهاز ظاهراً عند نقطة تسليم النفايات — الرمز يتجدد تلقائياً ويمسحه السائق'
